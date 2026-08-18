@@ -16,11 +16,20 @@ const PIECE_NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen'
 // never landed.
 const ASSET_VERSION = '';
 
-export const pieceImage = (type, color) => {
+export const pieceImage = (type, color, skin = null) => {
+  if (type === 'u' || type === 'duck') {
+    return `assets/duck-yellow.png${ASSET_VERSION}`;
+  }
   const def = pieceById(type);
-  const sprite = def?.sprite || PIECE_NAMES[type] || 'pawn';
+  let sprite = def?.sprite || PIECE_NAMES[type] || 'pawn';
+  if (type === 'k' && skin && skin !== 'king') sprite = skin;
   return `assets/${sprite}-${color === WHITE ? 'white' : 'black'}.png${ASSET_VERSION}`;
 };
+
+export function kingSkin(id) {
+  if (!id || id === 'plain') return 'king';
+  return `king-${id}`;
+}
 
 export const pieceHue = (type) => pieceById(type)?.hue || 0;
 
@@ -49,6 +58,7 @@ export class BoardView {
     this.files = 8;
     this.ranks = 8;
     this.squares = new Map();
+    this.whiteKingSkin = 'king';
     this.resize(8, 8);
 
     root.addEventListener('pointerdown', (e) => this.onPointerDown(e));
@@ -64,13 +74,13 @@ export class BoardView {
   resize(files, ranks) {
     this.files = files;
     this.ranks = ranks;
-    const wrap = this.root.parentElement;
+    const wrap = this.root.closest('.board-wrap') || this.root.parentElement;
     if (wrap) {
-      wrap.style.setProperty('--files', files);
-      wrap.style.setProperty('--ranks', ranks);
+      wrap.style.setProperty('--files', String(files));
+      wrap.style.setProperty('--ranks', String(ranks));
     }
-    this.root.style.setProperty('--files', files);
-    this.root.style.setProperty('--ranks', ranks);
+    this.root.style.setProperty('--files', String(files));
+    this.root.style.setProperty('--ranks', String(ranks));
     this.root.classList.toggle('sized', files !== 8 || ranks !== 8);
     this.root.dataset.files = String(files);
     this.root.dataset.ranks = String(ranks);
@@ -114,29 +124,47 @@ export class BoardView {
     if (!on) this.clearSelection();
   }
 
+  setWhiteKingSkin(skin) {
+    this.whiteKingSkin = skin || 'king';
+  }
+
   // ---- rendering ---------------------------------------------------------
 
   /** Rebuilds every piece from the position. Used on new games and take-backs. */
   syncFromGame(game) {
-    if (game.files !== this.files || game.ranks !== this.ranks) {
-      this.resize(game.files, game.ranks);
-    }
+    this.resize(game.files || 8, game.ranks || 8);
     this.pieceLayer.innerHTML = '';
     this.pieceEls.clear();
     this.paintTerrain(game);
     for (const piece of game.pieces()) {
       this.addPiece(piece.square, piece.type, piece.color, piece.status);
     }
+    this.syncDuck(game);
     this.clearSelection();
+  }
+
+  syncDuck(game) {
+    if (this.duckEl) {
+      this.duckEl.remove();
+      this.duckEl = null;
+    }
+    if (game.duck == null || game.duck < 0) return;
+    const el = document.createElement('div');
+    el.className = 'piece duck-token';
+    el.style.backgroundImage = `url('${pieceImage('u')}')`;
+    this.placeSquare(el, game.duck);
+    this.pieceLayer.appendChild(el);
+    this.duckEl = el;
   }
 
   paintTerrain(game) {
     for (const [sq, el] of this.squares) {
-      el.classList.remove('tile-block', 'tile-frost', 'tile-fort');
+      el.classList.remove('tile-block', 'tile-frost', 'tile-fort', 'tile-fire');
       const tile = game.tileAt(sq);
       if (tile === TILE.BLOCK) el.classList.add('tile-block');
       else if (tile === TILE.FROST) el.classList.add('tile-frost');
       else if (tile === TILE.FORT) el.classList.add('tile-fort');
+      if (game.isFire?.(sq) || tile === TILE.FIRE) el.classList.add('tile-fire');
     }
   }
 
@@ -144,16 +172,10 @@ export class BoardView {
     const el = document.createElement('div');
     el.className = `piece ${color === WHITE ? 'white' : 'black'}`;
     el.dataset.type = type;
-    el.style.backgroundImage = `url('${pieceImage(type, color)}')`;
+    const skin = (type === 'k' && color === WHITE) ? this.whiteKingSkin : null;
+    el.style.backgroundImage = `url('${pieceImage(type, color, skin)}')`;
     const hue = pieceHue(type);
     if (hue) el.style.filter = `hue-rotate(${hue}deg) drop-shadow(0 3px 3px rgba(0,0,0,0.45))`;
-    const def = pieceById(type);
-    if (def && !PIECE_NAMES[type]) {
-      const badge = document.createElement('span');
-      badge.className = 'piece-badge';
-      badge.textContent = def.name[0];
-      el.appendChild(badge);
-    }
     this.applyStatus(el, status);
     this.placeSquare(el, sq);
     this.pieceLayer.appendChild(el);
@@ -170,6 +192,7 @@ export class BoardView {
     for (const [sq, el] of this.pieceEls) {
       this.applyStatus(el, game.statusAt(sq));
     }
+    this.paintTerrain(game);
   }
 
   /**
@@ -317,6 +340,10 @@ export class BoardView {
     if (!this.interactive || event.button === 2) return;
     const sq = this.squareFromEvent(event);
     if (sq == null) return;
+    if (this.handlers.isPlacingDuck?.()) {
+      this.handlers.onPlaceDuck?.(sq);
+      return;
+    }
 
     const mine = this.handlers.canPickUp(sq);
 

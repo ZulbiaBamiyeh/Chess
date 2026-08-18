@@ -10,19 +10,17 @@ or run it locally (see below). Every push deploys through GitHub Actions.
 
 ## What's in it
 
-- **A run.** Six fights and two shops. Boards from a 5×3 alley to a 6×6
-  throne. Each opponent sets a **supply** budget — you pick a loadout from
-  your bag, and captured pieces come home afterwards.
-- **King capture.** Checks do not bind you. Taking their king wins the
-  fight; losing yours costs a heart. Army HP is the remaining cost of your
-  standing pieces, and gold on a win scales with how much of that army is
-  still up.
-- **Fairy pieces** in a data-driven registry: ferz, wazir, camel, champion,
-  princess, empress, amazon, hopper. Terrain tiles (block, frost, fort)
-  and statuses (frozen, shielded) are real board state.
-- **The shop.** Buy pieces into rarity-limited bag slots, a persistent
-  **+1 supply** (the deploy-limit upgrade), or a king passive (Aegis, Dash,
-  Tithe, Command).
+- **A run.** Three acts on a branching map, a boss at the end of each.
+  Trash fights are small boards; elites are nastier; bosses play on 8×8.
+- **King capture ends the fight.** Losing yours costs **HP**, not the run.
+  Rest nodes and the shop heal. Pieces always come home.
+- **Bag + supply.** Commons are uncapped; rares, epics and one legendary
+  slot are limited. Each fight has a point budget (classic values stay
+  classic).
+- **Drops.** Beating someone can yield gold or one of *their* pieces.
+- **Shop.** Rarity weights climb by act. Kings are a single loud passive
+  (Aegis, Pioneer, Court, Pyre, Hoarfrost).
+- **Fairy pieces** live in the shop and in drops — discover them there.
 - **Classic chess** is still here — every rule, five opponents, verified
   against the standard perft counts.
 

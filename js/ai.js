@@ -91,6 +91,11 @@ const PST = {
 const MATE = 100000;
 const MAX_QUIESCENCE = 6;
 
+/** True when this capture actually removes the royal — a shield bounce does not. */
+function killsRoyal(move) {
+  return Boolean(move && move.captured === KING && !(move.flags & FLAG.SHIELD_BREAK));
+}
+
 /** Difficulty presets, exposed so the UI can label them. */
 export const LEVELS = [
   { id: 1, name: 'Pawn',   blurb: 'Sees one move ahead, and often looks away.', depth: 2, slip: 0.42, budget: 200 },
@@ -207,6 +212,7 @@ function centerBonus(col, row, files, ranks) {
 }
 
 function moveScore(move, killers, ply) {
+  if (killsRoyal(move)) return 5000000;
   if (move.captured) {
     return 10000 + pieceVal(move.captured) * 10 - pieceVal(move.piece);
   }
@@ -259,6 +265,7 @@ class Search {
     const moves = order(game.moves({ capturesOnly: true }), this.killers, 0, null);
     let best = stand;
     for (const move of moves) {
+      if (killsRoyal(move)) return MATE;
       // Delta pruning: a capture that cannot possibly reach alpha is noise.
       if (move.captured && stand + pieceVal(move.captured) + 200 < alpha) continue;
       game.makeMove(move);
@@ -287,6 +294,11 @@ class Search {
     if (game.kings[game.turn === WHITE ? BLACK : WHITE] < 0) return MATE - ply;
 
     const moves = game.moves();
+    const royalKill = moves.find(killsRoyal);
+    if (royalKill) {
+      if (ply === 0) this.rootBest = royalKill;
+      return MATE - ply;
+    }
     if (moves.length === 0) {
       // Mate scores are pushed toward zero by distance, so the search prefers
       // mate in two over mate in four. King-capture treats a smothered side
@@ -327,9 +339,23 @@ export function chooseMove(position, level) {
   const legal = game.moves();
   if (legal.length === 0) return null;
 
+  // Taking the king ends the fight. Never search past it and never slip off it
+  // — an easy opponent still knows how to finish.
+  const royalKill = legal.find(killsRoyal);
+  if (royalKill) {
+    return {
+      from: royalKill.from,
+      to: royalKill.to,
+      promotion: royalKill.promotion || null,
+      score: MATE,
+      depth: 0,
+      nodes: 0,
+    };
+  }
+
   // The "slip": weaker levels sometimes play a random legal move instead of the
-  // one they found. Captures and checks are excluded from the slip so it looks
-  // like an oversight rather than a nonsense move.
+  // one they found. Captures are excluded from the slip so it looks like an
+  // oversight rather than a nonsense move.
   if (level.slip > 0 && Math.random() < level.slip) {
     const quiet = legal.filter((m) => !m.captured);
     const pool = quiet.length ? quiet : legal;
@@ -366,4 +392,32 @@ export function chooseMove(position, level) {
     depth: reached,
     nodes: search.nodes,
   };
+}
+
+/** After a piece move in Duck Chess, park the duck. Heuristic, not a search. */
+export function chooseDuck(game) {
+  const options = game.duckSquares();
+  if (!options.length) return null;
+  const us = game.turn === WHITE ? BLACK : WHITE; // side that just moved
+  const them = game.turn;
+  let best = options[0];
+  let bestScore = -Infinity;
+  for (const sq of options) {
+    let score = 0;
+    const king = game.kings[them];
+    if (king >= 0) {
+      const df = Math.abs((sq & 15) - (king & 15));
+      const dr = Math.abs((sq >> 4) - (king >> 4));
+      if (df <= 1 && dr <= 1 && (df || dr)) score += 40;
+    }
+    const ours = game.kings[us];
+    if (ours >= 0) {
+      const df = Math.abs((sq & 15) - (ours & 15));
+      const dr = Math.abs((sq >> 4) - (ours >> 4));
+      score -= (df + dr);
+    }
+    score += ((sq & 15) === ((game.files / 2) | 0) ? 2 : 0);
+    if (score > bestScore) { bestScore = score; best = sq; }
+  }
+  return best;
 }

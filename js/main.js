@@ -3,7 +3,7 @@
 // the HUD, take-backs and the end-of-game flow.
 
 import { Chess, WHITE, BLACK, FLAG } from './chess.js';
-import { LEVELS, levelById } from './ai.js';
+import { LEVELS, levelById, chooseDuck } from './ai.js';
 import { pieceCost } from './pieces.js';
 import { ShaderBackground } from './bg.js';
 import { audio } from './audio.js';
@@ -175,6 +175,10 @@ function refreshStatus() {
     setStatus(`${foe} is thinking`, 'thinking');
     return;
   }
+  if (state.game.awaitingDuck) {
+    setStatus(state.game.turn !== state.playerColor ? 'Park the duck' : 'They park the duck');
+    return;
+  }
   if (state.game.turn === state.playerColor) {
     setStatus(state.game.inCheck() ? 'You are in check' : 'Your move',
       state.game.inCheck() ? 'danger' : '');
@@ -228,9 +232,44 @@ function playMove(from, to, promotion) {
   updateHud();
 
   if (checkGameOver()) return true;
+  if (state.mode === 'run' && state.campaign && state.game.turn !== state.playerColor) {
+    if (state.campaign.tickClock()) {
+      state.campaign.onFightOver({ timeout: true });
+      return true;
+    }
+  }
+  if (state.game.awaitingDuck) {
+    beginDuckPlace(state.playerColor);
+    return true;
+  }
   refreshStatus();
   if (state.game.turn !== state.playerColor) scheduleOpponent();
   return true;
+}
+
+function beginDuckPlace(who) {
+  state.view.clearSelection();
+  for (const sq of state.game.duckSquares()) {
+    state.view.squares.get(sq)?.classList.add('target');
+  }
+  state.view.squares.get(state.game.duck)?.classList.add('duck-here');
+  setStatus(who === state.playerColor ? 'Park the duck' : 'They park the duck', '');
+}
+
+function onPlaceDuck(sq) {
+  if (!state.game.awaitingDuck) return;
+  if (!state.game.placeDuck(sq)) {
+    audio.illegal();
+    state.view.reject(sq);
+    return;
+  }
+  audio.place();
+  state.view.syncDuck(state.game);
+  state.view.clearSelection();
+  if (checkGameOver()) return;
+  refreshStatus();
+  if (state.game.turn !== state.playerColor) scheduleOpponent();
+  else state.view.setInteractive(true);
 }
 
 function checkGameOver() {
@@ -301,6 +340,12 @@ function scheduleOpponent() {
       reactTo(move);
       updateHud();
       if (checkGameOver()) return;
+      if (state.game.awaitingDuck) {
+        const duckSq = result.duck ?? chooseDuck(state.game);
+        if (duckSq != null) state.game.placeDuck(duckSq);
+        state.view.syncDuck(state.game);
+      }
+      if (checkGameOver()) return;
       state.view.setInteractive(true);
       refreshStatus();
     }, wait);
@@ -336,7 +381,7 @@ function askPromotion(from, to) {
 // ---- board handlers --------------------------------------------------------
 
 function canPickUp(sq) {
-  if (state.gameOver || state.thinking) return false;
+  if (state.gameOver || state.thinking || state.game.awaitingDuck) return false;
   const piece = state.game.get(sq);
   return Boolean(piece) && piece.color === state.playerColor &&
     state.game.turn === state.playerColor;
@@ -468,8 +513,12 @@ function init() {
   state.background = new ShaderBackground($('bg-canvas'));
   state.background.start();
 
-  state.view = new BoardView($('board'), { onAttemptMove, canPickUp, legalTargets,
-    onPickUp: () => audio.lift() });
+  state.view = new BoardView($('board'), {
+    onAttemptMove, canPickUp, legalTargets,
+    onPickUp: () => audio.lift(),
+    isPlacingDuck: () => Boolean(state.game?.awaitingDuck && state.game.turn !== state.playerColor),
+    onPlaceDuck,
+  });
 
   setupWorker();
   buildLevelPicker();
@@ -504,6 +553,7 @@ function init() {
       ? (Math.random() < 0.5 ? WHITE : BLACK)
       : (state.chosenSide === 'b' ? BLACK : WHITE);
     state.settings.flip = false;
+    audio.setMusicStyle('fight');
     showScreen('screen-game');
     newGame();
   });
@@ -522,6 +572,7 @@ function init() {
     state.generation++;
     state.gameOver = true;
     state.thinking = false;
+    audio.setMusicStyle('ambient');
     if (state.mode === 'run') state.campaign.abandon();
     else showScreen('screen-start');
   });
@@ -535,6 +586,7 @@ function init() {
   });
   $('btn-result-menu').addEventListener('click', () => {
     $('modal-result').classList.add('hidden');
+    audio.setMusicStyle('ambient');
     if (state.mode === 'run') state.campaign.abandon();
     else showScreen('screen-start');
   });

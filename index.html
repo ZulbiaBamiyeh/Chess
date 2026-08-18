@@ -19,6 +19,13 @@
   <section id="screen-start" class="screen">
     <div class="title-wrap">
       <h1 class="game-title">GAM<span class="title-knight">♞</span>BIT</h1>
+      <div class="title-deco" aria-hidden="true">
+        <i style="background-image:url('assets/rook-white.png')"></i>
+        <i style="background-image:url('assets/knight-white.png')"></i>
+        <i style="background-image:url('assets/king-white.png')"></i>
+        <i style="background-image:url('assets/bishop-white.png')"></i>
+        <i style="background-image:url('assets/pawn-white.png')"></i>
+      </div>
       <p class="subtitle">Capture the king. Keep your army. Spend your supply.</p>
     </div>
 
@@ -76,15 +83,12 @@
   <section id="screen-howto" class="screen hidden">
     <div class="howto-card">
       <h2>How to Play</h2>
-      <ul>
-        <li><strong>A run.</strong> A string of fights on shrinking and growing boards. Capture their king to win the fight. They win by taking yours.</li>
-        <li><strong>Loadout.</strong> Lost pieces come home. Before each fight you pick what to deploy, up to that opponent's supply. Small fights really are three pieces on a tight board.</li>
-        <li><strong>Army HP.</strong> The bar is the cost of whatever you still have standing. Win with more of your army intact and you leave with more gold.</li>
-        <li><strong>The shop.</strong> Spend gold on pieces, a deeper reserve (+1 supply every fight), or a king passive. The bag is slot-limited by rarity.</li>
-        <li><strong>Terrain.</strong> Blocked squares cannot be entered. Frost freezes a piece for a turn. A fort grants a shield — the first hit knocks the piece aside instead of taking it.</li>
-        <li><strong>Moving.</strong> Drag a piece, or click it and click where it goes. <kbd>U</kbd> take back (classic) &middot; <kbd>F</kbd> flip &middot; <kbd>Esc</kbd> put a piece down.</li>
-        <li><strong>Classic chess</strong> is still here — every rule, five opponents, the original board.</li>
-      </ul>
+      <p>This is a chess <strong>roguelike</strong>.</p>
+      <p>You climb a branching map through three acts and try to take the last king. Early fights are small boards with a few pieces. Bosses play on a full chessboard.</p>
+      <p>Capture their king to win a fight. Lose yours — or find no way to take theirs — and the run is over. Fast wins still pay more.</p>
+      <p>Pieces always come home. Gold and the occasional drop go in the bag. Shops get stranger as you go. One legendary slot until you upgrade it. One king leads the run; others wait in the bag.</p>
+      <p>The rest is on the road.</p>
+      <p class="howto-keys">Drag or click to move. <kbd>F</kbd> flip · <kbd>Esc</kbd> put a piece down.</p>
       <button id="btn-howto-close" class="btn btn-gold">Got It</button>
     </div>
   </section>
@@ -94,9 +98,9 @@
     <header class="topbar">
       <span class="brand">GAM<span class="title-knight">♞</span>BIT</span>
       <div id="run-hud" class="run-hud hidden">
-        <span id="hud-hearts" class="hud-hearts">♥♥♥</span>
-        <span id="hud-gold" class="hud-gold">0g</span>
-        <span id="hud-army" class="hud-army">Army 0</span>
+        <span id="hud-clock" class="hud-chip hud-clock hidden">10</span>
+        <span id="hud-gold" class="hud-chip hud-gold">0g</span>
+        <span id="hud-army" class="hud-chip hud-army">Army 0</span>
       </div>
       <div id="status" class="status">Your move</div>
       <div class="topbar-controls">
@@ -164,19 +168,25 @@
     <header class="topbar map-top">
       <span class="brand">GAM<span class="title-knight">♞</span>BIT</span>
       <div class="run-hud">
-        <span id="map-hearts" class="hud-hearts">♥♥♥</span>
-        <span id="map-gold" class="hud-gold">0g</span>
-        <span id="map-supply" class="hud-army">Supply +0</span>
+        <button id="map-king" class="hud-chip hud-king" type="button" title="Active king">
+          <i id="map-king-art"></i><span id="map-king-name">Plain King</span>
+        </button>
+        <span id="map-gold" class="hud-chip hud-gold">0g</span>
+        <span id="map-supply" class="hud-chip hud-army">Supply +0</span>
       </div>
       <div class="topbar-controls">
+        <button id="btn-map-bag" class="btn btn-ghost btn-bag" title="Open the bag">Bag</button>
         <button id="btn-map-quit" class="icon-btn" title="Abandon the run">✕</button>
       </div>
     </header>
-    <h2 class="map-heading">The road</h2>
-    <div id="map-path" class="map-path"></div>
-    <p id="map-blurb" class="map-blurb"></p>
-    <div class="menu-buttons">
-      <button id="btn-map-go" class="btn btn-gold btn-big">Continue</button>
+    <div id="map-stage" class="map-stage">
+      <div id="map-scroll" class="map-scroll">
+        <div id="map-art" class="map-art act-0"></div>
+        <div class="map-fog"></div>
+        <p id="map-act-label" class="map-act-label">ACT I</p>
+        <div id="map-climb" class="map-climb"></div>
+      </div>
+      <p id="map-blurb" class="map-blurb"></p>
     </div>
   </section>
 
@@ -186,8 +196,10 @@
       <span class="brand">GAM<span class="title-knight">♞</span>BIT</span>
       <div id="loadout-title" class="status">The Gate</div>
       <div class="run-hud">
-        <span id="load-hearts" class="hud-hearts">♥♥♥</span>
-        <span id="load-gold" class="hud-gold">0g</span>
+        <span id="load-king" class="hud-chip hud-king">
+          <i id="load-king-art"></i><span id="load-king-name">Plain King</span>
+        </span>
+        <span id="load-gold" class="hud-chip hud-gold">0g</span>
       </div>
     </header>
     <p id="loadout-blurb" class="loadout-blurb"></p>
@@ -208,13 +220,24 @@
           </div>
           <div id="coords-files-deploy" class="coords coords-files"></div>
         </div>
-        <p class="deploy-hint">Click a bag piece, then a highlighted home square. The king is already down.</p>
+        <p class="deploy-hint">Gold squares are open. Dark squares are closed — walls, their pieces, or their half of the board. Your king is already down.</p>
       </div>
       <div class="loadout-side">
         <div class="supply-meter">
           <h3 class="rail-title">Supply</h3>
           <div id="supply-text" class="supply-text">0 / 6</div>
           <div class="supply-bar"><i id="supply-fill"></i></div>
+        </div>
+        <div id="move-diagram" class="move-diagram empty">
+          <div class="md-head">
+            <i id="md-art" class="howto-art"></i>
+            <div>
+              <b id="md-name">How it moves</b>
+              <span id="md-blurb">Click a piece in the bag.</span>
+              <span id="md-cost"></span>
+            </div>
+          </div>
+          <div id="md-board" class="md-board"></div>
         </div>
         <div id="loadout-selected" class="selected-list"></div>
         <button id="btn-loadout-auto" class="btn btn-ghost btn-wide">Auto-place</button>
@@ -225,19 +248,50 @@
     </div>
   </section>
 
+  <!-- ===================== REST ===================== -->
+  <section id="screen-rest" class="screen hidden">
+    <header class="topbar">
+      <span class="brand">GAM<span class="title-knight">♞</span>BIT</span>
+      <div class="run-hud">
+        <span id="rest-king" class="hud-chip hud-king">
+          <i id="rest-king-art"></i><span id="rest-king-name">Plain King</span>
+        </span>
+        <span id="rest-gold" class="hud-chip hud-gold">0g</span>
+      </div>
+      <div class="topbar-controls">
+        <button id="btn-rest-bag" class="btn btn-ghost btn-bag" title="Open the bag">Bag</button>
+      </div>
+    </header>
+    <div class="rest-card">
+      <img class="rest-ico" src="assets/map-rest.png" alt="" width="72" height="72">
+      <h2>A Quiet Square</h2>
+      <p id="rest-detail">Recover.</p>
+      <div class="menu-buttons">
+        <button id="btn-rest" class="btn btn-gold btn-big">Camp</button>
+        <button id="btn-rest-back" class="btn btn-ghost">Back</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ===================== SHOP ===================== -->
   <section id="screen-shop" class="screen hidden">
     <header class="topbar">
       <span class="brand">GAM<span class="title-knight">♞</span>BIT</span>
       <div id="shop-name" class="status">Shop</div>
       <div class="run-hud">
-        <span id="shop-hearts" class="hud-hearts">♥♥♥</span>
-        <span id="shop-gold" class="hud-gold">0g</span>
+        <span id="shop-king" class="hud-chip hud-king">
+          <i id="shop-king-art"></i><span id="shop-king-name">Plain King</span>
+        </span>
+        <span id="shop-gold" class="hud-chip hud-gold">0g</span>
+      </div>
+      <div class="topbar-controls">
+        <button id="btn-shop-bag" class="btn btn-ghost btn-bag" title="Open the bag">Bag</button>
       </div>
     </header>
     <p id="shop-blurb" class="map-blurb"></p>
-    <p id="shop-bag" class="shop-bag"></p>
-    <div id="shop-offers" class="shop-offers"></div>
+    <div class="shop-stage">
+      <div id="shop-offers" class="shop-offers"></div>
+    </div>
     <div class="menu-buttons">
       <button id="btn-shop-reroll" class="btn btn-ghost">Reroll (2g)</button>
       <button id="btn-shop-leave" class="btn btn-gold">Leave</button>
@@ -253,6 +307,31 @@
         <button id="btn-continue" class="btn btn-gold btn-big hidden">Continue</button>
         <button id="btn-retry" class="btn btn-ghost hidden">Retry fight</button>
         <button id="btn-result-menu" class="btn btn-ghost">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-bag" class="bag-panel hidden" aria-hidden="true">
+    <div class="bag-panel-card">
+      <header class="bag-panel-head">
+        <h2>The Bag</h2>
+        <button id="btn-bag-close" class="icon-btn" title="Close">✕</button>
+      </header>
+      <p id="bag-panel-slots" class="slot-line"></p>
+      <h3 class="bag-panel-label">Kings</h3>
+      <div id="bag-kings" class="bag-grid"></div>
+      <h3 class="bag-panel-label">Pieces</h3>
+      <div id="bag-counts" class="bag-grid"></div>
+      <div id="bag-diagram" class="move-diagram empty">
+        <div class="md-head">
+          <i id="bag-md-art" class="howto-art"></i>
+          <div>
+            <b id="bag-md-name">How it moves</b>
+            <span id="bag-md-blurb">Click a piece or a king.</span>
+            <span id="bag-md-cost"></span>
+          </div>
+        </div>
+        <div id="bag-md-board" class="md-board"></div>
       </div>
     </div>
   </div>

@@ -4,16 +4,17 @@
 
 export const RARITY = {
   COMMON: 'common',
-  UNCOMMON: 'uncommon',
   RARE: 'rare',
+  EPIC: 'epic',
   LEGENDARY: 'legendary',
   UNIQUE: 'unique',
 };
 
+/** Commons are uncapped. Rare / epic / legendary are slot-limited. */
 export const SLOT_CAPS = {
-  common: 6,
-  uncommon: 3,
-  rare: 2,
+  common: Infinity,
+  rare: 3,
+  epic: 2,
   legendary: 1,
 };
 
@@ -42,6 +43,11 @@ const DABBABA = [[2, 0], [-2, 0], [0, 2], [0, -2]];
  * @property {number[][]} [hopper]  grasshopper-style hop rays
  * @property {boolean} [pawn]
  * @property {boolean} [royal]
+ * @property {boolean} [cannotCapture]
+ * @property {boolean} [paintsFire]
+ * @property {boolean} [ice]
+ * @property {boolean} [wisp]
+ * @property {boolean} [shop]
  */
 
 /** @type {Record<string, PieceDef>} */
@@ -60,11 +66,11 @@ export const PIECES = {
   },
   r: {
     id: 'r', name: 'Rook', blurb: 'Slides on the files and ranks.',
-    cost: 5, rarity: RARITY.UNCOMMON, value: 500, sprite: 'rook', slides: R,
+    cost: 5, rarity: RARITY.RARE, value: 500, sprite: 'rook', slides: R,
   },
   q: {
     id: 'q', name: 'Queen', blurb: 'Bishop and rook in one body.',
-    cost: 9, rarity: RARITY.RARE, value: 900, sprite: 'queen', slides: K,
+    cost: 9, rarity: RARITY.EPIC, value: 900, sprite: 'queen', slides: K,
   },
   k: {
     id: 'k', name: 'King', blurb: 'One step any way. Capture it and the fight ends.',
@@ -72,28 +78,28 @@ export const PIECES = {
   },
   f: {
     id: 'f', name: 'Ferz', blurb: 'A single diagonal step.',
-    cost: 2, rarity: RARITY.COMMON, value: 150, sprite: 'bishop', hue: 28, leaps: B,
+    cost: 2, rarity: RARITY.COMMON, value: 150, sprite: 'ferz', leaps: B,
   },
   w: {
     id: 'w', name: 'Wazir', blurb: 'A single orthogonal step.',
-    cost: 2, rarity: RARITY.COMMON, value: 160, sprite: 'rook', hue: 195, leaps: R,
+    cost: 2, rarity: RARITY.COMMON, value: 160, sprite: 'wazir', leaps: R,
   },
   c: {
     id: 'c', name: 'Camel', blurb: 'The long 3–1 leap. Jumps anything.',
-    cost: 4, rarity: RARITY.UNCOMMON, value: 280, sprite: 'knight', hue: 38, leaps: C,
+    cost: 3, rarity: RARITY.RARE, value: 280, sprite: 'camel', leaps: C,
   },
   h: {
     id: 'h', name: 'Champion', blurb: 'Wazir, alfil and dabbaba — short and long.',
-    cost: 5, rarity: RARITY.UNCOMMON, value: 420, sprite: 'king', hue: 168,
+    cost: 5, rarity: RARITY.RARE, value: 420, sprite: 'king', hue: 168,
     leaps: [...R, ...ALFIL, ...DABBABA],
   },
   s: {
     id: 's', name: 'Princess', blurb: 'Bishop plus knight.',
-    cost: 7, rarity: RARITY.RARE, value: 780, sprite: 'bishop', hue: 280, leaps: N, slides: B,
+    cost: 7, rarity: RARITY.EPIC, value: 780, sprite: 'bishop', hue: 280, leaps: N, slides: B,
   },
   t: {
     id: 't', name: 'Empress', blurb: 'Rook plus knight.',
-    cost: 8, rarity: RARITY.RARE, value: 850, sprite: 'rook', hue: 155, leaps: N, slides: R,
+    cost: 8, rarity: RARITY.EPIC, value: 850, sprite: 'rook', hue: 155, leaps: N, slides: R,
   },
   a: {
     id: 'a', name: 'Amazon', blurb: 'Queen plus knight. A problem.',
@@ -101,7 +107,24 @@ export const PIECES = {
   },
   g: {
     id: 'g', name: 'Hopper', blurb: 'Hops the first piece it meets, lands just beyond.',
-    cost: 3, rarity: RARITY.UNCOMMON, value: 260, sprite: 'pawn', hue: 95, hopper: K,
+    cost: 3, rarity: RARITY.RARE, value: 260, sprite: 'hopper', hopper: K,
+  },
+  d: {
+    id: 'd', name: 'Drake', blurb: 'A living wall. Cannot capture, and cannot be taken.',
+    cost: 2, rarity: RARITY.RARE, value: 220, sprite: 'drake', leaps: K,
+    cannotCapture: true, uncapturable: true,
+  },
+  i: {
+    id: 'i', name: 'Rime', blurb: 'One step any way. Landing freezes every adjacent enemy.',
+    cost: 4, rarity: RARITY.RARE, value: 300, sprite: 'ice', leaps: K, ice: true,
+  },
+  l: {
+    id: 'l', name: 'Flame', blurb: 'A bishop whose path burns for a turn.',
+    cost: 5, rarity: RARITY.EPIC, value: 480, sprite: 'firebishop', slides: B, paintsFire: true,
+  },
+  y: {
+    id: 'y', name: 'Wisp', blurb: 'If it is taken, the taker dies with it.',
+    cost: 6, rarity: RARITY.LEGENDARY, value: 400, sprite: 'wisp', leaps: B, wisp: true,
   },
 };
 
@@ -135,7 +158,11 @@ export function rarityOf(id) {
 }
 
 export function shopPool() {
-  return Object.values(PIECES).filter((p) => p.rarity !== RARITY.UNIQUE);
+  return Object.values(PIECES).filter((p) => p.rarity !== RARITY.UNIQUE && p.shop !== false);
+}
+
+export function isQueenLike(id) {
+  return id === 'q' || id === 't' || id === 'a';
 }
 
 /** Offsets in 0x88 (`dr * 16 + df`) for a list of [file, rank] vectors. */

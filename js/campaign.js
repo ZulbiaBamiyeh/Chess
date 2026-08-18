@@ -1,14 +1,16 @@
 // Run screens: map, loadout, shop, and the fight overlay on the shared board.
 
-import { WHITE, BLACK, FLAG, parseSquare, squareName } from './chess.js';
+import { WHITE, BLACK, FLAG, parseSquare, squareName, TILE } from './chess.js';
 import { pieceById, pieceCost, rarityOf } from './pieces.js';
-import { BoardView, pieceImage, pieceHue, shake, confetti, toast } from './ui.js';
+import { BoardView, pieceImage, pieceHue, kingSkin, shake, confetti, toast } from './ui.js';
 import {
   createRun, currentNode, validateLoadout, buildFight, settleFight,
-  openShop, buyOffer, rerollShop, closeShop, advance, retryAllowed,
-  autoPlace, supplyBudget, occupiedSlots, homeSquares, freeHomeSquares,
+  openShop, buyOffer, rerollShop, closeShop, retryAllowed,
+  autoPlace, supplyBudget, occupiedSlots, freeHomeSquares,
+  completeNode, pickNode, rest, REST_GOLD, turnClock,
+  bagSummary, equipKing,
 } from './run.js';
-import { ENCOUNTERS } from './content.js';
+import { encounterFor, kingDef } from './content.js';
 
 export function initCampaign(ctx) {
   const {
@@ -20,30 +22,30 @@ export function initCampaign(ctx) {
   let selectedUid = null;
   let placements = []; // { uid, type, sq }
 
-  function hearts(n) {
-    return '♥'.repeat(Math.max(0, n)) + '♡'.repeat(Math.max(0, 3 - n));
-  }
-
   function paintRunHud() {
     const run = state.run;
     if (!run) return;
-    const bits = [
-      ['hud-hearts', 'map-hearts', 'load-hearts', 'shop-hearts'],
-      ['hud-gold', 'map-gold', 'load-gold', 'shop-gold'],
-    ];
-    for (const id of bits[0]) {
-      const el = $(id);
-      if (el) el.textContent = hearts(run.hearts);
-    }
-    for (const id of bits[1]) {
+    for (const id of ['hud-gold', 'map-gold', 'load-gold', 'shop-gold', 'rest-gold']) {
       const el = $(id);
       if (el) el.textContent = `${run.gold}g`;
     }
-    if ($('map-supply')) $('map-supply').textContent = `Supply +${run.supplyBonus}`;
+    if ($('map-supply')) {
+      $('map-supply').textContent = `Supply +${run.supplyBonus}`;
+    }
+    paintKingChip(run);
     if ($('hud-army') && state.game && state.mode === 'run') {
       const now = state.game.armyValue(WHITE);
       const max = state.armyMax || now;
       $('hud-army').textContent = `Army ${now}/${max}`;
+    }
+    if ($('hud-clock')) {
+      if (state.clock != null) {
+        $('hud-clock').textContent = `${state.clock}`;
+        $('hud-clock').classList.toggle('low', state.clock <= 3);
+        $('hud-clock').classList.remove('hidden');
+      } else {
+        $('hud-clock').classList.add('hidden');
+      }
     }
   }
 
@@ -55,44 +57,175 @@ export function initCampaign(ctx) {
   }
 
   function showMap() {
+    closeBag();
+    audio.setMusicStyle('ambient');
     const run = state.run;
-    const node = currentNode(run);
+    if (run.over) { endRun(); return; }
+    const act = run.map.acts[run.act];
+    const here = currentNode(run);
+    const openIds = new Set(
+      (run.choices && run.choices.length)
+        ? run.choices.map((n) => n.id)
+        : here ? [here.id] : [],
+    );
+    const cleared = run.cleared || new Set();
+    const trail = new Set(run.trail || []);
     paintRunHud();
-    const path = $('map-path');
-    path.innerHTML = '';
-    ENCOUNTERS.forEach((enc, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'map-node'
-        + (i === run.node ? ' current' : '')
-        + (i < run.node ? ' done' : '')
-        + (enc.kind === 'shop' ? ' shop' : '')
-        + (enc.boss ? ' boss' : '');
-      btn.innerHTML = `<span class="map-node-kind">${enc.kind === 'shop' ? 'Shop' : enc.boss ? 'Boss' : 'Fight'}</span>`
-        + `<span class="map-node-name">${enc.name}</span>`
-        + (enc.kind === 'fight'
-          ? `<span class="map-node-meta">${enc.files}×${enc.ranks} · ${enc.supply + run.supplyBonus} supply</span>`
-          : `<span class="map-node-meta">${enc.blurb}</span>`);
-      if (i === run.node) {
-        btn.style.cursor = 'pointer';
-        btn.addEventListener('click', goFromMap);
+
+    const romans = ['I', 'II', 'III'];
+    if ($('map-act-label')) $('map-act-label').textContent = `ACT ${romans[run.act] || run.act + 1}`;
+    if ($('map-art')) {
+      $('map-art').classList.remove('act-0', 'act-1', 'act-2');
+      $('map-art').classList.add(`act-${run.act}`);
+    }
+
+    const climb = $('map-climb');
+    climb.innerHTML = '';
+
+    const floors = {};
+    let maxCol = 0;
+    for (const node of act.nodes) {
+      (floors[node.col] ||= []).push(node);
+      if (node.col > maxCol) maxCol = node.col;
+    }
+    const W = 420;
+    const step = 152;
+    const H = 168 + (maxCol + 1) * step;
+    climb.style.width = `${W}px`;
+    climb.style.height = `${H}px`;
+    if ($('map-art')) $('map-art').style.height = `${Math.max(H, 800)}px`;
+
+    const pos = {};
+    for (const node of act.nodes) {
+      const onFloor = floors[node.col];
+      const jx = (hash01(node.id) - 0.5) * 14;
+      const jy = (hash01(node.id + 'y') - 0.5) * 8;
+      const x = ((node.row + 1) / (onFloor.length + 1)) * W + jx;
+      const y = H - 86 - node.col * step + jy;
+      pos[node.id] = { x, y };
+    }
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'map-ink');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', String(W));
+    svg.setAttribute('height', String(H));
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    defs.innerHTML = `
+      <filter id="map-wobble">
+        <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="1.4"/>
+      </filter>`;
+    svg.appendChild(defs);
+
+    for (const node of act.nodes) {
+      const a = pos[node.id];
+      for (const nid of node.next || []) {
+        const b = pos[nid];
+        if (!b) continue;
+        const walked = trail.has(node.id) && trail.has(nid);
+        const ahead = openIds.has(nid) && (
+          node.id === run.nodeId || cleared.has(node.id) || openIds.has(node.id)
+        );
+        const mx = (a.x + b.x) / 2 + (hash01(node.id + nid) - 0.5) * 22;
+        const my = (a.y + b.y) / 2;
+        const d = `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`;
+        const under = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        under.setAttribute('d', d);
+        under.setAttribute('class', 'map-edge-under'
+          + (walked ? ' walked' : '')
+          + (ahead ? ' ahead' : ''));
+        svg.appendChild(under);
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', d);
+        path.setAttribute('class', 'map-edge'
+          + (walked ? ' walked' : '')
+          + (ahead ? ' ahead' : ''));
+        svg.appendChild(path);
       }
-      path.appendChild(btn);
-    });
-    $('map-blurb').textContent = node
-      ? `${node.name} — ${node.blurb}`
-      : 'The road is finished.';
-    $('btn-map-go').textContent = !node ? 'Finish' : node.kind === 'shop' ? 'Browse' : 'Prepare';
+    }
+    climb.appendChild(svg);
+
+    for (const node of act.nodes) {
+      const p = pos[node.id];
+      const current = node.id === run.nodeId && !(run.choices && run.choices.length);
+      const open = openIds.has(node.id);
+      const done = cleared.has(node.id);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'map-dot'
+        + (current ? ' current' : '')
+        + (open && !current ? ' open' : '')
+        + (done ? ' done' : '')
+        + (node.kind === 'shop' ? ' shop' : '')
+        + (node.kind === 'rest' ? ' rest' : '')
+        + (node.boss ? ' boss' : '')
+        + (node.tier === 'elite' ? ' elite' : '');
+      btn.style.left = `${p.x}px`;
+      btn.style.top = `${p.y}px`;
+      btn.setAttribute('aria-label', node.name);
+      if (p.y < 90) btn.classList.add('tip-below');
+      btn.innerHTML = nodeIcon(node) + `<span class="map-tip"><b>${node.name}</b>${node.blurb}</span>`;
+      if (open) {
+        btn.addEventListener('click', () => {
+          if (node.id !== run.nodeId) pickNode(run, node.id);
+          enterNode();
+        });
+        btn.addEventListener('pointerenter', () => audio.hover());
+      }
+      climb.appendChild(btn);
+    }
+
+    const openRooms = (run.choices && run.choices.length)
+      ? run.choices
+      : (here && openIds.has(here.id) ? [here] : []);
+    if (openRooms.length > 1) {
+      $('map-blurb').textContent = openRooms.map((n) => n.name).join('  ·  ');
+    } else if (openRooms.length === 1) {
+      $('map-blurb').textContent = `${openRooms[0].name} — ${openRooms[0].blurb}`;
+    } else if (here) {
+      $('map-blurb').textContent = `${here.name} — ${here.blurb}`;
+    } else {
+      $('map-blurb').textContent = 'Choose a path.';
+    }
     showScreen('screen-map');
   }
 
-  function goFromMap() {
+  function hash01(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+    return ((h >>> 0) % 1000) / 1000;
+  }
+
+  function nodeIcon(node) {
+    const src = node.boss ? 'map-boss'
+      : node.kind === 'shop' ? 'map-shop'
+      : node.kind === 'rest' ? 'map-rest'
+      : node.tier === 'elite' ? 'map-elite'
+      : 'map-fight';
+    return `<img class="map-ico" src="assets/${src}.png" alt="" draggable="false" width="32" height="32">`;
+  }
+
+  function enterNode() {
     const node = currentNode(state.run);
-    if (!node || state.run.over) {
-      endRun();
-      return;
-    }
+    if (!node || state.run.over) { endRun(); return; }
     if (node.kind === 'shop') openShopScreen();
-    else openLoadout(node);
+    else if (node.kind === 'rest') openRest();
+    else {
+      const enc = encounterFor(node);
+      if (enc) openLoadout(enc);
+    }
+  }
+
+  function goFromMap() {
+    enterNode();
+  }
+
+  function openRest() {
+    paintRunHud();
+    $('rest-detail').textContent =
+      `Sit a moment. Take ${REST_GOLD} gold from the camp.`;
+    showScreen('screen-rest');
   }
 
   function openLoadout(encounter) {
@@ -118,6 +251,7 @@ export function initCampaign(ctx) {
     rebuildDeploy();
     renderBag();
     paintSupply();
+    paintMoveDiagram(null);
     paintRunHud();
     showScreen('screen-loadout');
   }
@@ -126,6 +260,7 @@ export function initCampaign(ctx) {
     const enc = state.encounter;
     const { Chess } = ctx;
     const game = buildFight(state.run, enc, placements);
+    deployView.setWhiteKingSkin(kingSkin(state.run.king));
     deployView.setFlipped(false);
     deployView.syncFromGame(game);
     deployView.setInteractive(true);
@@ -133,12 +268,36 @@ export function initCampaign(ctx) {
     paintDeployCoords(enc);
   }
 
+  function paintKingChip(run) {
+    const def = kingDef(run.king);
+    const skin = kingSkin(run.king);
+    for (const prefix of ['map', 'load', 'shop', 'rest']) {
+      const art = $(`${prefix}-king-art`);
+      const name = $(`${prefix}-king-name`);
+      const chip = $(`${prefix}-king`);
+      if (art) art.style.backgroundImage = `url('${pieceImage('k', WHITE, skin)}')`;
+      if (name) name.textContent = `${def.name} King`;
+      if (chip) chip.title = def.blurb;
+    }
+  }
+
   function paintHomes(enc) {
-    const homes = new Set(freeHomeSquares(enc));
+    const free = new Set(freeHomeSquares(enc));
     const taken = new Set(placements.map((p) => p.sq));
+    const enemy = new Set((enc.enemy || []).map((p) => parseSquare(p.at, enc.ranks)));
+    const blocked = new Set();
+    if (enc.terrain) {
+      for (const [name, tile] of Object.entries(enc.terrain)) {
+        if (tile === TILE.BLOCK) blocked.add(parseSquare(name, enc.ranks));
+      }
+    }
     for (const [sq, el] of deployView.squares) {
-      el.classList.toggle('home', homes.has(sq));
-      el.classList.toggle('home-free', homes.has(sq) && !taken.has(sq));
+      const can = free.has(sq) && !taken.has(sq);
+      el.classList.toggle('home-free', can);
+      el.classList.toggle('home', free.has(sq) && taken.has(sq));
+      el.classList.toggle('no-place', !free.has(sq) && !taken.has(sq));
+      el.classList.toggle('place-enemy', enemy.has(sq));
+      el.classList.toggle('place-block', blocked.has(sq));
     }
   }
 
@@ -194,6 +353,7 @@ export function initCampaign(ctx) {
           rebuildDeploy();
           renderBag();
           paintSupply();
+          paintMoveDiagram(item.type);
           return;
         }
         if (tooDear) {
@@ -204,15 +364,182 @@ export function initCampaign(ctx) {
         selectedUid = selectedUid === item.uid ? null : item.uid;
         audio.click();
         renderBag();
+        paintMoveDiagram(selectedUid ? item.type : null);
       });
       btn.addEventListener('pointerenter', () => audio.hover());
       list.appendChild(btn);
     }
     const slots = occupiedSlots(state.run);
     $('loadout-slots').textContent = Object.entries(state.run.slots)
-      .map(([r, n]) => `${r} ${slots[r] || 0}/${n}`)
-      .join('  ·  ');
+      .filter(([r]) => r !== 'common')
+      .map(([r, n]) => `${r} ${slots[r] || 0}/${n === Infinity ? '∞' : n}`)
+      .join('  ·  ') + '  ·  commons uncapped';
     renderSelected();
+  }
+
+  function paintMoveDiagram(type, ids = {
+    box: 'move-diagram', board: 'md-board', name: 'md-name',
+    blurb: 'md-blurb', cost: 'md-cost', art: 'md-art',
+    emptyBlurb: 'Click a piece in the bag.',
+  }) {
+    const box = $(ids.box);
+    const host = $(ids.board);
+    if (!box || !host) return;
+    const Chess = ctx.Chess;
+    if (!type || !Chess) {
+      box.classList.add('empty');
+      if ($(ids.name)) $(ids.name).textContent = 'How it moves';
+      if ($(ids.blurb)) $(ids.blurb).textContent = ids.emptyBlurb || '';
+      if ($(ids.cost)) $(ids.cost).textContent = '';
+      if ($(ids.art)) $(ids.art).style.backgroundImage = '';
+      host.innerHTML = '';
+      return;
+    }
+    box.classList.remove('empty');
+    const def = pieceById(type);
+    const files = 7;
+    const ranks = 7;
+    const g = new Chess({
+      files, ranks,
+      rules: { checks: false, kingCapture: true, castling: false },
+    });
+    const mid = 3 * 16 + 3;
+    g.board[mid] = { type, color: WHITE };
+    if (type === 'k') g.kings.w = mid;
+    if (def.pawn) {
+      for (const off of [-17, -15]) {
+        const sq = mid + off;
+        if (g.inBounds(sq)) g.board[sq] = { type: 'p', color: 'b' };
+      }
+    }
+    g.turn = WHITE;
+    g.refreshMode();
+    const dest = new Map();
+    for (const m of g.moves({ square: mid, legal: false })) {
+      dest.set(m.to, Boolean(m.captured));
+    }
+
+    if ($(ids.name)) $(ids.name).textContent = def.name;
+    if ($(ids.blurb)) $(ids.blurb).textContent = def.blurb || '';
+    if ($(ids.cost)) $(ids.cost).textContent = `${def.cost} supply · ${def.rarity}`;
+    if ($(ids.art)) {
+      $(ids.art).style.backgroundImage = `url('${pieceImage(type, WHITE)}')`;
+      $(ids.art).style.filter = pieceHue(type) ? `hue-rotate(${pieceHue(type)}deg)` : '';
+    }
+
+    host.innerHTML = '';
+    for (let r = 0; r < ranks; r++) {
+      for (let f = 0; f < files; f++) {
+        const sq = r * 16 + f;
+        const cell = document.createElement('i');
+        cell.className = 'md-sq' + ((r + f) % 2 ? ' dark' : ' light');
+        if (sq === mid) {
+          const fig = document.createElement('b');
+          fig.style.backgroundImage = `url('${pieceImage(type, WHITE)}')`;
+          if (pieceHue(type)) fig.style.filter = `hue-rotate(${pieceHue(type)}deg)`;
+          cell.appendChild(fig);
+        } else if (dest.has(sq)) {
+          cell.classList.add(dest.get(sq) ? 'cap' : 'go');
+        }
+        host.appendChild(cell);
+      }
+    }
+  }
+
+  const BAG_DIAGRAM = {
+    box: 'bag-diagram', board: 'bag-md-board', name: 'bag-md-name',
+    blurb: 'bag-md-blurb', cost: 'bag-md-cost', art: 'bag-md-art',
+    emptyBlurb: 'Click a piece or a king.',
+  };
+
+  function paintBagPanel() {
+    const run = state.run;
+    if (!run) return;
+    const summary = bagSummary(run);
+    const slots = summary.slots;
+    if ($('bag-panel-slots')) {
+      $('bag-panel-slots').textContent = Object.entries(run.slots)
+        .filter(([r]) => r !== 'common')
+        .map(([r, n]) => `${r} ${slots[r] || 0}/${n === Infinity ? '∞' : n}`)
+        .join('  ·  ') + `  ·  commons uncapped  ·  supply +${summary.supply}`;
+    }
+
+    const kings = $('bag-kings');
+    if (kings) {
+      kings.innerHTML = '';
+      for (const id of summary.kings) {
+        const def = kingDef(id);
+        const btn = document.createElement('button');
+        const on = summary.equipped === id;
+        btn.type = 'button';
+        btn.className = 'bag-tile king-tile' + (on ? ' on' : ' idle');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.innerHTML =
+          `<i style="background-image:url('${pieceImage('k', WHITE, kingSkin(id))}')"></i>`
+          + (on ? '<span class="bag-tile-count">ON</span>' : '')
+          + `<span class="bag-tile-name">${def.name}</span>`
+          + `<span class="bag-tile-meta">${on ? 'active this run' : 'set as active'}</span>`;
+        btn.addEventListener('click', () => {
+          paintMoveDiagram('k', BAG_DIAGRAM);
+          if ($('bag-md-name')) $('bag-md-name').textContent = `${def.name} King`;
+          if ($('bag-md-blurb')) $('bag-md-blurb').textContent = def.blurb;
+          if (on) return;
+          if (!equipKing(run, id)) { audio.illegal(); return; }
+          audio.click();
+          paintRunHud();
+          paintBagPanel();
+          toast(`${def.name} king is active`, 'good');
+        });
+        btn.addEventListener('pointerenter', () => audio.hover());
+        kings.appendChild(btn);
+      }
+    }
+
+    const counts = $('bag-counts');
+    if (counts) {
+      counts.innerHTML = '';
+      if (!summary.pieces.length) {
+        const empty = document.createElement('p');
+        empty.className = 'slot-line';
+        empty.textContent = 'No pieces yet.';
+        counts.appendChild(empty);
+      }
+      for (const row of summary.pieces) {
+        const def = pieceById(row.type);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bag-tile';
+        const hue = pieceHue(row.type);
+        btn.innerHTML =
+          `<i style="background-image:url('${pieceImage(row.type, WHITE)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`
+          + (row.count > 1 ? `<span class="bag-tile-count">×${row.count}</span>` : '')
+          + `<span class="bag-tile-name">${def?.name || row.type}</span>`
+          + `<span class="bag-tile-meta">${def?.cost ?? 0} · ${def?.rarity || ''}</span>`;
+        btn.addEventListener('click', () => {
+          audio.click();
+          paintMoveDiagram(row.type, BAG_DIAGRAM);
+        });
+        btn.addEventListener('pointerenter', () => audio.hover());
+        counts.appendChild(btn);
+      }
+    }
+  }
+
+  function openBag() {
+    if (!state.run) return;
+    paintBagPanel();
+    paintMoveDiagram(null, BAG_DIAGRAM);
+    const panel = $('panel-bag');
+    panel.classList.remove('hidden');
+    panel.setAttribute('aria-hidden', 'false');
+    audio.click();
+  }
+
+  function closeBag() {
+    const panel = $('panel-bag');
+    if (!panel || panel.classList.contains('hidden')) return;
+    panel.classList.add('hidden');
+    panel.setAttribute('aria-hidden', 'true');
   }
 
   function renderSelected() {
@@ -320,10 +647,12 @@ export function initCampaign(ctx) {
     }
     const game = buildFight(state.run, enc, placements);
     state.game = game;
+    state.view.setWhiteKingSkin(kingSkin(state.run.king));
     state.gameOver = false;
     state.thinking = false;
     state.generation++;
     state.armyMax = game.armyValue(WHITE);
+    state.clock = turnClock(enc);
     state.view.setFlipped(false);
     state.view.syncFromGame(game);
     state.view.markLastMove(null, null);
@@ -340,13 +669,19 @@ export function initCampaign(ctx) {
     updateHud();
     paintRunHud();
     refreshStatus();
+    audio.setMusicStyle('fight');
     showScreen('screen-game');
+    if (game.outcome().over) onFightOver(game.outcome());
   }
 
-  function onFightOver() {
+  function onFightOver(opts = {}) {
     const run = state.run;
     const enc = state.encounter;
-    const reward = settleFight(run, state.game, enc);
+    const reward = settleFight(run, state.game, enc, {
+      forfeit: Boolean(opts.forfeit),
+      timeout: Boolean(opts.timeout),
+      clockLeft: Math.max(0, state.clock ?? 0),
+    });
     state.gameOver = true;
     state.view.setInteractive(false);
     paintRunHud();
@@ -356,26 +691,36 @@ export function initCampaign(ctx) {
     let title = youWon ? 'THE KING FALLS' : 'YOUR KING FALLS';
     let detail;
     if (youWon) {
-      detail = `Army remaining ${reward.army}. +${reward.gold} gold`
-        + (reward.tithe ? ` (including ${reward.tithe} tithe)` : '') + '.';
-      if (enc.boss && run.won) {
+      title = 'THE KING FALLS';
+      detail = `+${reward.gold} gold` + (reward.clockLeft ? ` (${reward.clockLeft} for speed)` : '') + '.';
+      if (reward.drop) {
+        const def = pieceById(reward.drop);
+        detail += reward.dropSold
+          ? ` A ${def?.name || reward.drop} dropped — no slot, sold for ${reward.dropSold}g.`
+          : ` They dropped a ${def?.name || reward.drop}.`;
+      }
+      if (enc.boss && run.act >= 2 && run.won) {
         title = 'THE THRONE IS YOURS';
         detail += ' The run is won.';
+      } else if (enc.boss) {
+        detail += ' The next act opens.';
       }
-    } else if (run.over) {
-      title = 'THE RUN IS OVER';
-      detail = 'No hearts left. Your bag goes home with you — next time.';
+    } else if (reward.reason === 'unwinnable') {
+      title = 'NO WAY THROUGH';
+      detail = 'Their king cannot be taken. The run is over.';
     } else {
-      detail = `A heart gone. ${run.hearts} left. Your pieces return to the bag.`;
+      title = 'YOU DIED';
+      detail = 'Your king fell. The run is over.';
     }
 
     setStatus(title, youWon ? 'good' : 'danger');
-    $('btn-again').classList.toggle('hidden', !(run.over && run.won));
-    $('btn-again').textContent = 'Embark again';
+    $('btn-again').classList.toggle('hidden', !run.over);
+    $('btn-again').textContent = run.won ? 'Embark again' : 'Try again';
     $('btn-continue').classList.toggle('hidden', !youWon || run.over);
-    $('btn-retry').classList.toggle('hidden', youWon || !retryAllowed(run));
-    $('btn-result-menu').textContent = run.over ? 'Menu' : 'Abandon';
+    $('btn-retry').classList.add('hidden');
+    $('btn-result-menu').textContent = 'Menu';
 
+    audio.setMusicStyle('ambient');
     setTimeout(() => {
       if (youWon) { audio.victory(); confetti(); }
       else audio.defeat();
@@ -390,11 +735,9 @@ export function initCampaign(ctx) {
     $('modal-result').classList.add('hidden');
     resetClassicButtons();
     if (state.run.over) { endRun(); return; }
-    advance(state.run);
-    const next = currentNode(state.run);
-    if (!next) { endRun(); return; }
-    if (next.kind === 'shop') openShopScreen();
-    else showMap();
+    completeNode(state.run);
+    if (state.run.over) { endRun(); return; }
+    showMap();
   }
 
   function retryFight() {
@@ -404,12 +747,8 @@ export function initCampaign(ctx) {
 
   function forfeitFight() {
     if (state.mode !== 'run' || state.gameOver) return;
-    const wk = state.game.kings.w;
-    if (wk >= 0) {
-      state.game.board[wk] = null;
-      state.game.kings.w = -1;
-    }
-    onFightOver();
+    const enc = state.encounter;
+    onFightOver({ forfeit: true });
   }
 
   function openShopScreen() {
@@ -417,6 +756,7 @@ export function initCampaign(ctx) {
     openShop(state.run);
     $('shop-name').textContent = node.name;
     $('shop-blurb').textContent = node.blurb;
+    audio.setMusicStyle('shop');
     paintShop();
     showScreen('screen-shop');
   }
@@ -433,7 +773,11 @@ export function initCampaign(ctx) {
       card.disabled = state.run.gold < offer.cost;
       const art = offer.type
         ? `<i class="shop-art" style="background-image:url('${pieceImage(offer.type, WHITE)}');${pieceHue(offer.type) ? `filter:hue-rotate(${pieceHue(offer.type)}deg)` : ''}"></i>`
-        : `<i class="shop-art shop-art-icon">${offer.kind === 'supply' ? '+' : offer.kind === 'slot' ? '▣' : '♔'}</i>`;
+        : offer.kind === 'king'
+          ? `<i class="shop-art" style="background-image:url('${pieceImage('k', WHITE, offer.sprite || kingSkin(offer.king))}')"></i>`
+          : offer.kind === 'supply'
+            ? `<i class="shop-art" style="background-image:url('assets/map-shop.png')"></i>`
+            : `<i class="shop-art shop-art-${offer.kind === 'slot' ? 'slot' : 'purse'}"></i>`;
       card.innerHTML = art
         + `<span class="shop-card-name">${offer.name}</span>`
         + `<span class="shop-card-blurb">${offer.blurb}</span>`
@@ -448,26 +792,16 @@ export function initCampaign(ctx) {
       card.addEventListener('pointerenter', () => audio.hover());
       root.appendChild(card);
     }
-    let bag = $('shop-bag');
-    if (bag) {
-      const slots = occupiedSlots(state.run);
-      const slotLine = Object.entries(state.run.slots)
-        .map(([r, n]) => `${r} ${slots[r] || 0}/${n}`).join(' · ');
-      const names = state.run.bag.map((p) => pieceById(p.type)?.name || p.type).join(', ');
-      const passives = state.run.kingPassives.length
-        ? ` · ${state.run.kingPassives.join(', ')}`
-        : '';
-      bag.textContent = `Bag: ${names || 'empty'}  ·  ${slotLine}  ·  supply +${state.run.supplyBonus}${passives}`;
-    }
   }
 
   function leaveShop() {
     closeShop(state.run);
-    advance(state.run);
+    completeNode(state.run);
     showMap();
   }
 
   function endRun() {
+    closeBag();
     resetClassicButtons();
     const run = state.run;
     $('modal-result').classList.add('hidden');
@@ -501,6 +835,8 @@ export function initCampaign(ctx) {
   }
 
   function abandon() {
+    closeBag();
+    audio.setMusicStyle('ambient');
     $('modal-result').classList.add('hidden');
     resetClassicButtons();
     state.mode = 'classic';
@@ -510,12 +846,24 @@ export function initCampaign(ctx) {
 
   // ---- bind --------------------------------------------------------------
 
+  for (const id of ['btn-map-bag', 'btn-shop-bag', 'btn-rest-bag', 'map-king']) {
+    if ($(id)) $(id).addEventListener('click', openBag);
+  }
+  if ($('btn-bag-close')) $('btn-bag-close').addEventListener('click', closeBag);
+  if ($('panel-bag')) {
+    $('panel-bag').addEventListener('click', (e) => {
+      if (e.target === $('panel-bag')) closeBag();
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeBag();
+  });
   $('btn-embark').addEventListener('click', async () => {
     await audio.resume();
     if (state.settings.music) audio.startMusic();
     startRun();
   });
-  $('btn-map-go').addEventListener('click', goFromMap);
+  if ($('btn-map-go')) $('btn-map-go').addEventListener('click', goFromMap);
   $('btn-map-quit').addEventListener('click', abandon);
   $('btn-loadout-back').addEventListener('click', showMap);
   $('btn-loadout-auto').addEventListener('click', () => {
@@ -557,6 +905,13 @@ export function initCampaign(ctx) {
   $('btn-continue').addEventListener('click', continueAfterFight);
   $('btn-retry').addEventListener('click', retryFight);
   $('btn-forfeit').addEventListener('click', forfeitFight);
+  $('btn-rest').addEventListener('click', () => {
+    rest(state.run);
+    audio.click();
+    completeNode(state.run);
+    showMap();
+  });
+  $('btn-rest-back').addEventListener('click', showMap);
 
   return {
     startRun,
@@ -564,6 +919,14 @@ export function initCampaign(ctx) {
     paintRunHud,
     resetClassicButtons,
     abandon,
+    tickClock() {
+      if (state.clock == null) return false;
+      if (state.clock > 0) {
+        state.clock -= 1;
+        paintRunHud();
+      }
+      return false;
+    },
     isRun() { return state.mode === 'run'; },
   };
 }

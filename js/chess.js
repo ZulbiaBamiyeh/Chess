@@ -12,7 +12,7 @@
 // is a specialised generator so perft stays honest and fast.
 
 import {
-  PIECES, pieceById, isClassicType, PROMOTE_TO,
+  PIECES, pieceById, isClassicType, PROMOTE_TO, isQueenLike,
 } from './pieces.js';
 
 export const WHITE = 'w';
@@ -36,6 +36,7 @@ export const FLAG = {
   KSIDE_CASTLE: 32,
   QSIDE_CASTLE: 64,
   SHIELD_BREAK: 128,
+  WISP_BOOM: 256,
 };
 
 export const TILE = {
@@ -43,10 +44,11 @@ export const TILE = {
   BLOCK: 1,
   FROST: 2,
   FORT: 3,
+  FIRE: 4,
 };
 
-export const TILE_NAME = { 0: 'none', 1: 'block', 2: 'frost', 3: 'fort' };
-export const TILE_ID = { none: 0, block: 1, frost: 2, fort: 3, '#': 1, '*': 2, '+': 3 };
+export const TILE_NAME = { 0: 'none', 1: 'block', 2: 'frost', 3: 'fort', 4: 'fire' };
+export const TILE_ID = { none: 0, block: 1, frost: 2, fort: 3, fire: 4, '#': 1, '*': 2, '+': 3, '^': 4 };
 
 export const ST_FROZEN = 1;
 export const ST_SHIELD = 2;
@@ -100,6 +102,7 @@ export function defaultRules() {
     kingCapture: false,
     castling: true,
     royalLeaps: null,
+    duckChess: false,
   };
 }
 
@@ -129,8 +132,11 @@ export class Chess {
     this.board = new Array(128).fill(null);
     this.status = new Uint8Array(128);
     this.terrain = new Uint8Array(128);
+    this.fireUntil = new Uint16Array(128);
     this.kings = { w: -1, b: -1 };
     this.history = [];
+    this.duck = -1;
+    this.awaitingDuck = false;
 
     if (options.terrain) this.applyTerrain(options.terrain);
 
@@ -153,7 +159,22 @@ export class Chess {
     this.halfMoves = Number(half ?? 0);
     this.moveNumber = Number(full ?? 1);
 
+    if (options.duck != null && options.duck !== '') {
+      this.duck = typeof options.duck === 'string'
+        ? parseSquare(options.duck, this.ranks)
+        : options.duck;
+    } else if (this.rules.duckChess) {
+      this.duck = this.defaultDuckSquare();
+    }
+    this.awaitingDuck = Boolean(options.awaitingDuck);
+
     if (options.status) this.applyStatus(options.status);
+    if (options.fire) {
+      for (const entry of options.fire) {
+        const sq = typeof entry.sq === 'string' ? parseSquare(entry.sq, this.ranks) : entry.sq;
+        this.fireUntil[sq] = entry.until | 0;
+      }
+    }
 
     this.positionCounts = new Map();
     this.countPosition();
@@ -251,6 +272,42 @@ export class Chess {
     return this.terrain[sq] === TILE.BLOCK;
   }
 
+  isDuck(sq) {
+    return this.duck >= 0 && this.duck === sq;
+  }
+
+  defaultDuckSquare() {
+    const cx = (this.files / 2) | 0;
+    const cy = (this.ranks / 2) | 0;
+    const start = cy * 16 + cx;
+    if (!this.board[start] && !this.isBlocked(start)) return start;
+    for (let sq = 0; sq <= 119; sq++) {
+      if (sq & 0x88) { sq += 7; continue; }
+      if (this.inBounds(sq) && !this.board[sq] && !this.isBlocked(sq)) return sq;
+    }
+    return -1;
+  }
+
+  isFire(sq) {
+    return this.fireUntil[sq] > this.history.length;
+  }
+
+  paintFire(sq, until, extra) {
+    if (!this.inBounds(sq) || this.isBlocked(sq)) return;
+    this.fireUntil[sq] = until;
+    if (extra.firePainted) extra.firePainted.push(sq);
+  }
+
+  slideDir(from, to) {
+    const df = file(to) - file(from);
+    const dr = rank(to) - rank(from);
+    if (!df && !dr) return 0;
+    const stepF = df === 0 ? 0 : df / Math.abs(df);
+    const stepR = dr === 0 ? 0 : dr / Math.abs(dr);
+    if (df && dr && Math.abs(df) !== Math.abs(dr)) return 0;
+    return stepR * 16 + stepF;
+  }
+
   clone() {
     const copy = new Chess(this.toSpec());
     copy.positionCounts = new Map(this.positionCounts);
@@ -265,6 +322,11 @@ export class Chess {
       if (this.terrain[sq]) terrain.push({ sq, tile: this.terrain[sq] });
       if (this.status[sq]) status.push({ sq, status: this.status[sq] });
     }
+    const fire = [];
+    for (let sq = 0; sq <= 119; sq++) {
+      if (sq & 0x88) { sq += 7; continue; }
+      if (this.fireUntil[sq]) fire.push({ sq, until: this.fireUntil[sq] });
+    }
     return {
       fen: this.fen(),
       files: this.files,
@@ -273,6 +335,9 @@ export class Chess {
       kingPassives: this.kingPassives.slice(),
       terrain,
       status,
+      fire,
+      duck: this.duck,
+      awaitingDuck: this.awaitingDuck,
     };
   }
 
@@ -433,7 +498,7 @@ export class Chess {
     if (def.slideOff) {
       for (const dir of def.slideOff) {
         let to = from + dir;
-        while (this.inBounds(to) && !this.isBlocked(to)) {
+        while (this.inBounds(to) && !this.isBlocked(to) && !this.isDuck(to)) {
           if (to === target) return true;
           if (this.board[to]) break;
           to += dir;
@@ -446,7 +511,7 @@ export class Chess {
         let hurdle = false;
         while (this.inBounds(to) && !this.isBlocked(to)) {
           if (!hurdle) {
-            if (this.board[to]) hurdle = true;
+            if (this.board[to] || this.isDuck(to)) hurdle = true;
             to += dir;
             continue;
           }
@@ -619,9 +684,13 @@ export class Chess {
     const them = swap(us);
     const board = this.board;
     const out = [];
-    const promoRank = us === WHITE ? 0 : this.ranks - 1;
+    const pioneer = this.kingPassives.includes('pioneer');
+    const promoRank = us === WHITE
+      ? (pioneer ? 1 : 0)
+      : (pioneer ? this.ranks - 2 : this.ranks - 1);
     const startRank = us === WHITE ? this.ranks - 2 : 1;
     const extraRoyal = this.rules.royalLeaps;
+    const court = this.kingPassives.includes('court');
 
     const only = square == null ? null : this.sqOf(square);
 
@@ -649,12 +718,15 @@ export class Chess {
     };
 
     const tryLand = (from, to, flags) => {
-      if (!this.inBounds(to) || this.isBlocked(to)) return false;
+      if (!this.inBounds(to) || this.isBlocked(to) || this.isDuck(to)) return false;
       const target = board[to];
+      const mover = board[from];
       if (!target) {
         if (!capturesOnly) add(from, to, flags);
         return true;
       }
+      if (PIECES[mover.type]?.cannotCapture) return false;
+      if (PIECES[target.type]?.uncapturable) return false;
       if (target.color === us) return false;
       if (this.status[to] & ST_SHIELD) {
         const rebound = this.findRebound(to, from);
@@ -682,13 +754,13 @@ export class Chess {
         const forward = us === WHITE ? -16 : 16;
         if (!capturesOnly) {
           const one = from + forward;
-          if (this.inBounds(one) && !board[one] && !this.isBlocked(one)) {
+          if (this.inBounds(one) && !board[one] && !this.isBlocked(one) && !this.isDuck(one)) {
             add(from, one, FLAG.NORMAL);
             const two = from + forward * 2;
             // Geometric mid-square, not "one slide step" — a double push
             // crosses `one` even when the vector is longer than a unit step.
             if (this.ranks >= 4 && rank(from) === startRank
-                && this.inBounds(two) && !board[two] && !this.isBlocked(two)) {
+                && this.inBounds(two) && !board[two] && !this.isBlocked(two) && !this.isDuck(two)) {
               add(from, two, FLAG.BIG_PAWN);
             }
           }
@@ -706,21 +778,26 @@ export class Chess {
         continue;
       }
 
+      const land = (to, flags) => tryLand(from, to, flags);
+
       if (def.leapOff) {
-        for (const off of def.leapOff) tryLand(from, from + off, FLAG.NORMAL);
+        for (const off of def.leapOff) land(from + off, FLAG.NORMAL);
       }
       if (piece.type === KING && extraRoyal) {
-        for (const off of extraRoyal) tryLand(from, from + off, FLAG.NORMAL);
+        for (const off of extraRoyal) land(from + off, FLAG.NORMAL);
+      }
+      if (court && isQueenLike(piece.type)) {
+        for (const off of KNIGHT_OFFSETS) land(from + off, FLAG.NORMAL);
       }
       if (def.slideOff) {
         for (const dir of def.slideOff) {
           let to = from + dir;
-          while (this.inBounds(to) && !this.isBlocked(to)) {
+          while (this.inBounds(to) && !this.isBlocked(to) && !this.isDuck(to)) {
             const target = board[to];
             if (!target) {
               if (!capturesOnly) add(from, to, FLAG.NORMAL);
             } else {
-              if (target.color === them) tryLand(from, to, FLAG.CAPTURE);
+              if (target.color === them) land(to, FLAG.CAPTURE);
               break;
             }
             to += dir;
@@ -733,15 +810,16 @@ export class Chess {
           let hurdle = false;
           while (this.inBounds(to) && !this.isBlocked(to)) {
             if (!hurdle) {
-              if (this.board[to]) hurdle = true;
+              if (this.board[to] || this.isDuck(to)) hurdle = true;
               to += dir;
               continue;
             }
+            if (this.isDuck(to)) break;
             const target = board[to];
             if (!target) {
               if (!capturesOnly) add(from, to, FLAG.NORMAL);
             } else if (target.color === them) {
-              tryLand(from, to, FLAG.CAPTURE);
+              land(to, FLAG.CAPTURE);
             }
             break;
           }
@@ -821,6 +899,11 @@ export class Chess {
       reboundPiece: null,
       reboundStatus: 0,
       thawed: null,
+      burned: null,
+      fireSnap: null,
+      firePainted: null,
+      iced: null,
+      wispCapturer: null,
     };
 
     this.history.push({
@@ -916,6 +999,55 @@ export class Chess {
       const dest = move.to;
       if (this.terrain[dest] === TILE.FROST) this.status[dest] |= ST_FROZEN;
       if (this.terrain[dest] === TILE.FORT) this.status[dest] |= ST_SHIELD;
+
+      extra.fireSnap = this.fireUntil.slice();
+      const def = PIECES[move.piece];
+      const paints = Boolean(def?.paintsFire || (this.kingPassives.includes('pyre') && def?.slideOff));
+      if (paints) {
+        extra.firePainted = [];
+        const expire = this.history.length + 1;
+        this.paintFire(move.from, expire, extra);
+        if (def?.slideOff) {
+          const dir = this.slideDir(move.from, dest);
+          if (dir) {
+            let sq = move.from + dir;
+            while (sq !== dest && this.inBounds(sq)) {
+              this.paintFire(sq, expire, extra);
+              sq += dir;
+            }
+          }
+        }
+      }
+
+      if (this.isFire(dest) && board[dest]) {
+        extra.burned = { type: board[dest].type, color: us };
+        if (board[dest].type === KING) this.kings[us] = -1;
+        board[dest] = null;
+        this.status[dest] = 0;
+      }
+
+      if (def?.ice) {
+        extra.iced = [];
+        for (const off of KING_OFFSETS) {
+          const sq = dest + off;
+          if (!this.inBounds(sq)) continue;
+          const p = board[sq];
+          if (p && p.color === them) {
+            extra.iced.push(sq, this.status[sq]);
+            this.status[sq] |= ST_FROZEN;
+          }
+        }
+      }
+
+      const tookWisp = move.captured && PIECES[move.captured]?.wisp
+        && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved);
+      if (tookWisp && board[dest]) {
+        extra.wispCapturer = { type: board[dest].type, color: us };
+        if (board[dest].type === KING) this.kings[us] = -1;
+        board[dest] = null;
+        this.status[dest] = 0;
+        move.flags |= FLAG.WISP_BOOM;
+      }
     }
 
     this.halfMoves = (move.piece === PAWN || (move.flags & (FLAG.CAPTURE | FLAG.EP_CAPTURE)))
@@ -935,6 +1067,7 @@ export class Chess {
     this.turn = state.turn;
     this.castling = state.castling;
     this.epSquare = state.epSquare;
+    this.awaitingDuck = false;
     this.halfMoves = state.halfMoves;
     this.moveNumber = state.moveNumber;
     this.kings = state.kings;
@@ -944,17 +1077,34 @@ export class Chess {
       this.status[extra.rebound] = 0;
     }
 
-    board[move.from] = move.promotion
-      ? { type: PAWN, color: us }
-      : board[move.to];
-    board[move.to] = null;
+    if (extra?.fireSnap) this.fireUntil = extra.fireSnap;
+    if (extra?.iced) {
+      for (let i = 0; i < extra.iced.length; i += 2) {
+        this.status[extra.iced[i]] = extra.iced[i + 1];
+      }
+    }
 
-    if (move.flags & FLAG.EP_CAPTURE) {
-      board[move.to + (us === WHITE ? 16 : -16)] = { type: PAWN, color: swap(us) };
-    } else if (move.captured && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved)) {
+    if (extra?.wispCapturer) {
+      board[move.from] = extra.wispCapturer;
       board[move.to] = { type: move.captured, color: swap(us) };
-    } else if (move.flags & FLAG.SHIELD_BREAK && move._shieldSaved) {
-      board[move.to] = { type: move.captured, color: swap(us) };
+    } else if (extra?.burned && !board[move.to]) {
+      board[move.from] = extra.burned;
+      board[move.to] = move.captured ? { type: move.captured, color: swap(us) } : null;
+    } else {
+      board[move.from] = move.promotion
+        ? { type: PAWN, color: us }
+        : board[move.to];
+      board[move.to] = null;
+    }
+
+    if (!(extra?.wispCapturer || extra?.burned)) {
+      if (move.flags & FLAG.EP_CAPTURE) {
+        board[move.to + (us === WHITE ? 16 : -16)] = { type: PAWN, color: swap(us) };
+      } else if (move.captured && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved)) {
+        board[move.to] = { type: move.captured, color: swap(us) };
+      } else if (move.flags & FLAG.SHIELD_BREAK && move._shieldSaved) {
+        board[move.to] = { type: move.captured, color: swap(us) };
+      }
     }
 
     if (move.flags & FLAG.KSIDE_CASTLE) {
@@ -1005,9 +1155,34 @@ export class Chess {
     const san = this.toSan(chosen);
     this.makeMove(chosen);
     this.countPosition();
+    if (this.rules.duckChess) this.awaitingDuck = true;
     const played = { ...chosen, san };
     this.history[this.history.length - 1].san = san;
     return played;
+  }
+
+  duckSquares() {
+    const out = [];
+    if (!this.rules.duckChess) return out;
+    for (let sq = 0; sq <= 119; sq++) {
+      if (sq & 0x88) { sq += 7; continue; }
+      if (!this.inBounds(sq)) continue;
+      if (sq === this.duck) continue;
+      if (this.board[sq] || this.isBlocked(sq)) continue;
+      out.push(sq);
+    }
+    return out;
+  }
+
+  placeDuck(sq) {
+    if (!this.rules.duckChess || !this.awaitingDuck) return false;
+    sq = typeof sq === 'string' ? parseSquare(sq, this.ranks) : sq;
+    if (!this.inBounds(sq) || this.board[sq] || this.isBlocked(sq) || sq === this.duck) {
+      return false;
+    }
+    this.duck = sq;
+    this.awaitingDuck = false;
+    return true;
   }
 
   undoMove() {
@@ -1108,10 +1283,58 @@ export class Chess {
       this.isThreefoldRepetition() || this.isFiftyMoveDraw();
   }
 
+  /**
+   * Eventual reachability: can `color` walk a capturing piece onto the
+   * enemy king? Walls and uncapturable units are solid; everything else
+   * (including own pieces) is treated as something that can step aside.
+   */
+  canTakeKing(color) {
+    const goal = this.kings[swap(color)];
+    if (goal < 0) return true;
+
+    const passable = (sq) => {
+      if (!this.inBounds(sq) || this.isBlocked(sq)) return false;
+      const p = this.board[sq];
+      return !(p && p.color !== color && PIECES[p.type]?.uncapturable);
+    };
+
+    const flood = (start, steps) => {
+      if (start < 0 || !steps.length) return false;
+      const seen = new Uint8Array(128);
+      const q = [start];
+      seen[start] = 1;
+      for (let i = 0; i < q.length; i++) {
+        const sq = q[i];
+        if (sq === goal) return true;
+        for (const off of steps) {
+          const to = sq + off;
+          if ((to & 0x88) || seen[to] || !passable(to)) continue;
+          seen[to] = 1;
+          q.push(to);
+        }
+      }
+      return false;
+    };
+
+    for (const piece of this.pieces()) {
+      if (piece.color !== color) continue;
+      const def = PIECES[piece.type];
+      if (!def || def.cannotCapture) continue;
+      const steps = [];
+      if (def.leapOff) steps.push(...def.leapOff);
+      if (def.slideOff) steps.push(...def.slideOff);
+      if (def.hopperOff) steps.push(...def.hopperOff);
+      if (def.pawn) steps.push(-17, -16, -15, 15, 16, 17);
+      if (flood(piece.square, steps)) return true;
+    }
+    return false;
+  }
+
   isGameOver() {
     if (this.rules.kingCapture) {
       if (this.kings.w < 0 || this.kings.b < 0) return true;
       if (this.moves().length === 0) return true;
+      if (!this.canTakeKing(WHITE)) return true;
       return this.isDraw();
     }
     return this.isCheckmate() || this.isDraw();
@@ -1124,10 +1347,12 @@ export class Chess {
       if (this.moves().length === 0) {
         return { over: true, winner: swap(this.turn), reason: 'no moves' };
       }
-      if (this.isThreefoldRepetition()) {
-        return { over: true, winner: null, reason: 'threefold repetition' };
+      if (!this.canTakeKing(WHITE)) {
+        return { over: true, winner: BLACK, reason: 'unwinnable' };
       }
-      if (this.isFiftyMoveDraw()) return { over: true, winner: null, reason: 'fifty-move rule' };
+      if (this.isThreefoldRepetition() || this.isFiftyMoveDraw()) {
+        return { over: true, winner: BLACK, reason: 'unwinnable' };
+      }
       return { over: false, winner: null, reason: null };
     }
     if (this.isCheckmate()) {

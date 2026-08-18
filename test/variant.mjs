@@ -105,6 +105,40 @@ const KC = { kingCapture: true, checks: false, castling: false };
 {
   const g = Chess.fromDiagram(`
     k . .
+    # # #
+    . K .
+  `, { files: 3, ranks: 3, rules: KC });
+  const out = g.outcome();
+  assert('walled-off kings are unwinnable', out.over && out.winner === BLACK && out.reason === 'unwinnable',
+    JSON.stringify(out));
+}
+
+{
+  const g = Chess.fromDiagram(`
+    . k . .
+    # # # #
+    . . N .
+    K . . .
+  `, { files: 4, ranks: 4, rules: KC });
+  const out = g.outcome();
+  assert('a knight can jump a wall to take the king', !out.over,
+    JSON.stringify(out));
+}
+
+{
+  const g = Chess.fromDiagram(`
+    k . .
+    {b:d} {b:d} {b:d}
+    . K .
+  `, { files: 3, ranks: 3, rules: KC });
+  const out = g.outcome();
+  assert('uncapturable drakes that wall the king are unwinnable',
+    out.over && out.reason === 'unwinnable', JSON.stringify(out));
+}
+
+{
+  const g = Chess.fromDiagram(`
+    k . .
     . . .
     . K Q
   `, { files: 3, ranks: 3, rules: KC, turn: 'b' });
@@ -410,8 +444,70 @@ const KC = { kingCapture: true, checks: false, castling: false };
 {
   const ids = Object.keys(PIECES);
   assert('registry has classic six', ['p', 'n', 'b', 'r', 'q', 'k'].every((id) => ids.includes(id)));
-  assert('registry has fairy set', ['f', 'w', 'c', 'h', 's', 't', 'a', 'g'].every((id) => ids.includes(id)));
+  assert('registry has fairy set', ['f', 'w', 'c', 'h', 's', 't', 'a', 'g', 'd', 'i', 'l', 'y'].every((id) => ids.includes(id)));
   assert('every piece has a cost and rarity', Object.values(PIECES).every((p) => p.cost >= 0 && p.rarity));
+}
+
+{
+  const g = Chess.fromDiagram(`
+    k n .
+    . {w:drake} .
+    . . K
+  `, { files: 3, ranks: 3, rules: KC });
+  assert('drake cannot capture', !hasMove(g, 'b2', 'b3'), names(g, 'b2').join(','));
+  g.turn = 'b';
+  assert('drake cannot be taken', !hasMove(g, 'a3', 'b2') && !hasMove(g, 'b3', 'b2'),
+    `king=${names(g, 'a3')} knight=${names(g, 'b3')}`);
+}
+
+{
+  const g = Chess.fromDiagram(`
+    k {b:wisp} .
+    . . .
+    N . K
+  `, { files: 3, ranks: 3, rules: KC });
+  const boom = g.move({ from: 'a1', to: 'b3' });
+  assert('taking a wisp is legal', Boolean(boom));
+  assert('wisp takes the taker with it', !g.get('b3') && !g.pieces().some((p) => p.type === 'n' && p.color === WHITE));
+}
+
+{
+  const g = Chess.fromDiagram(`
+    . n k
+    . {w:rime} .
+    . . K
+  `, { files: 3, ranks: 3, rules: KC });
+  g.move({ from: 'b2', to: 'a2' });
+  assert('rime freezes an adjacent enemy', (g.statusAt('b3') & 1) !== 0, `status=${g.statusAt('b3')}`);
+}
+
+{
+  const g = Chess.fromDiagram(`
+    k . .
+    . . .
+    {w:flame} . K
+  `, { files: 3, ranks: 3, rules: KC });
+  g.move({ from: 'a1', to: 'b2' });
+  assert('flame paints fire on the square it left', g.isFire(g.sqOf('a1')), `fire a1=${g.fireUntil[g.sqOf('a1')]} hist=${g.history.length}`);
+}
+
+{
+  const g = Chess.fromDiagram(`
+    k . . . .
+    . . . . n
+    . . . . .
+    . . . . .
+    . . . . K
+  `, { files: 5, ranks: 5, rules: { ...KC, duckChess: true }, duck: 'c3' });
+  assert('duck chess starts with a duck on c3', g.duck === g.sqOf('c3'));
+  assert('a rook-like slide cannot pass the duck', !g.moves({ square: 'e4' }).some((m) => {
+    const name = String.fromCharCode(97 + (m.to & 15)) + (5 - (m.to >> 4));
+    return name === 'c3' || name === 'b4' || name === 'a5';
+  }));
+  const played = g.move({ from: 'e1', to: 'd2' });
+  assert('after a move the duck must be parked', Boolean(played) && g.awaitingDuck);
+  assert('cannot park the duck on itself', g.placeDuck('c3') === false);
+  assert('can park the duck on an empty square', g.placeDuck('b2') === true && g.duck === g.sqOf('b2') && !g.awaitingDuck);
 }
 
 console.log(failures ? `\n${failures} variant failure(s)` : '\nAll variant tests passed.');
