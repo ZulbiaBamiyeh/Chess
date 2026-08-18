@@ -910,6 +910,7 @@ export class Chess {
       firePainted: null,
       iced: null,
       wispCapturer: null,
+      blast: null,
     };
 
     this.history.push({
@@ -1057,6 +1058,33 @@ export class Chess {
         if (extra.iced.length) this.status[dest] |= ST_FROZEN;
       }
 
+      // A sapper detonates when taken: the captor dies on top of it and
+      // everything standing around the blast goes with them.
+      if (move.captured && PIECES[move.captured]?.sapper
+        && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved)) {
+        const blast = [];
+        if (board[dest]) {
+          blast.push(dest, board[dest]);
+          if (board[dest].type === KING) this.kings[us] = -1;
+          board[dest] = null;
+          this.status[dest] = 0;
+        }
+        for (const off of KING_OFFSETS) {
+          const sq = dest + off;
+          if (!this.inBounds(sq)) continue;
+          const victim = board[sq];
+          if (!victim || PIECES[victim.type]?.uncapturable) continue;
+          blast.push(sq, victim);
+          if (victim.type === KING) this.kings[victim.color] = -1;
+          board[sq] = null;
+          this.status[sq] = 0;
+        }
+        if (blast.length) {
+          extra.blast = blast;
+          move.flags |= FLAG.WISP_BOOM;
+        }
+      }
+
       const tookWisp = move.captured && PIECES[move.captured]?.wisp
         && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved);
       if (tookWisp && board[dest]) {
@@ -1102,6 +1130,14 @@ export class Chess {
       }
     }
 
+    if (extra?.blast) {
+      for (let i = 0; i < extra.blast.length; i += 2) {
+        const sq = extra.blast[i];
+        const piece = extra.blast[i + 1];
+        board[sq] = piece;
+        if (piece.type === KING) this.kings[piece.color] = sq;
+      }
+    }
     if (extra?.wispCapturer) {
       board[move.from] = extra.wispCapturer;
       board[move.to] = { type: move.captured, color: swap(us) };

@@ -6,12 +6,12 @@ import {
   createRun, validateLoadout, buildFight, settleFight, addToBag, hasSlot,
   occupiedSlots, supplyBudget, deployBudget, openShop, buyOffer, autoPlace, currentNode,
   completeNode, pickNode, rest, currentEncounter,
-  bagSummary, equipKing, ownedKingIds,
+  bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
 } from '../js/run.js';
-import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms } from '../js/content.js';
+import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
 import { Chess } from '../js/chess.js';
-import { RARITY } from '../js/pieces.js';
+import { RARITY, PIECES } from '../js/pieces.js';
 
 let failures = 0;
 function assert(name, cond, detail = '') {
@@ -299,6 +299,111 @@ const alley = ENCOUNTERS.alley;
 
 function courtyardOrGate() {
   return ENCOUNTERS.courtyard || gate;
+}
+
+// ---- content book --------------------------------------------------------
+
+{
+  const list = Object.values(ENCOUNTERS);
+  assert('encounter book is Slay-the-Spire sized', list.length >= 55, String(list.length));
+  for (const act of [1, 2, 3]) {
+    const inAct = list.filter((e) => e.act === act);
+    const easy = inAct.filter((e) => e.tier === 'trash' && e.pool === 'easy').length;
+    const hard = inAct.filter((e) => e.tier === 'trash' && e.pool === 'hard').length;
+    assert(`act ${act} has an easy pool`, easy >= 3, String(easy));
+    assert(`act ${act} has a deep hard pool`, hard >= 10, String(hard));
+    assert(`act ${act} has three elites`, inAct.filter((e) => e.tier === 'elite').length >= 3);
+    assert(`act ${act} has three bosses`, inAct.filter((e) => e.tier === 'boss').length >= 3);
+  }
+}
+
+{
+  // Every enemy must stand on a real square, alone, and every fight needs a king.
+  let bad = 0;
+  for (const e of Object.values(ENCOUNTERS)) {
+    const seen = new Set();
+    for (const en of e.enemy || []) {
+      const file = en.at.charCodeAt(0) - 97;
+      const rank = Number(en.at.slice(1));
+      if (file < 0 || file >= e.files || rank < 1 || rank > e.ranks) bad++;
+      if (seen.has(en.at)) bad++;
+      seen.add(en.at);
+      if (!PIECES[en.type]) bad++;
+    }
+    for (const sq of Object.keys(e.terrain || {})) {
+      const file = sq.charCodeAt(0) - 97;
+      const rank = Number(sq.slice(1));
+      if (file < 0 || file >= e.files || rank < 1 || rank > e.ranks) bad++;
+    }
+    if (!(e.enemy || []).some((x) => x.type === 'k')) bad++;
+  }
+  assert('every encounter is structurally sound', bad === 0, `${bad} problems`);
+}
+
+{
+  // A map must never put the same fight on twice, and must open on easy rooms.
+  let seed = 4242;
+  const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  let repeats = 0;
+  let hardOpeners = 0;
+  for (let i = 0; i < 60; i++) {
+    const map = generateMap(rng);
+    for (const act of map.acts) {
+      const ids = act.nodes.filter((n) => n.kind === 'fight' && !n.boss).map((n) => n.encounterId);
+      if (new Set(ids).size !== ids.length) repeats++;
+      for (const n of act.nodes.filter((x) => x.col === 0 && x.kind === 'fight')) {
+        if (ENCOUNTERS[n.encounterId]?.pool !== 'easy') hardOpeners++;
+      }
+    }
+  }
+  assert('no act repeats a fight', repeats === 0, `${repeats} acts repeated`);
+  assert('every act opens on the easy pool', hardOpeners === 0, `${hardOpeners} hard openers`);
+}
+
+{
+  const map = (() => {
+    let seed = 11;
+    const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    return generateMap(rng);
+  })();
+  for (const act of map.acts) {
+    const events = act.nodes.filter((n) => n.kind === 'event');
+    assert(`act ${act.act} has ? rooms`, events.length >= 3, String(events.length));
+    assert(`act ${act.act} ? rooms all resolve to an event`,
+      events.every((n) => EVENTS[n.eventId]));
+    assert(`act ${act.act} does not repeat an event`,
+      new Set(events.map((n) => n.eventId)).size === events.length);
+  }
+}
+
+{
+  // Every choice in the book must resolve without throwing and leave the run sane.
+  let broken = 0;
+  for (const ev of Object.values(EVENTS)) {
+    for (const choice of ev.choices) {
+      const run = createRun(1);
+      run.gold = 200;
+      try {
+        applyChoice(run, choice, run.bag[0]?.uid);
+        if (run.hp > run.maxHp || run.hp < 0 || run.gold < 0) broken++;
+      } catch { broken++; }
+    }
+  }
+  assert('every event choice resolves cleanly', broken === 0, `${broken} broken`);
+
+  const poor = createRun(1);
+  poor.gold = 0;
+  const priced = Object.values(EVENTS).flatMap((e) => e.choices).find((c) => c.cost);
+  assert('a priced choice is blocked when broke', !choiceAvailable(poor, priced).ok);
+}
+
+{
+  // The new pieces have to be reachable and legal.
+  for (const id of ['z', 'm', 'x', 'v']) {
+    assert(`${PIECES[id].name} is in the registry`, Boolean(PIECES[id]));
+    assert(`${PIECES[id].name} has a cost and a value`,
+      PIECES[id].cost > 0 && PIECES[id].value > 0);
+  }
 }
 
 console.log(failures ? `\n${failures} run failure(s)` : '\nAll run tests passed.');

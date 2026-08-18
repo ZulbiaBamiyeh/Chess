@@ -8,9 +8,9 @@ import {
   openShop, buyOffer, rerollShop, closeShop, retryAllowed,
   autoPlace, supplyBudget, deployBudget, occupiedSlots, freeHomeSquares,
   completeNode, pickNode, rest, REST_GOLD, turnClock,
-  bagSummary, equipKing,
+  bagSummary, equipKing, applyChoice, choiceAvailable,
 } from './run.js';
-import { encounterFor, kingDef } from './content.js';
+import { encounterFor, kingDef, EVENTS } from './content.js';
 
 export function initCampaign(ctx) {
   const {
@@ -159,6 +159,7 @@ export function initCampaign(ctx) {
         + (done ? ' done' : '')
         + (node.kind === 'shop' ? ' shop' : '')
         + (node.kind === 'rest' ? ' rest' : '')
+        + (node.kind === 'event' ? ' event' : '')
         + (node.boss ? ' boss' : '')
         + (node.tier === 'elite' ? ' elite' : '');
       btn.style.left = `${p.x}px`;
@@ -201,8 +202,11 @@ export function initCampaign(ctx) {
     const src = node.boss ? 'map-boss'
       : node.kind === 'shop' ? 'map-shop'
       : node.kind === 'rest' ? 'map-rest'
+      : node.kind === 'event' ? null
       : node.tier === 'elite' ? 'map-elite'
       : 'map-fight';
+    // The ? room has no art of its own; the mark is the icon.
+    if (src === null) return '<span class="map-ico map-ico-mark">?</span>';
     return `<img class="map-ico" src="assets/${src}.png" alt="" draggable="false" width="32" height="32">`;
   }
 
@@ -211,6 +215,7 @@ export function initCampaign(ctx) {
     if (!node || state.run.over) { endRun(); return; }
     if (node.kind === 'shop') openShopScreen();
     else if (node.kind === 'rest') openRest();
+    else if (node.kind === 'event') openEvent(node);
     else {
       const enc = encounterFor(node);
       if (enc) openLoadout(enc);
@@ -779,6 +784,89 @@ export function initCampaign(ctx) {
     onFightOver({ forfeit: true });
   }
 
+// ---- events (the ? rooms) ----------------------------------------------
+
+  function openEvent(node) {
+    const ev = EVENTS[node.eventId] || Object.values(EVENTS)[0];
+    state.event = ev;
+    paintRunHud();
+    $('event-name').textContent = ev.name;
+    $('event-text').textContent = ev.text;
+    $('event-outcome').classList.add('hidden');
+    $('btn-event-leave').classList.add('hidden');
+    $('event-choices').classList.remove('hidden');
+    paintChoices(ev);
+    audio.setMusicStyle('shop');
+    showScreen('screen-event');
+  }
+
+  function paintChoices(ev) {
+    const host = $('event-choices');
+    host.innerHTML = '';
+    for (const choice of ev.choices) {
+      const gate = choiceAvailable(state.run, choice);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'event-choice';
+      btn.disabled = !gate.ok;
+      btn.innerHTML = `<span class="ec-label">${choice.label}</span>`
+        + `<span class="ec-detail">${choice.detail}</span>`
+        + (gate.ok ? '' : `<span class="ec-block">${gate.reason}</span>`);
+      btn.addEventListener('click', () => takeChoice(choice));
+      btn.addEventListener('pointerenter', () => audio.hover());
+      host.appendChild(btn);
+    }
+  }
+
+  /** A choice that gives up a piece has to ask which one before it resolves. */
+  function takeChoice(choice) {
+    const needsPick = (choice.effects || []).some((e) => e.lose === 'choose');
+    if (needsPick) { askWhichPiece(choice); return; }
+    resolveChoice(choice, null);
+  }
+
+  function askWhichPiece(choice) {
+    const host = $('event-choices');
+    host.innerHTML = '<div class="ec-detail" style="padding:0 0 .4rem">Which piece do you leave?</div>';
+    for (const item of state.run.bag) {
+      const def = pieceById(item.type);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'event-choice';
+      btn.innerHTML = `<span class="ec-label">${def.name}</span>`
+        + `<span class="ec-detail">${def.cost} supply · ${def.rarity}</span>`;
+      btn.addEventListener('click', () => resolveChoice(choice, item.uid));
+      btn.addEventListener('pointerenter', () => audio.hover());
+      host.appendChild(btn);
+    }
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'event-choice';
+    back.innerHTML = '<span class="ec-label">Actually, no</span>';
+    back.addEventListener('click', () => paintChoices(state.event));
+    host.appendChild(back);
+  }
+
+  function resolveChoice(choice, pickedUid) {
+    const result = applyChoice(state.run, choice, pickedUid);
+    if (!result.ok) { audio.illegal(); toast(result.reason || 'Not now', 'danger'); return; }
+    audio.click();
+    $('event-choices').classList.add('hidden');
+    const lines = result.lines.length ? result.lines : ['Nothing happens.'];
+    $('event-outcome').innerHTML = lines.map((l) => `<div>${l}</div>`).join('');
+    $('event-outcome').classList.remove('hidden');
+    $('btn-event-leave').classList.remove('hidden');
+    paintRunHud();
+    if (state.run.hp <= 0) { state.run.over = true; }
+  }
+
+  function leaveEvent() {
+    if (state.run.over) { endRun(); return; }
+    completeNode(state.run);
+    if (state.run.over) { endRun(); return; }
+    showMap();
+  }
+
   function openShopScreen() {
     const node = currentNode(state.run);
     openShop(state.run);
@@ -894,6 +982,8 @@ export function initCampaign(ctx) {
   if ($('btn-map-go')) $('btn-map-go').addEventListener('click', goFromMap);
   $('btn-map-quit').addEventListener('click', abandon);
   $('btn-loadout-back').addEventListener('click', showMap);
+  if ($('btn-event-leave')) $('btn-event-leave').addEventListener('click', leaveEvent);
+  if ($('btn-event-bag')) $('btn-event-bag').addEventListener('click', openBag);
   $('btn-loadout-auto').addEventListener('click', () => {
     const enc = state.encounter;
     const remaining = state.run.bag.filter((p) => !placements.some((x) => x.uid === p.uid));

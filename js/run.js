@@ -1,7 +1,7 @@
 // A single run: bag, slots, supply, HP, map, shop and fight settlement.
 // Nothing here touches the DOM. campaign.js drives the screens.
 
-import { WHITE, BLACK, Chess, ST_SHIELD, ST_FROZEN, FLAG, parseSquare } from './chess.js';
+import { WHITE, BLACK, Chess, ST_SHIELD, ST_FROZEN, FLAG, TILE, parseSquare } from './chess.js';
 import { PIECES, SLOT_CAPS, pieceCost, rarityOf, RARITY } from './pieces.js';
 import {
   START_HP, START_GOLD, STARTING_BAG, KING_PASSIVES, REST_GOLD,
@@ -262,6 +262,14 @@ function emptyPlacement(files, ranks) {
 }
 
 export function applyStartStatuses(game, run) {
+  // Wardens walk in already shielded, whichever side fields them, and anyone
+  // already standing on a fort holds it from the first move — a fort only
+  // shielded on arrival otherwise, so a garrison started the fight unguarded.
+  for (const piece of game.pieces()) {
+    if (PIECES[piece.type]?.shielded) game.status[piece.square] |= ST_SHIELD;
+    if (game.tileAt(piece.square) === TILE.FORT) game.status[piece.square] |= ST_SHIELD;
+  }
+
   const king = game.kings.w;
   if (king < 0) return;
   if (run.king === 'aegis') game.status[king] |= ST_SHIELD;
@@ -540,3 +548,105 @@ export function autoPlace(encounter, selectedItems) {
 }
 
 export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD };
+
+// ---- events ---------------------------------------------------------------
+
+/**
+ * Can this choice be taken right now? Priced choices need the gold; a choice
+ * that drops a piece needs something droppable left in the bag.
+ */
+export function choiceAvailable(run, choice) {
+  if (choice.cost && run.gold < choice.cost) {
+    return { ok: false, reason: `Costs ${choice.cost}g` };
+  }
+  const dropsAPiece = (choice.effects || []).some((e) => e.lose);
+  if (dropsAPiece && run.bag.length <= 1) {
+    return { ok: false, reason: 'Nothing to give' };
+  }
+  return { ok: true };
+}
+
+/**
+ * Applies one event choice and returns lines describing what happened, so the
+ * UI can report the outcome without knowing the effect vocabulary.
+ *
+ * `lose: 'choose'` cannot be resolved here — the caller has to ask which piece
+ * first and pass it back as `pickedUid`.
+ */
+export function applyChoice(run, choice, pickedUid = null) {
+  const gate = choiceAvailable(run, choice);
+  if (!gate.ok) return { ok: false, reason: gate.reason, lines: [] };
+
+  const lines = [];
+  if (choice.cost) {
+    run.gold -= choice.cost;
+    lines.push(`−${choice.cost} gold`);
+  }
+
+  let effects = choice.effects || [];
+  if (choice.gamble) {
+    const won = Math.random() < choice.gamble.odds;
+    lines.push(won ? 'The cup comes up empty. You win.' : 'Wrong cup.');
+    effects = [...effects, ...(won ? choice.gamble.win : choice.gamble.lose)];
+  }
+
+  for (const effect of effects) {
+    if (effect.gold != null) {
+      run.gold = Math.max(0, run.gold + effect.gold);
+      lines.push(`${effect.gold >= 0 ? '+' : '−'}${Math.abs(effect.gold)} gold`);
+    }
+    if (effect.hp != null) {
+      run.hp = Math.max(0, run.hp + effect.hp);
+      lines.push(`${effect.hp >= 0 ? '+' : '−'}${Math.abs(effect.hp)} HP`);
+      if (run.hp <= 0) run.over = true;
+    }
+    if (effect.maxHp != null) {
+      run.maxHp = Math.max(1, run.maxHp + effect.maxHp);
+      run.hp = Math.min(run.hp, run.maxHp);
+      lines.push(`${effect.maxHp >= 0 ? '+' : '−'}${Math.abs(effect.maxHp)} max HP`);
+    }
+    if (effect.heal != null) {
+      const before = run.hp;
+      run.hp = Math.min(run.maxHp, run.hp + effect.heal);
+      lines.push(`+${run.hp - before} HP`);
+    }
+    if (effect.supply != null) {
+      run.supplyBonus += effect.supply;
+      lines.push(`+${effect.supply} supply, permanently`);
+    }
+    if (effect.deploy != null) {
+      run.deployBonus = (run.deployBonus || 0) + effect.deploy;
+      lines.push(`+${effect.deploy} piece per fight, permanently`);
+    }
+    if (effect.gain) {
+      const id = rollGain(run, effect.gain);
+      if (id) {
+        const added = addToBag(run, id);
+        lines.push(added ? `${PIECES[id].name} joins the bag`
+          : `${PIECES[id].name} would not fit — sold for 12 gold`);
+        if (!added) run.gold += 12;
+      }
+    }
+    if (effect.lose) {
+      const uid = effect.lose === 'choose' ? pickedUid : null;
+      const at = uid
+        ? run.bag.findIndex((p) => p.uid === uid)
+        : run.bag.findIndex((p) => p.type === effect.lose);
+      if (at >= 0) {
+        const [gone] = run.bag.splice(at, 1);
+        lines.push(`${PIECES[gone.type].name} left behind`);
+      }
+    }
+  }
+  return { ok: true, lines };
+}
+
+/** Turns a `gain` token into a concrete piece id the bag has room for. */
+function rollGain(run, token) {
+  if (PIECES[token]) return token;
+  const wantRarity = token === 'random-rare' ? RARITY.RARE : RARITY.COMMON;
+  const pool = Object.values(PIECES)
+    .filter((p) => p.rarity === wantRarity && p.rarity !== RARITY.UNIQUE && !p.royal);
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)].id;
+}

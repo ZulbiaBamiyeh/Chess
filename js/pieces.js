@@ -25,6 +25,7 @@ const K = [...B, ...R];
 const C = [[1, 3], [1, -3], [-1, 3], [-1, -3], [3, 1], [3, -1], [-3, 1], [-3, -1]];
 const ALFIL = [[2, 2], [2, -2], [-2, 2], [-2, -2]];
 const DABBABA = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+const ZEBRA = [[2, 3], [2, -3], [-2, 3], [-2, -3], [3, 2], [3, -2], [-3, 2], [-3, -2]];
 
 /** @typedef {'common'|'uncommon'|'rare'|'legendary'|'unique'} Rarity */
 
@@ -47,6 +48,8 @@ const DABBABA = [[2, 0], [-2, 0], [0, 2], [0, -2]];
  * @property {boolean} [paintsFire]
  * @property {boolean} [ice]
  * @property {boolean} [wisp]
+ * @property {boolean} [sapper]   blast on being captured
+ * @property {boolean} [shielded] enters the fight already shielded
  * @property {boolean} [shop]
  */
 
@@ -90,7 +93,7 @@ export const PIECES = {
   },
   h: {
     id: 'h', name: 'Champion', blurb: 'Wazir, alfil and dabbaba — short and long.',
-    cost: 5, rarity: RARITY.RARE, value: 420, sprite: 'king', hue: 168,
+    cost: 4, rarity: RARITY.RARE, value: 420, sprite: 'king', hue: 168,
     leaps: [...R, ...ALFIL, ...DABBABA],
   },
   s: {
@@ -99,7 +102,7 @@ export const PIECES = {
   },
   t: {
     id: 't', name: 'Empress', blurb: 'Rook plus knight.',
-    cost: 8, rarity: RARITY.EPIC, value: 850, sprite: 'rook', hue: 155, leaps: N, slides: R,
+    cost: 7, rarity: RARITY.EPIC, value: 850, sprite: 'rook', hue: 155, leaps: N, slides: R,
   },
   a: {
     id: 'a', name: 'Amazon', blurb: 'Queen plus knight. A problem.',
@@ -117,7 +120,7 @@ export const PIECES = {
   i: {
     id: 'i', name: 'Rime',
     blurb: 'One step any way. Freezes enemies beside her — and herself with them.',
-    cost: 5, rarity: RARITY.EPIC, value: 420, sprite: 'ice', leaps: K, ice: true,
+    cost: 5, rarity: RARITY.EPIC, value: 440, sprite: 'ice', leaps: K, ice: true,
   },
   l: {
     id: 'l', name: 'Flame', blurb: 'A bishop whose path burns for a turn.',
@@ -126,6 +129,24 @@ export const PIECES = {
   y: {
     id: 'y', name: 'Wisp', blurb: 'If it is taken, the taker dies with it.',
     cost: 4, rarity: RARITY.LEGENDARY, value: 380, sprite: 'wisp', leaps: B, wisp: true,
+  },
+  z: {
+    id: 'z', name: 'Zebra', blurb: 'The 3–2 leap. Lands where nothing else can reach.',
+    cost: 3, rarity: RARITY.RARE, value: 270, sprite: 'camel', hue: 205, leaps: ZEBRA,
+  },
+  m: {
+    id: 'm', name: 'Nightrider',
+    blurb: 'Repeats the knight leap in a line until something blocks it.',
+    cost: 6, rarity: RARITY.EPIC, value: 620, sprite: 'knight', hue: 264, slides: N,
+  },
+  x: {
+    id: 'x', name: 'Sapper',
+    blurb: 'One orthogonal step. Take it and the blast kills the captor and all around it.',
+    cost: 5, rarity: RARITY.EPIC, value: 380, sprite: 'wazir', hue: 22, leaps: R, sapper: true,
+  },
+  v: {
+    id: 'v', name: 'Warden', blurb: 'One step any way, and it walks into the fight shielded.',
+    cost: 5, rarity: RARITY.RARE, value: 400, sprite: 'rook', hue: 190, leaps: K, shielded: true,
   },
 };
 

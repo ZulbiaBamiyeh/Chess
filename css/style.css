@@ -2025,3 +2025,89 @@ kbd {
     max-height: none;
   }
 }
+
+
+/* ---------- events (the ? rooms) ---------- */
+
+.event-card {
+  position: relative;
+  z-index: 2;
+  background: rgba(13, 18, 36, 0.92);
+  border: 2px solid rgba(255, 207, 63, 0.34);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.7rem 1.7rem;
+  max-width: min(94vw, 640px);
+  box-shadow: 0 18px 54px var(--shadow);
+  text-align: center;
+}
+.event-mark {
+  display: block;
+  font-family: var(--font-pixel);
+  font-size: 2.6rem;
+  color: var(--violet);
+  text-shadow: 0 0 26px rgba(192, 140, 255, 0.7);
+  margin-bottom: 0.2rem;
+}
+.event-card h2 {
+  font-family: var(--font-pixel);
+  color: var(--gold);
+  font-size: 1.1rem;
+  margin: 0 0 0.9rem;
+}
+.event-text {
+  color: var(--ink-dim);
+  line-height: 1.55;
+  margin: 0 0 1.3rem;
+  text-align: left;
+}
+.event-choices { display: flex; flex-direction: column; gap: 0.5rem; }
+.event-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.6rem 0.85rem;
+  background: rgba(30, 39, 73, 0.75);
+  border: 2px solid rgba(169, 179, 208, 0.22);
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+.event-choice:hover:not(:disabled) {
+  transform: translateX(3px);
+  border-color: var(--gold);
+  background: rgba(255, 207, 63, 0.12);
+}
+.event-choice:disabled { opacity: 0.4; cursor: default; }
+.event-choice .ec-label { font-weight: 700; font-size: 0.95rem; }
+.event-choice .ec-detail { font-size: 0.82rem; color: var(--ink-faint); line-height: 1.25; }
+.event-choice:hover:not(:disabled) .ec-detail { color: var(--ink-dim); }
+.event-choice .ec-block { font-size: 0.78rem; color: var(--red); }
+
+.event-outcome {
+  margin-top: 0.4rem;
+  padding: 0.8rem 1rem;
+  border-radius: 10px;
+  background: rgba(78, 240, 142, 0.08);
+  border: 1px solid rgba(78, 240, 142, 0.3);
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  text-align: left;
+}
+.event-outcome b { color: var(--gold); }
+#btn-event-leave { margin-top: 1rem; }
+
+.map-ico-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  font-family: var(--font-pixel);
+  font-size: 1.35rem;
+  color: var(--violet);
+  text-shadow: 0 0 12px rgba(192, 140, 255, 0.85);
+}
+.map-dot.event { border-color: rgba(192, 140, 255, 0.6); }
