@@ -6,7 +6,7 @@ import { BoardView, pieceImage, pieceHue, shake, confetti, toast } from './ui.js
 import {
   createRun, currentNode, validateLoadout, buildFight, settleFight,
   openShop, buyOffer, rerollShop, closeShop, advance, retryAllowed,
-  autoPlace, supplyBudget, occupiedSlots, homeSquares,
+  autoPlace, supplyBudget, occupiedSlots, homeSquares, freeHomeSquares,
 } from './run.js';
 import { ENCOUNTERS } from './content.js';
 
@@ -72,6 +72,10 @@ export function initCampaign(ctx) {
         + (enc.kind === 'fight'
           ? `<span class="map-node-meta">${enc.files}×${enc.ranks} · ${enc.supply + run.supplyBonus} supply</span>`
           : `<span class="map-node-meta">${enc.blurb}</span>`);
+      if (i === run.node) {
+        btn.style.cursor = 'pointer';
+        btn.addEventListener('click', goFromMap);
+      }
       path.appendChild(btn);
     });
     $('map-blurb').textContent = node
@@ -94,13 +98,14 @@ export function initCampaign(ctx) {
   function openLoadout(encounter) {
     state.encounter = encounter;
     selectedUid = null;
-    const homes = homeSquares(encounter.files, encounter.ranks);
-    const kingSq = homes[Math.floor(homes.length / 2)] ?? homes[0];
-    placements = [{ uid: 'king', type: 'k', sq: kingSq }];
+    const homes = freeHomeSquares(encounter);
+    const kingSq = homes[Math.floor((homes.length - 1) / 2)] ?? homes[0];
+    placements = kingSq != null ? [{ uid: 'king', type: 'k', sq: kingSq }] : [];
 
     $('loadout-title').textContent = encounter.name;
     $('loadout-blurb').textContent =
       `${encounter.blurb}  ·  ${encounter.files}×${encounter.ranks}  ·  take their king`;
+    renderEnemy(encounter);
 
     if (!deployView) {
       deployView = new BoardView($('deploy-board'), {
@@ -129,7 +134,7 @@ export function initCampaign(ctx) {
   }
 
   function paintHomes(enc) {
-    const homes = new Set(homeSquares(enc.files, enc.ranks));
+    const homes = new Set(freeHomeSquares(enc));
     const taken = new Set(placements.map((p) => p.sq));
     for (const [sq, el] of deployView.squares) {
       el.classList.toggle('home', homes.has(sq));
@@ -144,24 +149,58 @@ export function initCampaign(ctx) {
     $('coords-ranks-deploy').innerHTML = ranks.map((r) => `<span>${r}</span>`).join('');
   }
 
+  function remainingSupply() {
+    const enc = state.encounter;
+    const spent = placements.filter((p) => p.uid !== 'king')
+      .reduce((sum, p) => sum + pieceCost(p.type), 0);
+    return supplyBudget(state.run, enc) - spent;
+  }
+
+  function renderEnemy(encounter) {
+    let host = $('enemy-roster');
+    if (!host) return;
+    const bits = (encounter.enemy || []).map((p) => {
+      const def = pieceById(p.type);
+      return def ? def.name : p.type;
+    });
+    host.textContent = bits.length ? `They bring ${bits.join(', ')}.` : '';
+  }
+
   function renderBag() {
     const list = $('bag-list');
     list.innerHTML = '';
     const used = new Set(placements.map((p) => p.uid));
+    const left = remainingSupply();
     for (const item of state.run.bag) {
       const def = pieceById(item.type);
+      const placed = used.has(item.uid);
+      const tooDear = !placed && def.cost > left;
       const btn = document.createElement('button');
       btn.className = 'bag-item'
-        + (used.has(item.uid) ? ' used' : '')
+        + (placed ? ' used' : '')
+        + (tooDear ? ' dear' : '')
         + (selectedUid === item.uid ? ' on' : '');
-      btn.disabled = used.has(item.uid);
+      btn.title = def.blurb || def.name;
       const hue = pieceHue(item.type);
       btn.innerHTML =
         `<i style="background-image:url('${pieceImage(item.type, WHITE)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`
         + `<span class="bag-name">${def.name}</span>`
-        + `<span class="bag-meta">${def.cost} · ${def.rarity}</span>`;
+        + `<span class="bag-meta">${def.cost} · ${def.rarity}${placed ? ' · on board' : ''}</span>`;
       btn.addEventListener('click', () => {
-        if (used.has(item.uid)) return;
+        if (placed) {
+          placements = placements.filter((p) => p.uid !== item.uid);
+          selectedUid = item.uid;
+          audio.lift();
+          rebuildDeploy();
+          renderBag();
+          paintSupply();
+          return;
+        }
+        if (tooDear) {
+          audio.illegal();
+          toast(`Needs ${def.cost} supply`, 'danger');
+          return;
+        }
         selectedUid = selectedUid === item.uid ? null : item.uid;
         audio.click();
         renderBag();
@@ -173,6 +212,16 @@ export function initCampaign(ctx) {
     $('loadout-slots').textContent = Object.entries(state.run.slots)
       .map(([r, n]) => `${r} ${slots[r] || 0}/${n}`)
       .join('  ·  ');
+    renderSelected();
+  }
+
+  function renderSelected() {
+    const host = $('loadout-selected');
+    if (!host) return;
+    host.innerHTML = placements.map((p) => {
+      const def = pieceById(p.type);
+      return `<span class="sel-chip">${def?.name || p.type}${p.uid === 'king' ? '' : ` ${def.cost}`}</span>`;
+    }).join('');
   }
 
   function paintSupply() {
@@ -188,21 +237,28 @@ export function initCampaign(ctx) {
   }
 
   function canDeployPick(sq) {
-    return placements.some((p) => p.sq === sq && p.uid !== 'king');
+    return placements.some((p) => p.sq === sq);
   }
 
   function deployTargets(sq) {
     const enc = state.encounter;
-    const homes = homeSquares(enc.files, enc.ranks);
+    const homes = freeHomeSquares(enc);
     const taken = new Set(placements.map((p) => p.sq));
     return homes.filter((h) => !taken.has(h) || h === sq).map((to) => ({ to, captured: null }));
   }
 
+  function selectNextAffordable() {
+    const used = new Set(placements.map((p) => p.uid));
+    const left = remainingSupply();
+    const next = state.run.bag.find((item) => !used.has(item.uid) && pieceCost(item.type) <= left);
+    selectedUid = next ? next.uid : null;
+  }
+
   function onDeployDrop(from, to) {
     const piece = placements.find((p) => p.sq === from);
-    if (!piece || piece.uid === 'king') return;
+    if (!piece) return;
     const enc = state.encounter;
-    const homes = homeSquares(enc.files, enc.ranks);
+    const homes = freeHomeSquares(enc);
     if (!homes.includes(to)) {
       audio.illegal();
       deployView.reject(to);
@@ -222,7 +278,7 @@ export function initCampaign(ctx) {
   function placeSelected(sq) {
     if (!selectedUid) return false;
     const enc = state.encounter;
-    const homes = homeSquares(enc.files, enc.ranks);
+    const homes = freeHomeSquares(enc);
     if (!homes.includes(sq) || placements.some((p) => p.sq === sq)) return false;
     const item = state.run.bag.find((p) => p.uid === selectedUid);
     if (!item) return false;
@@ -234,7 +290,7 @@ export function initCampaign(ctx) {
       return false;
     }
     placements = next;
-    selectedUid = null;
+    selectNextAffordable();
     audio.place();
     rebuildDeploy();
     renderBag();
@@ -251,15 +307,6 @@ export function initCampaign(ctx) {
         audio.illegal();
         deployView.reject(sq);
       }
-      return;
-    }
-    const placed = placements.find((p) => p.sq === sq && p.uid !== 'king');
-    if (placed) {
-      placements = placements.filter((p) => p.uid !== placed.uid);
-      audio.lift();
-      rebuildDeploy();
-      renderBag();
-      paintSupply();
     }
   }
 
@@ -400,6 +447,17 @@ export function initCampaign(ctx) {
       });
       card.addEventListener('pointerenter', () => audio.hover());
       root.appendChild(card);
+    }
+    let bag = $('shop-bag');
+    if (bag) {
+      const slots = occupiedSlots(state.run);
+      const slotLine = Object.entries(state.run.slots)
+        .map(([r, n]) => `${r} ${slots[r] || 0}/${n}`).join(' · ');
+      const names = state.run.bag.map((p) => pieceById(p.type)?.name || p.type).join(', ');
+      const passives = state.run.kingPassives.length
+        ? ` · ${state.run.kingPassives.join(', ')}`
+        : '';
+      bag.textContent = `Bag: ${names || 'empty'}  ·  ${slotLine}  ·  supply +${state.run.supplyBonus}${passives}`;
     }
   }
 

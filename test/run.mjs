@@ -146,5 +146,43 @@ const alley = ENCOUNTERS[1];
   assert('gate AI-vs-AI finishes', out.over && plies < cap, JSON.stringify({ plies, out }));
 }
 
+{
+  const run = createRun(3);
+  const fights = ENCOUNTERS.filter((e) => e.kind === 'fight');
+  let crashed = null;
+  for (const enc of fights) {
+    const pick = [];
+    let cost = 0;
+    const budget = enc.supply + run.supplyBonus;
+    for (const item of run.bag) {
+      const c = item.type === 'k' ? 0 : (item.type === 'p' ? 1 : 3);
+      const real = { p: 1, n: 3, f: 2, w: 2, c: 4, h: 5, s: 7, t: 8, a: 12, g: 3, b: 3, r: 5, q: 9 }[item.type] ?? 2;
+      if (cost + real > budget) continue;
+      pick.push(item);
+      cost += real;
+    }
+    const game = buildFight(run, enc, autoPlace(enc, pick));
+    if (game.kings.w < 0 || game.kings.b < 0) {
+      crashed = `${enc.id} missing a king`;
+      break;
+    }
+    if (game.terrain && game.kings.w >= 0 && game.tileAt(game.kings.w) === 1) {
+      crashed = `${enc.id} king on a block`;
+      break;
+    }
+    const move = chooseMove(game, { depth: 1, slip: 0, budget: 120 });
+    if (!move) {
+      crashed = `${enc.id} AI found no move`;
+      break;
+    }
+    const played = game.move({ from: move.from, to: move.to, promotion: move.promotion });
+    if (!played) {
+      crashed = `${enc.id} AI move rejected`;
+      break;
+    }
+  }
+  assert('every encounter builds and accepts an AI move', !crashed, crashed || '');
+}
+
 console.log(failures ? `\n${failures} run failure(s)` : '\nAll run tests passed.');
 process.exit(failures ? 1 : 0);

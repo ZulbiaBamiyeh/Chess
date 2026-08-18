@@ -5,7 +5,7 @@ import { WHITE, BLACK, Chess, ST_SHIELD, FLAG, parseSquare } from './chess.js';
 import { PIECES, SLOT_CAPS, pieceCost, rarityOf, RARITY } from './pieces.js';
 import {
   ENCOUNTERS, START_HEARTS, START_GOLD, STARTING_BAG, KING_PASSIVES,
-  homeSquares, weightedPiece, supplyUpgradeCost, slotUpgradeCost,
+  homeSquares, freeHomeSquares, weightedPiece, supplyUpgradeCost, slotUpgradeCost,
 } from './content.js';
 
 let nextUid = 1;
@@ -99,7 +99,7 @@ export function validateLoadout(run, encounter, selectedUids) {
   if (items.length !== selectedUids.length) {
     return { ok: false, reason: 'A selected piece is not in your bag.', cost: 0, budget };
   }
-  const homes = homeSquares(encounter.files, encounter.ranks);
+  const homes = freeHomeSquares(encounter);
   if (items.length + 1 > homes.length) {
     return { ok: false, reason: 'Not enough home squares for that many pieces.', cost: loadoutCost(items), budget };
   }
@@ -380,14 +380,7 @@ export function closeShop(run) {
 }
 
 export function autoPlace(encounter, selectedItems) {
-  const homes = homeSquares(encounter.files, encounter.ranks);
-  const blocked = new Set();
-  if (encounter.terrain) {
-    for (const [name, tile] of Object.entries(encounter.terrain)) {
-      if (tile === 1) blocked.add(parseSquare(name, encounter.ranks));
-    }
-  }
-  const free = homes.filter((sq) => !blocked.has(sq));
+  const free = freeHomeSquares(encounter);
   const withKing = [{ uid: 'king', type: 'k' }, ...selectedItems];
   const placements = [];
   for (let i = 0; i < withKing.length && i < free.length; i++) {
@@ -396,4 +389,4 @@ export function autoPlace(encounter, selectedItems) {
   return placements;
 }
 
-export { ENCOUNTERS, KING_PASSIVES, homeSquares };
+export { ENCOUNTERS, KING_PASSIVES, homeSquares, freeHomeSquares };

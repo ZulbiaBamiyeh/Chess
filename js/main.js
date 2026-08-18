@@ -4,12 +4,14 @@
 
 import { Chess, WHITE, BLACK, FLAG } from './chess.js';
 import { LEVELS, levelById } from './ai.js';
+import { pieceCost } from './pieces.js';
 import { ShaderBackground } from './bg.js';
 import { audio } from './audio.js';
 import { BoardView, pieceImage, shake, confetti, toast } from './ui.js';
 import { initCampaign } from './campaign.js';
 
 const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+const trayValue = (type) => PIECE_VALUE[type] ?? pieceCost(type);
 const $ = (id) => document.getElementById(id);
 
 const state = {
@@ -95,7 +97,7 @@ function materialSummary() {
 
   let balance = 0;
   for (const piece of state.game.pieces()) {
-    balance += (piece.color === WHITE ? 1 : -1) * PIECE_VALUE[piece.type];
+    balance += (piece.color === WHITE ? 1 : -1) * trayValue(piece.type);
   }
 
   // taken.w = pieces White has captured; balance > 0 means White is ahead.
@@ -104,8 +106,7 @@ function materialSummary() {
 
 function renderTray(el, types, color, advantage) {
   el.innerHTML = '';
-  const order = ['q', 'r', 'b', 'n', 'p'];
-  types.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  types.sort((a, b) => trayValue(b) - trayValue(a));
   for (const type of types) {
     const bit = document.createElement('i');
     bit.className = 'taken-piece';
@@ -167,15 +168,18 @@ function setStatus(text, kind = '') {
 
 function refreshStatus() {
   if (state.gameOver) return;
+  const foe = state.mode === 'run' && state.encounter
+    ? state.encounter.name
+    : state.level.name;
   if (state.thinking) {
-    setStatus(`${state.level.name} is thinking`, 'thinking');
+    setStatus(`${foe} is thinking`, 'thinking');
     return;
   }
   if (state.game.turn === state.playerColor) {
     setStatus(state.game.inCheck() ? 'You are in check' : 'Your move',
       state.game.inCheck() ? 'danger' : '');
   } else {
-    setStatus(`${state.level.name} to move`);
+    setStatus(`${foe} to move`);
   }
 }
 

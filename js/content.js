@@ -2,7 +2,7 @@
 // run.js owns the mutable run, this file is the book it reads.
 
 import { PIECES, RARITY, shopPool, pieceCost } from './pieces.js';
-import { TILE } from './chess.js';
+import { TILE, parseSquare } from './chess.js';
 
 export const START_HEARTS = 3;
 export const START_GOLD = 2;
@@ -158,6 +158,23 @@ export function homeSquares(files, ranks) {
     for (let f = 0; f < files; f++) out.push(r * 16 + f);
   }
   return out;
+}
+
+/** Home squares that are not blocked and not already holding an enemy. */
+export function freeHomeSquares(encounter) {
+  const blocked = new Set();
+  if (encounter.terrain) {
+    for (const [name, tile] of Object.entries(encounter.terrain)) {
+      if (tile === TILE.BLOCK) {
+        blocked.add(parseSquare(name, encounter.ranks));
+      }
+    }
+  }
+  const taken = new Set(
+    (encounter.enemy || []).map((p) => parseSquare(p.at, encounter.ranks)),
+  );
+  return homeSquares(encounter.files, encounter.ranks)
+    .filter((sq) => !blocked.has(sq) && !taken.has(sq));
 }
 
 export function enemySquares(encounter) {

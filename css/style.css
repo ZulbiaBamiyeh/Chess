@@ -1010,7 +1010,24 @@ kbd {
 .bag-name { font-weight: 700; font-size: 0.88rem; }
 .bag-meta { font-size: 0.72rem; color: var(--ink-faint); }
 .bag-item.on { border-color: var(--gold); background: rgba(255, 207, 63, 0.14); }
-.bag-item.used { opacity: 0.35; cursor: default; }
+.bag-item.used { opacity: 0.55; }
+.bag-item.dear { opacity: 0.4; }
+.enemy-roster, .shop-bag {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 0.88rem;
+  text-align: center;
+}
+.sel-chip {
+  display: inline-block;
+  margin: 0 0.25rem 0.25rem 0;
+  padding: 0.15em 0.45em;
+  border-radius: 999px;
+  background: rgba(255, 207, 63, 0.12);
+  border: 1px solid rgba(255, 207, 63, 0.35);
+  font-size: 0.78rem;
+  color: var(--ink);
+}
 .supply-text { font-family: var(--font-pixel); color: var(--gold); margin: 0.2rem 0 0.4rem; }
 .supply-bar {
   height: 8px;
