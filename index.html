@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GAMBIT — Chess</title>
+<meta name="description" content="Chess with hand-drawn pieces, a live shader background and synthesized sound. The baseline for a chess roguelike." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♞</text></svg>" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div class="overlay overlay-vignette"></div>
+<div class="overlay overlay-grain"></div>
+
+<div id="app">
+
+  <!-- ===================== START ===================== -->
+  <section id="screen-start" class="screen">
+    <div class="title-wrap">
+      <h1 class="game-title">GAM<span class="title-knight">♞</span>BIT</h1>
+      <p class="subtitle">Chess, properly — the board a roguelike gets built on</p>
+    </div>
+
+    <div class="setup">
+      <div class="setup-block">
+        <h3 class="setup-label">Your side</h3>
+        <div id="side-picker" class="side-picker">
+          <button class="side-btn on" data-side="w">
+            <i style="background-image:url('assets/king-white.png')"></i>
+            <span>White</span>
+          </button>
+          <button class="side-btn" data-side="b">
+            <i style="background-image:url('assets/king-black.png')"></i>
+            <span>Black</span>
+          </button>
+          <button class="side-btn" data-side="random">
+            <i class="side-random">?</i>
+            <span>Random</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="setup-block">
+        <h3 class="setup-label">Opponent</h3>
+        <div id="level-picker" class="level-picker"></div>
+      </div>
+    </div>
+
+    <div class="menu-buttons">
+      <button id="btn-play" class="btn btn-gold btn-big">PLAY</button>
+      <button id="btn-howto" class="btn btn-ghost">How to Play</button>
+    </div>
+
+    <div class="menu-footer">
+      <label class="toggle"><input type="checkbox" id="chk-music" checked /><span>Music</span></label>
+      <label class="toggle"><input type="checkbox" id="chk-sfx" checked /><span>SFX</span></label>
+    </div>
+  </section>
+
+  <!-- ===================== HOW TO PLAY ===================== -->
+  <section id="screen-howto" class="screen hidden">
+    <div class="howto-card">
+      <h2>How to Play</h2>
+      <ul>
+        <li><strong>Moving.</strong> Drag a piece, or click it and click where it goes. Legal squares light up; captures get a ring.</li>
+        <li><strong>Every rule is here.</strong> Castling, en passant, promotion, check, checkmate and stalemate, plus draws by repetition, the fifty-move rule and insufficient material.</li>
+        <li><strong>Promotion.</strong> Push a pawn to the far rank and pick what it becomes — a rook or knight is sometimes the sharper choice.</li>
+        <li><strong>Take-backs.</strong> <kbd>U</kbd> or the Take Back button rewinds your move and the reply, so you can explore a line.</li>
+        <li><strong>Shortcuts.</strong> <kbd>U</kbd> take back &middot; <kbd>F</kbd> flip the board &middot; <kbd>N</kbd> new game &middot; <kbd>Esc</kbd> put a piece back down.</li>
+        <li><strong>Opponents.</strong> Pawn through Queen search progressively deeper. The easy ones still calculate — they just look away sometimes.</li>
+      </ul>
+      <button id="btn-howto-close" class="btn btn-gold">Got It</button>
+    </div>
+  </section>
+
+  <!-- ===================== GAME ===================== -->
+  <section id="screen-game" class="screen hidden">
+    <header class="topbar">
+      <span class="brand">GAM<span class="title-knight">♞</span>BIT</span>
+      <div id="status" class="status">Your move</div>
+      <div class="topbar-controls">
+        <button id="btn-music" class="icon-btn" title="Toggle music">♪</button>
+        <button id="btn-sfx" class="icon-btn" title="Toggle sound effects">♬</button>
+        <button id="btn-flip" class="icon-btn" title="Flip the board (F)">⇅</button>
+        <button id="btn-quit" class="icon-btn" title="Back to the menu">✕</button>
+      </div>
+    </header>
+
+    <div class="table">
+      <aside class="rail">
+        <div id="panel-opponent" class="player-panel">
+          <div class="player-head">
+            <span id="opponent-name" class="player-name">Bishop</span>
+            <span id="opponent-side" class="player-sub">plays Black</span>
+          </div>
+          <div id="tray-opponent" class="tray"></div>
+          <div class="think-dots"><i></i><i></i><i></i></div>
+        </div>
+
+        <div id="panel-player" class="player-panel active">
+          <div class="player-head">
+            <span class="player-name">You</span>
+            <span id="player-side" class="player-sub">plays White</span>
+          </div>
+          <div id="tray-player" class="tray"></div>
+        </div>
+
+        <div class="rail-actions">
+          <button id="btn-undo" class="btn btn-ghost btn-wide">Take Back</button>
+          <button id="btn-new" class="btn btn-ghost btn-wide">New Game</button>
+        </div>
+      </aside>
+
+      <div class="board-wrap">
+        <div id="coords-ranks" class="coords coords-ranks"></div>
+        <div id="board" class="board">
+          <div class="squares"></div>
+          <div class="pieces"></div>
+          <div class="board-fx"></div>
+        </div>
+        <div id="coords-files" class="coords coords-files"></div>
+      </div>
+
+      <aside class="rail rail-moves">
+        <h3 class="rail-title">Moves</h3>
+        <div id="move-list" class="move-list"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===================== MODALS ===================== -->
+  <div id="modal-promotion" class="modal hidden">
+    <div class="modal-card">
+      <h2>Promote</h2>
+      <p>Your pawn made it. What does it become?</p>
+      <div id="promotion-picker" class="promotion-picker"></div>
+    </div>
+  </div>
+
+  <div id="modal-result" class="modal hidden">
+    <div class="modal-card result-card">
+      <h2 id="result-title"></h2>
+      <p id="result-detail"></p>
+      <div class="modal-actions">
+        <button id="btn-again" class="btn btn-gold btn-big">Play Again</button>
+        <button id="btn-result-menu" class="btn btn-ghost">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="particles"></div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

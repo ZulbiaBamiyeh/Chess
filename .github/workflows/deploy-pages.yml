@@ -1,0 +1,52 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["claude/chess-roguelike-baseline-ieqvem", "main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      # Stamp every local asset URL with the commit SHA. Without this, browsers
+      # keep serving the previously cached style.css / js modules / artwork and
+      # a new deploy looks like it never landed.
+      - name: Cache-bust asset URLs
+        run: |
+          SHA="${GITHUB_SHA::8}"
+          sed -i "s|href=\"css/style.css\"|href=\"css/style.css?v=$SHA\"|" index.html
+          sed -i "s|src=\"js/main.js\"|src=\"js/main.js?v=$SHA\"|" index.html
+          sed -i -E "s|(from '\./[A-Za-z0-9_-]+\.js)'|\1?v=$SHA'|g" js/*.js
+          sed -i "s|new URL('./ai-worker.js'|new URL('./ai-worker.js?v=$SHA'|" js/main.js
+          sed -i "s|const ASSET_VERSION = '';|const ASSET_VERSION = '?v=$SHA';|" js/ui.js
+          sed -i -E "s|(\.\./fonts/[A-Za-z0-9_.-]+\.woff2)|\1?v=$SHA|g" css/style.css
+          sed -i -E "s|(\.\./assets/[A-Za-z0-9_.-]+\.png)|\1?v=$SHA|g" css/style.css
+          sed -i -E "s|(url\('assets/[A-Za-z0-9_.-]+\.png)'|\1?v=$SHA'|g" index.html
+          echo "Stamped assets with v=$SHA"
+          grep -n 'style.css\|main.js' index.html
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
