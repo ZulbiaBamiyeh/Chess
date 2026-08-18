@@ -6,7 +6,8 @@
 // pixel offset, and flipping the board is just re-assigning every row and
 // column and letting the transition carry the pieces around.
 
-import { WHITE, squareName, parseSquare, rank, file, fromRowCol, FLAG } from './chess.js';
+import { WHITE, squareName, parseSquare, rank, file, fromRowCol, FLAG, TILE, ST_FROZEN, ST_SHIELD } from './chess.js';
+import { pieceById } from './pieces.js';
 
 const PIECE_NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
 
@@ -15,8 +16,13 @@ const PIECE_NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen'
 // never landed.
 const ASSET_VERSION = '';
 
-export const pieceImage = (type, color) =>
-  `assets/${PIECE_NAMES[type]}-${color === WHITE ? 'white' : 'black'}.png${ASSET_VERSION}`;
+export const pieceImage = (type, color) => {
+  const def = pieceById(type);
+  const sprite = def?.sprite || PIECE_NAMES[type] || 'pawn';
+  return `assets/${sprite}-${color === WHITE ? 'white' : 'black'}.png${ASSET_VERSION}`;
+};
+
+export const pieceHue = (type) => pieceById(type)?.hue || 0;
 
 export class BoardView {
   /**
@@ -40,19 +46,10 @@ export class BoardView {
     this.pieceLayer = root.querySelector('.pieces');
     this.fxLayer = root.querySelector('.board-fx');
 
+    this.files = 8;
+    this.ranks = 8;
     this.squares = new Map();
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        const sq = fromRowCol(row, col);
-        const el = document.createElement('div');
-        el.className = 'sq';
-        el.dataset.square = squareName(sq);
-        el.innerHTML = '<i class="dot"></i><i class="ring"></i>';
-        this.place(el, row, col);
-        this.squareLayer.appendChild(el);
-        this.squares.set(sq, el);
-      }
-    }
+    this.resize(8, 8);
 
     root.addEventListener('pointerdown', (e) => this.onPointerDown(e));
     root.addEventListener('pointermove', (e) => this.onPointerMove(e));
@@ -64,10 +61,40 @@ export class BoardView {
     });
   }
 
+  resize(files, ranks) {
+    this.files = files;
+    this.ranks = ranks;
+    const wrap = this.root.parentElement;
+    if (wrap) {
+      wrap.style.setProperty('--files', files);
+      wrap.style.setProperty('--ranks', ranks);
+    }
+    this.root.style.setProperty('--files', files);
+    this.root.style.setProperty('--ranks', ranks);
+    this.root.classList.toggle('sized', files !== 8 || ranks !== 8);
+    this.root.dataset.files = String(files);
+    this.root.dataset.ranks = String(ranks);
+
+    this.squareLayer.innerHTML = '';
+    this.squares.clear();
+    for (let row = 0; row < ranks; row++) {
+      for (let col = 0; col < files; col++) {
+        const sq = fromRowCol(row, col);
+        const el = document.createElement('div');
+        el.className = 'sq' + ((row + col) % 2 ? ' dark' : ' light');
+        el.dataset.square = squareName(sq, ranks);
+        el.innerHTML = '<i class="dot"></i><i class="ring"></i>';
+        this.place(el, row, col);
+        this.squareLayer.appendChild(el);
+        this.squares.set(sq, el);
+      }
+    }
+  }
+
   /** Writes an element's board position, honouring the current orientation. */
   place(el, row, col) {
-    el.style.setProperty('--row', this.flipped ? 7 - row : row);
-    el.style.setProperty('--col', this.flipped ? 7 - col : col);
+    el.style.setProperty('--row', this.flipped ? this.ranks - 1 - row : row);
+    el.style.setProperty('--col', this.flipped ? this.files - 1 - col : col);
   }
 
   placeSquare(el, sq) {
@@ -91,23 +118,58 @@ export class BoardView {
 
   /** Rebuilds every piece from the position. Used on new games and take-backs. */
   syncFromGame(game) {
+    if (game.files !== this.files || game.ranks !== this.ranks) {
+      this.resize(game.files, game.ranks);
+    }
     this.pieceLayer.innerHTML = '';
     this.pieceEls.clear();
+    this.paintTerrain(game);
     for (const piece of game.pieces()) {
-      this.addPiece(piece.square, piece.type, piece.color);
+      this.addPiece(piece.square, piece.type, piece.color, piece.status);
     }
     this.clearSelection();
   }
 
-  addPiece(sq, type, color) {
+  paintTerrain(game) {
+    for (const [sq, el] of this.squares) {
+      el.classList.remove('tile-block', 'tile-frost', 'tile-fort');
+      const tile = game.tileAt(sq);
+      if (tile === TILE.BLOCK) el.classList.add('tile-block');
+      else if (tile === TILE.FROST) el.classList.add('tile-frost');
+      else if (tile === TILE.FORT) el.classList.add('tile-fort');
+    }
+  }
+
+  addPiece(sq, type, color, status = 0) {
     const el = document.createElement('div');
     el.className = `piece ${color === WHITE ? 'white' : 'black'}`;
     el.dataset.type = type;
     el.style.backgroundImage = `url('${pieceImage(type, color)}')`;
+    const hue = pieceHue(type);
+    if (hue) el.style.filter = `hue-rotate(${hue}deg) drop-shadow(0 3px 3px rgba(0,0,0,0.45))`;
+    const def = pieceById(type);
+    if (def && !PIECE_NAMES[type]) {
+      const badge = document.createElement('span');
+      badge.className = 'piece-badge';
+      badge.textContent = def.name[0];
+      el.appendChild(badge);
+    }
+    this.applyStatus(el, status);
     this.placeSquare(el, sq);
     this.pieceLayer.appendChild(el);
     this.pieceEls.set(sq, el);
     return el;
+  }
+
+  applyStatus(el, status) {
+    el.classList.toggle('frozen', Boolean(status & ST_FROZEN));
+    el.classList.toggle('shielded', Boolean(status & ST_SHIELD));
+  }
+
+  syncStatuses(game) {
+    for (const [sq, el] of this.pieceEls) {
+      this.applyStatus(el, game.statusAt(sq));
+    }
   }
 
   /**
@@ -123,7 +185,14 @@ export class BoardView {
       : move.to;
 
     const victim = this.pieceEls.get(capturedSquare);
-    if (victim) {
+    if (victim && (move.flags & FLAG.SHIELD_BREAK) && move.rebound >= 0) {
+      this.pieceEls.delete(capturedSquare);
+      this.pieceEls.set(move.rebound, victim);
+      this.placeSquare(victim, move.rebound);
+      victim.classList.remove('shielded');
+      victim.classList.add('rebounds');
+      setTimeout(() => victim.classList.remove('rebounds'), 360);
+    } else if (victim) {
       this.pieceEls.delete(capturedSquare);
       this.explode(capturedSquare, victim);
     }
@@ -237,10 +306,10 @@ export class BoardView {
 
   squareFromEvent(event) {
     const rect = this.root.getBoundingClientRect();
-    let col = Math.floor(((event.clientX - rect.left) / rect.width) * 8);
-    let row = Math.floor(((event.clientY - rect.top) / rect.height) * 8);
-    if (col < 0 || col > 7 || row < 0 || row > 7) return null;
-    if (this.flipped) { col = 7 - col; row = 7 - row; }
+    let col = Math.floor(((event.clientX - rect.left) / rect.width) * this.files);
+    let row = Math.floor(((event.clientY - rect.top) / rect.height) * this.ranks);
+    if (col < 0 || col >= this.files || row < 0 || row >= this.ranks) return null;
+    if (this.flipped) { col = this.files - 1 - col; row = this.ranks - 1 - row; }
     return fromRowCol(row, col);
   }
 

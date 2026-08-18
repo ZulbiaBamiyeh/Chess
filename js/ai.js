@@ -6,9 +6,10 @@
 // opponent genuinely considers the position, it just sometimes picks a move
 // that isn't the best one, which feels far more human than a weak evaluator.
 
-import { Chess, WHITE, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, FLAG } from './chess.js';
+import { Chess, WHITE, BLACK, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, FLAG, file, rank } from './chess.js';
+import { PIECES, pieceValue } from './pieces.js';
 
-const VALUE = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+const VALUE = Object.fromEntries(Object.values(PIECES).map((p) => [p.id, p.value]));
 
 // Piece-square tables, written from White's point of view with the 8th rank on
 // the top row, so they read like a board. Black looks them up mirrored.
@@ -105,44 +106,74 @@ export function levelById(id) {
 
 /** Static evaluation in centipawns, always from White's point of view. */
 export function evaluate(game) {
+  if (game.kings.w < 0) return -MATE;
+  if (game.kings.b < 0) return MATE;
+
   const board = game.board;
+  const classicBoard = game.files === 8 && game.ranks === 8;
   let score = 0;
   let phase = 0;                        // non-pawn material, for king tapering
   const bishops = { w: 0, b: 0 };
-  const pawnFiles = { w: new Array(8).fill(0), b: new Array(8).fill(0) };
+  const pawnFiles = { w: new Array(game.files).fill(0), b: new Array(game.files).fill(0) };
   const kingSq = {};
+  const kingIdx = {};
 
   for (let sq = 0; sq <= 119; sq++) {
     if (sq & 0x88) { sq += 7; continue; }
+    if (!game.inBounds(sq)) continue;
     const piece = board[sq];
     if (!piece) continue;
 
     const row = sq >> 4;
     const col = sq & 15;
-    const idx = piece.color === WHITE ? row * 8 + col : (7 - row) * 8 + col;
     const sign = piece.color === WHITE ? 1 : -1;
+    const val = VALUE[piece.type] ?? pieceValue(piece.type);
 
     if (piece.type === KING) {
-      kingSq[piece.color] = idx;
-      continue;                          // scored after the phase is known
+      kingSq[piece.color] = sq;
+      kingIdx[piece.color] = classicBoard
+        ? (piece.color === WHITE ? row * 8 + col : (7 - row) * 8 + col)
+        : -1;
+      continue;
     }
 
-    score += sign * VALUE[piece.type];
-    score += sign * PST[piece.type][idx];
+    score += sign * val;
 
-    if (piece.type !== PAWN) phase += VALUE[piece.type];
+    if (classicBoard && PST[piece.type]) {
+      const idx = piece.color === WHITE ? row * 8 + col : (7 - row) * 8 + col;
+      score += sign * PST[piece.type][idx];
+    } else {
+      score += sign * centerBonus(col, row, game.files, game.ranks);
+    }
+
+    if (piece.type !== PAWN) phase += val;
     if (piece.type === BISHOP) bishops[piece.color]++;
-    if (piece.type === PAWN) pawnFiles[piece.color][col]++;
+    if (piece.type === PAWN && col < pawnFiles[piece.color].length) {
+      pawnFiles[piece.color][col]++;
+    }
   }
 
   // 0 = bare kings, 1 = both sides still have their whole army.
   const opening = Math.min(1, phase / 6800);
   for (const color of ['w', 'b']) {
-    const idx = kingSq[color];
-    if (idx === undefined) continue;
-    const mid = PST.k[idx];
-    const end = PST.kEnd[idx];
-    score += (color === WHITE ? 1 : -1) * (mid * opening + end * (1 - opening));
+    const sign = color === WHITE ? 1 : -1;
+    if (classicBoard && kingIdx[color] >= 0) {
+      const idx = kingIdx[color];
+      const mid = PST.k[idx];
+      const end = PST.kEnd[idx];
+      score += sign * (mid * opening + end * (1 - opening));
+    } else if (kingSq[color] >= 0) {
+      // In king-capture the king is a fighting piece; keep it central but
+      // not on the rim, and slightly prefer the back half of its own side.
+      const sq = kingSq[color];
+      const col = file(sq);
+      const row = rank(sq);
+      score += sign * centerBonus(col, row, game.files, game.ranks);
+      if (game.rules.kingCapture) {
+        const home = color === WHITE ? game.ranks - 1 : 0;
+        score += sign * (2 - Math.abs(row - home));
+      }
+    }
   }
 
   if (bishops.w >= 2) score += 30;
@@ -152,7 +183,7 @@ export function evaluate(game) {
   for (const color of ['w', 'b']) {
     const sign = color === WHITE ? 1 : -1;
     const files = pawnFiles[color];
-    for (let f = 0; f < 8; f++) {
+    for (let f = 0; f < files.length; f++) {
       if (!files[f]) continue;
       if (files[f] > 1) score -= sign * 14 * (files[f] - 1);
       const neighbours = (f > 0 ? files[f - 1] : 0) + (f < 7 ? files[f + 1] : 0);
@@ -165,9 +196,19 @@ export function evaluate(game) {
 
 // Most Valuable Victim / Least Valuable Attacker: try the fat captures first,
 // since a good early move makes alpha-beta cut off most of the rest.
+function pieceVal(type) {
+  return VALUE[type] ?? pieceValue(type) ?? 0;
+}
+
+function centerBonus(col, row, files, ranks) {
+  const cf = (files - 1) / 2;
+  const cr = (ranks - 1) / 2;
+  return 10 - (Math.abs(col - cf) + Math.abs(row - cr)) * 3;
+}
+
 function moveScore(move, killers, ply) {
   if (move.captured) {
-    return 10000 + VALUE[move.captured] * 10 - VALUE[move.piece];
+    return 10000 + pieceVal(move.captured) * 10 - pieceVal(move.piece);
   }
   if (move.promotion) return 9000 + VALUE[move.promotion];
   const killer = killers[ply];
@@ -219,7 +260,7 @@ class Search {
     let best = stand;
     for (const move of moves) {
       // Delta pruning: a capture that cannot possibly reach alpha is noise.
-      if (move.captured && stand + VALUE[move.captured] + 200 < alpha) continue;
+      if (move.captured && stand + pieceVal(move.captured) + 200 < alpha) continue;
       game.makeMove(move);
       const score = -this.quiescence(-beta, -alpha, qdepth - 1);
       game.undo();
@@ -242,11 +283,16 @@ class Search {
 
     if (depth <= 0) return this.quiescence(alpha, beta, MAX_QUIESCENCE);
 
+    if (game.kings[game.turn] < 0) return -MATE + ply;
+    if (game.kings[game.turn === WHITE ? BLACK : WHITE] < 0) return MATE - ply;
+
     const moves = game.moves();
     if (moves.length === 0) {
       // Mate scores are pushed toward zero by distance, so the search prefers
-      // mate in two over mate in four.
-      return inCheck ? -MATE + ply : 0;
+      // mate in two over mate in four. King-capture treats a smothered side
+      // as a loss rather than a stalemate.
+      if (game.rules.kingCapture || inCheck) return -MATE + ply;
+      return 0;
     }
 
     let best = -Infinity;

@@ -6,7 +6,9 @@ import { Chess } from './chess.js';
 import { chooseMove, levelById } from './ai.js';
 
 self.onmessage = (event) => {
-  const { id, fen, level } = event.data;
-  const result = chooseMove(new Chess(fen), levelById(level));
+  const { id, spec, fen, level, levelId } = event.data;
+  const game = spec ? new Chess(spec) : new Chess(fen);
+  const preset = (level && typeof level === 'object') ? level : levelById(levelId ?? level);
+  const result = chooseMove(game, preset);
   self.postMessage({ id, result });
 };

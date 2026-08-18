@@ -1,9 +1,8 @@
 # GAMBIT
 
-A browser chess game with hand-drawn pieces, a live shader background and
-sound that is synthesized as you play. This is the **baseline**: complete,
-correct chess against a real opponent. Shops, relics and enemy encounters go
-on top of it.
+A chess roguelike in the browser. Capture the king, keep your army, spend
+your supply. Hand-drawn pieces, a live shader background, and sound
+synthesized as you play. Classic chess is still in the menu.
 
 Play it at
 **[zulbiabamiyeh.github.io/Chess](https://zulbiabamiyeh.github.io/Chess/)**,
@@ -11,18 +10,33 @@ or run it locally (see below). Every push deploys through GitHub Actions.
 
 ## What's in it
 
-- **Every rule.** Castling (including the "may not castle through check"
-  cases), en passant, under-promotion, check, checkmate, stalemate, and draws
-  by threefold repetition, the fifty-move rule and insufficient material.
-  Verified against the standard perft counts — see [Testing](#testing).
-- **Five opponents**, Pawn through Queen, from a two-ply glance to a
-  seven-ply search. They run in a Web Worker, so the background keeps flowing
-  while they think.
-- **Drag or click** to move. Legal squares show a dot, captures a ring,
-  and an illegal drop flashes the square red and thuds.
-- **Take-backs** (<kbd>U</kbd>) rewind your move and the reply together, so you
-  can explore a line. <kbd>F</kbd> flips the board, <kbd>N</kbd> starts over.
-- **Move list** in algebraic notation, capture trays and a live material count.
+- **A run.** Six fights and two shops. Boards from a 5×3 alley to a 6×6
+  throne. Each opponent sets a **supply** budget — you pick a loadout from
+  your bag, and captured pieces come home afterwards.
+- **King capture.** Checks do not bind you. Taking their king wins the
+  fight; losing yours costs a heart. Army HP is the remaining cost of your
+  standing pieces, and gold on a win scales with how much of that army is
+  still up.
+- **Fairy pieces** in a data-driven registry: ferz, wazir, camel, champion,
+  princess, empress, amazon, hopper. Terrain tiles (block, frost, fort)
+  and statuses (frozen, shielded) are real board state.
+- **The shop.** Buy pieces into rarity-limited bag slots, a persistent
+  **+1 supply** (the deploy-limit upgrade), or a king passive (Aegis, Dash,
+  Tithe, Command).
+- **Classic chess** is still here — every rule, five opponents, verified
+  against the standard perft counts.
+
+## Testing
+
+```bash
+node test/perft.mjs     # 26 classic counts
+node test/variant.mjs   # king-capture, boards, terrain, fairy pieces
+node test/run.mjs       # bag, loadout, shop, settlement, AI
+```
+
+Classic perft still covers the six standard positions through the published
+depths (Kiwipete to depth 4 is 4,085,603 nodes). Variant tests cover
+king-capture, shrinking boards, frost/fort/block, and the fairy set.
 
 ## About the assets
 
@@ -73,19 +87,6 @@ ending, and the hook the encounter generator will use later:
 http://localhost:8000/?fen=4k3/P7/8/8/8/8/8/4K3 w - - 0 1
 ```
 
-## Testing
-
-`test/perft.mjs` counts the leaf nodes of the move tree to a fixed depth and
-compares them against the published values for six standard positions. If move
-generation, castling, en passant, promotion or check evasion is wrong anywhere,
-the numbers diverge immediately.
-
-```bash
-node test/perft.mjs
-```
-
-All 26 cases pass, including Kiwipete to depth 4 (4,085,603 nodes).
-
 ## Rebuilding the sprites
 
 Only needed if the source art changes. Requires Pillow.
@@ -101,25 +102,19 @@ index.html          Page shell / screens / modals
 css/style.css       Theme, layout, board, animations
 assets/             Baked board and piece sprites
 fonts/              Bundled OFL fonts + license
-js/chess.js         Rules engine — 0x88 board, move generation, SAN, draws
-js/ai.js            Negamax + alpha-beta + quiescence, and the difficulty presets
+js/pieces.js        Piece registry — cost, rarity, movement
+js/chess.js         Rules engine — 0x88, variable boards, terrain, king-capture
+js/ai.js            Negamax + alpha-beta + quiescence
 js/ai-worker.js     Runs the search off the main thread
+js/content.js       Encounters, shop stock, king passives
+js/run.js           Bag, slots, supply, loadout, settlement
+js/campaign.js      Map / loadout / shop screens
 js/audio.js         SFX synthesis + the generative ambient bed
 js/bg.js            WebGL shader background
 js/ui.js            Board rendering, pointer handling, animation
-js/main.js          Screens, HUD, game flow — wires it all together
-test/perft.mjs      Move-generation correctness suite
+js/main.js          Screens, HUD, classic + run flow
+test/perft.mjs      Classic move-generation counts
+test/variant.mjs    Variant mechanics
+test/run.mjs        Run-layer unit tests
 tools/build-assets.py  Bakes the raw art pack into game sprites
 ```
-
-## Where the roguelike goes
-
-The engine is deliberately free of any UI or scoring assumptions, which is what
-the next layer needs:
-
-- `Chess` takes a FEN, so an encounter can start from any position — down
-  material, missing a rook, a puzzle to survive.
-- `moves()` is the single source of legality, so a relic that changes how a
-  piece moves has one place to hook into.
-- `LEVELS` in `js/ai.js` is already a table of opponents; enemies are entries
-  in it with a name, a portrait and a search depth.

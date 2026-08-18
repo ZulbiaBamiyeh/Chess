@@ -7,6 +7,7 @@ import { LEVELS, levelById } from './ai.js';
 import { ShaderBackground } from './bg.js';
 import { audio } from './audio.js';
 import { BoardView, pieceImage, shake, confetti, toast } from './ui.js';
+import { initCampaign } from './campaign.js';
 
 const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const $ = (id) => document.getElementById(id);
@@ -19,6 +20,11 @@ const state = {
   thinking: false,
   awaitingPromotion: null,
   gameOver: false,
+  mode: 'classic',
+  run: null,
+  encounter: null,
+  armyMax: 0,
+  campaign: null,
   // Bumped whenever the position is reset from outside the normal move flow.
   // A search that finishes after that is stale and gets dropped.
   generation: 0,
@@ -46,16 +52,22 @@ function setupWorker() {
   }
 }
 
-function requestMove(fen, levelId) {
+function requestMove(game, level) {
+  const spec = game.toSpec ? game.toSpec() : null;
+  const fen = spec ? spec.fen : game;
+  const payload = spec
+    ? { spec, fen, level }
+    : { fen, levelId: typeof level === 'object' ? level.id : level, level };
   if (worker) {
     return new Promise((resolve) => {
       const id = ++workerSeq;
       pending.set(id, resolve);
-      worker.postMessage({ id, fen, level: levelId });
+      worker.postMessage({ id, ...payload });
     });
   }
   return import('./ai.js').then(({ chooseMove }) =>
-    chooseMove(new Chess(fen), levelById(levelId)));
+    chooseMove(spec ? new Chess(spec) : new Chess(fen),
+      typeof level === 'object' ? level : levelById(level)));
 }
 
 // ---- screens ---------------------------------------------------------------
@@ -134,9 +146,11 @@ function updateHud() {
   renderTray($('tray-player'), taken[player], opponent, player === WHITE ? balance : -balance);
   renderTray($('tray-opponent'), taken[opponent], player, opponent === WHITE ? balance : -balance);
 
-  $('opponent-name').textContent = state.level.name;
-  $('opponent-side').textContent = opponent === WHITE ? 'plays White' : 'plays Black';
-  $('player-side').textContent = player === WHITE ? 'plays White' : 'plays Black';
+  if (state.mode !== 'run') {
+    $('opponent-name').textContent = state.level.name;
+    $('opponent-side').textContent = opponent === WHITE ? 'plays White' : 'plays Black';
+    $('player-side').textContent = player === WHITE ? 'plays White' : 'plays Black';
+  }
 
   $('panel-player').classList.toggle('active', state.game.turn === player && !state.gameOver);
   $('panel-opponent').classList.toggle('active', state.game.turn === opponent && !state.gameOver);
@@ -186,7 +200,9 @@ function reactTo(move) {
     audio.place();
   }
 
-  if (mate) {
+  if (state.mode === 'run') state.campaign.paintRunHud();
+
+  if (mate || (state.mode === 'run' && state.game.outcome().over && state.game.outcome().winner)) {
     setTimeout(() => { shake(2); state.background?.pulse(); }, 160);
   } else if (inCheck) {
     setTimeout(() => {
@@ -203,6 +219,7 @@ function playMove(from, to, promotion) {
   const move = state.game.move({ from, to, promotion });
   if (!move) return false;
   state.view.applyMove(move);
+  state.view.syncStatuses(state.game);
   reactTo(move);
   updateHud();
 
@@ -215,6 +232,8 @@ function playMove(from, to, promotion) {
 function checkGameOver() {
   const outcome = state.game.outcome();
   if (!outcome.over) return false;
+
+  if (state.mode === 'run') return state.campaign.onFightOver(outcome);
 
   state.gameOver = true;
   state.view.setInteractive(false);
@@ -254,9 +273,11 @@ function scheduleOpponent() {
   updateHud();
 
   const startedAt = performance.now();
-  const fen = state.game.fen();
+  const level = state.mode === 'run' && state.encounter?.ai
+    ? state.encounter.ai
+    : state.level;
   const generation = state.generation;
-  requestMove(fen, state.level.id).then((result) => {
+  requestMove(state.game, level).then((result) => {
     // A snap-instant reply feels robotic; hold the shortest searches back a
     // little so the opponent always looks like it considered the position.
     const elapsed = performance.now() - startedAt;
@@ -272,6 +293,7 @@ function scheduleOpponent() {
       });
       if (!move) { refreshStatus(); return; }
       state.view.applyMove(move);
+      state.view.syncStatuses(state.game);
       reactTo(move);
       updateHud();
       if (checkGameOver()) return;
@@ -353,6 +375,7 @@ function startingPosition() {
 }
 
 function newGame() {
+  if (state.mode === 'run') return;
   state.generation++;
   state.game = startingPosition();
   state.gameOver = false;
@@ -375,6 +398,7 @@ function newGame() {
 
 /** Takes back to the player's own turn — their move and the reply together. */
 function takeBack() {
+  if (state.mode === 'run') return;
   if (state.thinking || state.game.history.length === 0) return;
   state.generation++;
   state.game.undoMove();
@@ -394,8 +418,10 @@ function takeBack() {
 }
 
 function renderCoordinates() {
-  const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-  const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+  const nFiles = state.view?.files ?? 8;
+  const nRanks = state.view?.ranks ?? 8;
+  const files = Array.from({ length: nFiles }, (_, i) => String.fromCharCode(97 + i));
+  const ranks = Array.from({ length: nRanks }, (_, i) => String(nRanks - i));
   const flipped = state.view.flipped;
   $('coords-files').innerHTML = (flipped ? [...files].reverse() : files)
     .map((f) => `<span>${f}</span>`).join('');
@@ -457,9 +483,19 @@ function init() {
   }
   state.chosenSide = 'w';
 
+  state.campaign = initCampaign({
+    state, $, showScreen, audio, requestMove, setStatus, refreshStatus,
+    updateHud, renderCoordinates, Chess,
+  });
+
+  $('btn-classic').addEventListener('click', () => showScreen('screen-classic'));
+  $('btn-classic-back').addEventListener('click', () => showScreen('screen-start'));
+
   $('btn-play').addEventListener('click', async () => {
     await audio.resume();
     if (state.settings.music) audio.startMusic();
+    state.mode = 'classic';
+    state.campaign.resetClassicButtons();
     state.playerColor = state.chosenSide === 'random'
       ? (Math.random() < 0.5 ? WHITE : BLACK)
       : (state.chosenSide === 'b' ? BLACK : WHITE);
@@ -479,15 +515,24 @@ function init() {
     renderCoordinates();
   });
   $('btn-quit').addEventListener('click', () => {
-    showScreen('screen-start');
     state.generation++;
     state.gameOver = true;
     state.thinking = false;
+    if (state.mode === 'run') state.campaign.abandon();
+    else showScreen('screen-start');
   });
-  $('btn-again').addEventListener('click', () => newGame());
+  $('btn-again').addEventListener('click', () => {
+    if (state.mode === 'run') {
+      $('modal-result').classList.add('hidden');
+      state.campaign.startRun();
+      return;
+    }
+    newGame();
+  });
   $('btn-result-menu').addEventListener('click', () => {
     $('modal-result').classList.add('hidden');
-    showScreen('screen-start');
+    if (state.mode === 'run') state.campaign.abandon();
+    else showScreen('screen-start');
   });
 
   const music = $('chk-music');
