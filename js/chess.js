@@ -471,6 +471,7 @@ export class Chess {
       if (!this.inBounds(from)) continue;
       const piece = board[from];
       if (!piece || piece.color !== color) continue;
+      if (this.status[from] & ST_FROZEN) continue;
       if (this.attacksFrom(from, piece, sq, extraRoyal)) return true;
     }
     return false;
@@ -478,7 +479,7 @@ export class Chess {
 
   attacksFrom(from, piece, target, extraRoyal) {
     const def = PIECES[piece.type];
-    if (!def) return false;
+    if (!def || def.cannotCapture) return false;
 
     if (def.pawn) {
       const forward = piece.color === WHITE ? -16 : 16;
@@ -492,6 +493,11 @@ export class Chess {
     }
     if (piece.type === KING && extraRoyal) {
       for (const off of extraRoyal) {
+        if (from + off === target && this.inBounds(target)) return true;
+      }
+    }
+    if (this.kingPassives.includes('court') && isQueenLike(piece.type)) {
+      for (const off of KNIGHT_OFFSETS) {
         if (from + off === target && this.inBounds(target)) return true;
       }
     }

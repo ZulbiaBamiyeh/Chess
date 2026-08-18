@@ -32,6 +32,7 @@
     <div class="menu-buttons">
       <button id="btn-embark" class="btn btn-gold btn-big">EMBARK</button>
       <button id="btn-classic" class="btn btn-ghost">Classic chess</button>
+      <button id="btn-sandbox" class="btn btn-ghost" type="button">Sandbox</button>
       <button id="btn-howto" class="btn btn-ghost">How to Play</button>
     </div>
 
@@ -90,6 +91,56 @@
       <p>The rest is on the road.</p>
       <p class="howto-keys">Drag or click to move. <kbd>F</kbd> flip · <kbd>Esc</kbd> put a piece down.</p>
       <button id="btn-howto-close" class="btn btn-gold">Got It</button>
+    </div>
+  </section>
+
+  <!-- ===================== SANDBOX ===================== -->
+  <section id="screen-sandbox" class="screen hidden">
+    <header class="topbar">
+      <span class="brand">GAM<span class="title-knight">♞</span>BIT</span>
+      <div class="status">Sandbox</div>
+      <div class="topbar-controls">
+        <button id="btn-sandbox-clear" class="btn btn-ghost">Clear</button>
+        <button id="btn-sandbox-back" class="btn btn-ghost">Back</button>
+      </div>
+    </header>
+    <p id="sandbox-hint" class="sandbox-hint">Pick a king, a piece or a tile, then click the board. After you drop a piece it lights up so you can try its moves. Right-click a square to wipe it.</p>
+    <div class="sandbox-grid">
+      <aside class="sandbox-tray">
+        <h3 class="rail-title">Kings</h3>
+        <div id="sandbox-kings" class="sandbox-picks"></div>
+        <h3 class="rail-title">Side</h3>
+        <div id="sandbox-colors" class="sandbox-picks"></div>
+        <h3 class="rail-title">Pieces</h3>
+        <div id="sandbox-pieces" class="sandbox-picks"></div>
+      </aside>
+      <div class="sandbox-board">
+        <div id="sandbox-board-wrap" class="board-wrap">
+          <div id="coords-ranks-sandbox" class="coords coords-ranks"></div>
+          <div id="sandbox-board" class="board">
+            <div class="squares"></div>
+            <div class="pieces"></div>
+            <div class="board-fx"></div>
+          </div>
+          <div id="coords-files-sandbox" class="coords coords-files"></div>
+        </div>
+      </div>
+      <aside class="sandbox-help">
+        <div id="sandbox-diagram" class="move-diagram empty">
+          <div class="md-head">
+            <i id="sb-md-art" class="howto-art"></i>
+            <div>
+              <b id="sb-md-name">How it moves</b>
+              <span id="sb-md-blurb">Pick a piece from the tray.</span>
+              <span id="sb-md-cost"></span>
+            </div>
+          </div>
+          <div id="sb-md-board" class="md-board"></div>
+        </div>
+        <h3 class="rail-title">Terrain</h3>
+        <div id="sandbox-terrain" class="sandbox-picks"></div>
+        <p id="sandbox-detail" class="sandbox-detail"></p>
+      </aside>
     </div>
   </section>
 
@@ -318,20 +369,24 @@
         <button id="btn-bag-close" class="icon-btn" title="Close">✕</button>
       </header>
       <p id="bag-panel-slots" class="slot-line"></p>
-      <h3 class="bag-panel-label">Kings</h3>
-      <div id="bag-kings" class="bag-grid"></div>
-      <h3 class="bag-panel-label">Pieces</h3>
-      <div id="bag-counts" class="bag-grid"></div>
-      <div id="bag-diagram" class="move-diagram empty">
-        <div class="md-head">
-          <i id="bag-md-art" class="howto-art"></i>
-          <div>
-            <b id="bag-md-name">How it moves</b>
-            <span id="bag-md-blurb">Click a piece or a king.</span>
-            <span id="bag-md-cost"></span>
-          </div>
+      <div class="bag-panel-body">
+        <div class="bag-panel-lists">
+          <h3 class="bag-panel-label">Kings</h3>
+          <div id="bag-kings" class="bag-grid"></div>
+          <h3 class="bag-panel-label">Pieces</h3>
+          <div id="bag-counts" class="bag-grid"></div>
         </div>
-        <div id="bag-md-board" class="md-board"></div>
+        <div id="bag-diagram" class="move-diagram empty">
+          <div class="md-head">
+            <i id="bag-md-art" class="howto-art"></i>
+            <div>
+              <b id="bag-md-name">How it moves</b>
+              <span id="bag-md-blurb">Click a piece or a king.</span>
+              <span id="bag-md-cost"></span>
+            </div>
+          </div>
+          <div id="bag-md-board" class="md-board"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -339,6 +394,6 @@
   <div id="particles"></div>
 </div>
 
-<script type="module" src="js/main.js"></script>
+<script type="module" src="js/main.js?v=sandbox-2"></script>
 </body>
 </html>

@@ -452,6 +452,14 @@ export function initCampaign(ctx) {
     emptyBlurb: 'Click a piece or a king.',
   };
 
+  function markBagPeek(btn) {
+    for (const host of [$('bag-kings'), $('bag-counts')]) {
+      if (!host) continue;
+      for (const tile of host.querySelectorAll('.bag-tile')) tile.classList.remove('peek');
+    }
+    btn?.classList.add('peek');
+  }
+
   function paintBagPanel() {
     const run = state.run;
     if (!run) return;
@@ -480,6 +488,7 @@ export function initCampaign(ctx) {
           + `<span class="bag-tile-name">${def.name}</span>`
           + `<span class="bag-tile-meta">${on ? 'active this run' : 'set as active'}</span>`;
         btn.addEventListener('click', () => {
+          markBagPeek(btn);
           paintMoveDiagram('k', BAG_DIAGRAM);
           if ($('bag-md-name')) $('bag-md-name').textContent = `${def.name} King`;
           if ($('bag-md-blurb')) $('bag-md-blurb').textContent = def.blurb;
@@ -517,6 +526,7 @@ export function initCampaign(ctx) {
           + `<span class="bag-tile-meta">${def?.cost ?? 0} · ${def?.rarity || ''}</span>`;
         btn.addEventListener('click', () => {
           audio.click();
+          markBagPeek(btn);
           paintMoveDiagram(row.type, BAG_DIAGRAM);
         });
         btn.addEventListener('pointerenter', () => audio.hover());

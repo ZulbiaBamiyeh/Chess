@@ -170,6 +170,57 @@ const alley = ENCOUNTERS.alley;
 }
 
 {
+  const rules = { kingCapture: true, checks: false, castling: false };
+  const g = Chess.fromDiagram(`
+    k . . .
+    . . . .
+    . . Q .
+    . . . K
+  `, { files: 4, ranks: 4, rules, turn: 'b' });
+  let hung = 0;
+  for (let i = 0; i < 24; i++) {
+    const move = chooseMove(g, { depth: 2, slip: 1, budget: 250 });
+    if (!move) { hung++; continue; }
+    g.move({ from: move.from, to: move.to, promotion: move.promotion });
+    if (g.kingAttacked('b')) hung++;
+    g.undo();
+  }
+  assert('AI never slips its king onto a taken square', hung === 0, `hung ${hung}/24`);
+}
+
+{
+  const rules = { kingCapture: true, checks: false, castling: false };
+  const g = Chess.fromDiagram(`
+    . . . k
+    . . . q
+    . N . .
+    . . . K
+  `, { files: 4, ranks: 4, rules });
+  const queen = [...g.pieces()].find((p) => p.type === 'q' && p.color === 'b');
+  const move = chooseMove(g, { depth: 2, slip: 0, budget: 400 });
+  assert('AI takes a hanging queen', Boolean(move && queen && move.to === queen.square),
+    move ? `played to ${move.to}` : 'no move');
+}
+
+{
+  const rules = { kingCapture: true, checks: false, castling: false };
+  const g = Chess.fromDiagram(`
+    . . k
+    . . .
+    . K .
+  `, { files: 3, ranks: 3, rules });
+  let walkedIn = 0;
+  for (let i = 0; i < 16; i++) {
+    const move = chooseMove(g, { depth: 2, slip: 0.5, budget: 250 });
+    if (!move) { walkedIn++; continue; }
+    g.move({ from: move.from, to: move.to, promotion: move.promotion });
+    if (g.kingAttacked('w')) walkedIn++;
+    g.undo();
+  }
+  assert('AI king does not step next to our king', walkedIn === 0, `walked in ${walkedIn}/16`);
+}
+
+{
   const run = createRun(3);
   const fights = Object.values(ENCOUNTERS);
   let crashed = null;

@@ -67,10 +67,10 @@ export const KING_PASSIVES = {
 };
 
 const AI = {
-  easy: { depth: 2, slip: 0.28, budget: 220 },
-  mid: { depth: 3, slip: 0.1, budget: 500 },
-  hard: { depth: 4, slip: 0.04, budget: 900 },
-  boss: { depth: 5, slip: 0, budget: 1400 },
+  easy: { depth: 3, slip: 0.1, budget: 450 },
+  mid: { depth: 4, slip: 0.04, budget: 800 },
+  hard: { depth: 5, slip: 0, budget: 1400 },
+  boss: { depth: 6, slip: 0, budget: 2400 },
 };
 
 /** Encounter book. `theme` drives drops; `tier` drives HP loss and map slots. */

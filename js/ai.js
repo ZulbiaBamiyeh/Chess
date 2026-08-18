@@ -6,7 +6,7 @@
 // opponent genuinely considers the position, it just sometimes picks a move
 // that isn't the best one, which feels far more human than a weak evaluator.
 
-import { Chess, WHITE, BLACK, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, FLAG, file, rank } from './chess.js';
+import { Chess, WHITE, BLACK, PAWN, BISHOP, KING, FLAG, ST_SHIELD, file, rank } from './chess.js';
 import { PIECES, pieceValue } from './pieces.js';
 
 const VALUE = Object.fromEntries(Object.values(PIECES).map((p) => [p.id, p.value]));
@@ -98,11 +98,11 @@ function killsRoyal(move) {
 
 /** Difficulty presets, exposed so the UI can label them. */
 export const LEVELS = [
-  { id: 1, name: 'Pawn',   blurb: 'Sees one move ahead, and often looks away.', depth: 2, slip: 0.42, budget: 200 },
-  { id: 2, name: 'Knight', blurb: 'Takes what you hang, misses the rest.',      depth: 3, slip: 0.18, budget: 400 },
-  { id: 3, name: 'Bishop', blurb: 'Punishes loose pieces and short tactics.',   depth: 4, slip: 0.06, budget: 800 },
-  { id: 4, name: 'Rook',   blurb: 'Calculates properly. You will need a plan.', depth: 5, slip: 0.0,  budget: 1500 },
-  { id: 5, name: 'Queen',  blurb: 'Searches as deep as the clock allows.',      depth: 7, slip: 0.0,  budget: 2600 },
+  { id: 1, name: 'Pawn',   blurb: 'Sees a little, and sometimes picks the second-best.', depth: 3, slip: 0.16, budget: 350 },
+  { id: 2, name: 'Knight', blurb: 'Takes what you hang, misses the rest.',      depth: 3, slip: 0.08, budget: 550 },
+  { id: 3, name: 'Bishop', blurb: 'Punishes loose pieces and short tactics.',   depth: 4, slip: 0.03, budget: 900 },
+  { id: 4, name: 'Rook',   blurb: 'Calculates properly. You will need a plan.', depth: 5, slip: 0.0,  budget: 1600 },
+  { id: 5, name: 'Queen',  blurb: 'Searches as deep as the clock allows.',      depth: 7, slip: 0.0,  budget: 2800 },
 ];
 
 export function levelById(id) {
@@ -168,17 +168,23 @@ export function evaluate(game) {
       const end = PST.kEnd[idx];
       score += sign * (mid * opening + end * (1 - opening));
     } else if (kingSq[color] >= 0) {
-      // In king-capture the king is a fighting piece; keep it central but
-      // not on the rim, and slightly prefer the back half of its own side.
       const sq = kingSq[color];
       const col = file(sq);
       const row = rank(sq);
-      score += sign * centerBonus(col, row, game.files, game.ranks);
       if (game.rules.kingCapture) {
+        // Stay back. Walking the king into the scrum is how fights end.
         const home = color === WHITE ? game.ranks - 1 : 0;
-        score += sign * (2 - Math.abs(row - home));
+        score += sign * (8 - Math.abs(row - home) * 4);
+        const midFile = (game.files - 1) / 2;
+        score += sign * (2 - Math.abs(col - midFile));
+      } else {
+        score += sign * centerBonus(col, row, game.files, game.ranks);
       }
     }
+  }
+
+  if (game.rules.kingCapture) {
+    score += kingSafety(game, WHITE) - kingSafety(game, BLACK);
   }
 
   if (bishops.w >= 2) score += 30;
@@ -209,6 +215,49 @@ function centerBonus(col, row, files, ranks) {
   const cf = (files - 1) / 2;
   const cr = (ranks - 1) / 2;
   return 10 - (Math.abs(col - cf) + Math.abs(row - cr)) * 3;
+}
+
+/** True when the side to move's king can be taken this turn. */
+function isThreatened(game) {
+  if (game.rules.kingCapture) return game.kingAttacked(game.turn);
+  return game.inCheck();
+}
+
+/**
+ * King-capture safety from that colour's point of view. A hanging king is
+ * almost the whole game; sitting next to the enemy army is how it gets there.
+ */
+function kingSafety(game, color) {
+  const king = game.kings[color];
+  if (king < 0) return 0;
+  const them = color === WHITE ? BLACK : WHITE;
+  if (game.kingAttacked(color) && !(game.status[king] & ST_SHIELD)) return -4800;
+
+  let score = 0;
+  const kf = file(king);
+  const kr = rank(king);
+  const board = game.board;
+  for (let sq = 0; sq <= 119; sq++) {
+    if (sq & 0x88) { sq += 7; continue; }
+    if (!game.inBounds(sq)) continue;
+    const piece = board[sq];
+    if (!piece || piece.color !== them || piece.type === KING) continue;
+    const d = Math.max(Math.abs((sq & 15) - kf), Math.abs((sq >> 4) - kr));
+    if (d === 1) score -= 55;
+    else if (d === 2) score -= 16;
+  }
+  return score;
+}
+
+/** After this move, can the opponent take our king (or did we burn it)? */
+function leavesKingHanging(game, move) {
+  if (!game.rules.kingCapture) return false;
+  game.makeMove(move);
+  const us = move.color;
+  const king = game.kings[us];
+  const hang = king < 0 || (game.kingAttacked(us) && !(game.status[king] & ST_SHIELD));
+  game.undo();
+  return hang;
 }
 
 function moveScore(move, killers, ply) {
@@ -255,19 +304,33 @@ class Search {
   quiescence(alpha, beta, qdepth) {
     this.nodes++;
     const game = this.game;
+    if (game.kings[game.turn] < 0) return -MATE;
+    const them = game.turn === WHITE ? BLACK : WHITE;
+    if (game.kings[them] < 0) return MATE;
+
     const sign = game.turn === WHITE ? 1 : -1;
     const stand = sign * evaluate(game);
+    const threatened = isThreatened(game);
 
-    if (qdepth <= 0) return stand;
-    if (stand >= beta) return stand;
-    if (stand > alpha) alpha = stand;
+    if (qdepth <= 0) return threatened ? -MATE : stand;
 
-    const moves = order(game.moves({ capturesOnly: true }), this.killers, 0, null);
-    let best = stand;
+    // A hanging king is not something you can stand pat on — take it, flee,
+    // or lose. In king-capture that also means searching quiet escapes.
+    if (!threatened) {
+      if (stand >= beta) return stand;
+      if (stand > alpha) alpha = stand;
+    }
+
+    const moves = order(
+      game.moves({ capturesOnly: !threatened }),
+      this.killers, 0, null,
+    );
+    if (threatened && !moves.length) return -MATE;
+
+    let best = threatened ? -MATE : stand;
     for (const move of moves) {
       if (killsRoyal(move)) return MATE;
-      // Delta pruning: a capture that cannot possibly reach alpha is noise.
-      if (move.captured && stand + pieceVal(move.captured) + 200 < alpha) continue;
+      if (!threatened && move.captured && stand + pieceVal(move.captured) + 200 < alpha) continue;
       game.makeMove(move);
       const score = -this.quiescence(-beta, -alpha, qdepth - 1);
       game.undo();
@@ -280,18 +343,18 @@ class Search {
 
   negamax(depth, alpha, beta, ply, preferred) {
     this.nodes++;
-    if (this.outOfTime()) return 0;
+    if (this.outOfTime()) return evaluate(this.game) * (this.game.turn === WHITE ? 1 : -1);
 
     const game = this.game;
     if (game.halfMoves >= 100) return 0;
 
-    const inCheck = game.inCheck();
-    if (inCheck) depth++;                 // never stop calculating inside a check
-
-    if (depth <= 0) return this.quiescence(alpha, beta, MAX_QUIESCENCE);
-
     if (game.kings[game.turn] < 0) return -MATE + ply;
     if (game.kings[game.turn === WHITE ? BLACK : WHITE] < 0) return MATE - ply;
+
+    const threatened = isThreatened(game);
+    if (threatened && ply < 18) depth++;
+
+    if (depth <= 0) return this.quiescence(alpha, beta, MAX_QUIESCENCE);
 
     const moves = game.moves();
     const royalKill = moves.find(killsRoyal);
@@ -303,7 +366,7 @@ class Search {
       // Mate scores are pushed toward zero by distance, so the search prefers
       // mate in two over mate in four. King-capture treats a smothered side
       // as a loss rather than a stalemate.
-      if (game.rules.kingCapture || inCheck) return -MATE + ply;
+      if (game.rules.kingCapture || threatened) return -MATE + ply;
       return 0;
     }
 
@@ -313,7 +376,9 @@ class Search {
       game.makeMove(move);
       const score = -this.negamax(depth - 1, -beta, -alpha, ply + 1, null);
       game.undo();
-      if (this.aborted) return best === -Infinity ? 0 : best;
+      if (this.aborted) return best === -Infinity
+        ? evaluate(game) * (game.turn === WHITE ? 1 : -1)
+        : best;
 
       if (score > best) { best = score; bestMove = move; }
       if (best > alpha) alpha = best;
@@ -353,19 +418,14 @@ export function chooseMove(position, level) {
     };
   }
 
-  // The "slip": weaker levels sometimes play a random legal move instead of the
-  // one they found. Captures are excluded from the slip so it looks like an
-  // oversight rather than a nonsense move.
-  if (level.slip > 0 && Math.random() < level.slip) {
-    const quiet = legal.filter((m) => !m.captured);
-    const pool = quiet.length ? quiet : legal;
-    const move = pool[Math.floor(Math.random() * pool.length)];
-    return { from: move.from, to: move.to, promotion: move.promotion, score: 0, depth: 0, nodes: 0 };
-  }
+  const safe = game.rules.kingCapture
+    ? legal.filter((m) => !leavesKingHanging(game, m))
+    : legal;
+  const candidates = safe.length ? safe : legal;
 
   const deadline = performance.now() + level.budget;
   const search = new Search(game, deadline);
-  let best = legal[0];
+  let best = candidates[0];
   let bestScore = 0;
   let reached = 0;
 
@@ -382,6 +442,38 @@ export function chooseMove(position, level) {
     }
     if (search.aborted) break;
     if (Math.abs(score) > MATE - 100) break;   // forced mate found, stop looking
+  }
+
+  // Never walk the king onto a taken square if any safe move exists — even
+  // when a shallow abort left a suicide as the "best" line.
+  if (safe.length && leavesKingHanging(game, best)) {
+    best = safe[0];
+    let pick = -Infinity;
+    for (const move of safe) {
+      game.makeMove(move);
+      const score = (move.color === WHITE ? 1 : -1) * evaluate(game);
+      game.undo();
+      if (score > pick) { pick = score; best = move; }
+    }
+    bestScore = pick;
+  }
+
+  // Weaker levels sometimes play a near-best move instead of the principal
+  // one. They still will not hang the king or ignore a recapture that search
+  // already priced as winning.
+  if (level.slip > 0 && Math.random() < level.slip && Math.abs(bestScore) < MATE - 100) {
+    const us = game.turn === WHITE ? 1 : -1;
+    const ranked = candidates.map((move) => {
+      game.makeMove(move);
+      const score = us * evaluate(game);
+      game.undo();
+      return { move, score };
+    });
+    ranked.sort((a, b) => b.score - a.score);
+    const floor = ranked[0].score - 180;
+    const pool = ranked.filter((r) => r.score >= floor);
+    const pick = pool[Math.floor(Math.random() * pool.length)].move;
+    best = pick;
   }
 
   return {

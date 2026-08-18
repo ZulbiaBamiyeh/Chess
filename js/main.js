@@ -9,6 +9,7 @@ import { ShaderBackground } from './bg.js';
 import { audio } from './audio.js';
 import { BoardView, pieceImage, shake, confetti, toast } from './ui.js';
 import { initCampaign } from './campaign.js';
+import { initSandbox } from './sandbox.js';
 
 const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const trayValue = (type) => PIECE_VALUE[type] ?? pieceCost(type);
@@ -540,6 +541,9 @@ function init() {
     state, $, showScreen, audio, requestMove, setStatus, refreshStatus,
     updateHud, renderCoordinates, Chess,
   });
+
+  const sandbox = initSandbox({ $, showScreen, audio });
+  $('btn-sandbox')?.addEventListener('click', () => sandbox?.open());
 
   $('btn-classic').addEventListener('click', () => showScreen('screen-classic'));
   $('btn-classic-back').addEventListener('click', () => showScreen('screen-start'));
