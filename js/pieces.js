@@ -107,7 +107,7 @@ export const PIECES = {
   },
   g: {
     id: 'g', name: 'Hopper', blurb: 'Hops the first piece it meets, lands just beyond.',
-    cost: 3, rarity: RARITY.RARE, value: 260, sprite: 'hopper', hopper: K,
+    cost: 4, rarity: RARITY.RARE, value: 300, sprite: 'hopper', hopper: K,
   },
   d: {
     id: 'd', name: 'Drake', blurb: 'A living wall. Cannot capture, and cannot be taken.',
@@ -115,8 +115,9 @@ export const PIECES = {
     cannotCapture: true, uncapturable: true,
   },
   i: {
-    id: 'i', name: 'Rime', blurb: 'One step any way. Landing freezes every adjacent enemy.',
-    cost: 4, rarity: RARITY.RARE, value: 300, sprite: 'ice', leaps: K, ice: true,
+    id: 'i', name: 'Rime',
+    blurb: 'One step any way. Freezes enemies beside her — and herself with them.',
+    cost: 5, rarity: RARITY.EPIC, value: 420, sprite: 'ice', leaps: K, ice: true,
   },
   l: {
     id: 'l', name: 'Flame', blurb: 'A bishop whose path burns for a turn.',
@@ -124,7 +125,7 @@ export const PIECES = {
   },
   y: {
     id: 'y', name: 'Wisp', blurb: 'If it is taken, the taker dies with it.',
-    cost: 6, rarity: RARITY.LEGENDARY, value: 400, sprite: 'wisp', leaps: B, wisp: true,
+    cost: 4, rarity: RARITY.LEGENDARY, value: 380, sprite: 'wisp', leaps: B, wisp: true,
   },
 };
 

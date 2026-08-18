@@ -4,7 +4,7 @@
 import { WHITE } from '../js/chess.js';
 import {
   createRun, validateLoadout, buildFight, settleFight, addToBag, hasSlot,
-  occupiedSlots, supplyBudget, openShop, buyOffer, autoPlace, currentNode,
+  occupiedSlots, supplyBudget, deployBudget, openShop, buyOffer, autoPlace, currentNode,
   completeNode, pickNode, rest, currentEncounter,
   bagSummary, equipKing, ownedKingIds,
 } from '../js/run.js';
@@ -254,6 +254,51 @@ const alley = ENCOUNTERS.alley;
   assert('each act opens with a fork', map.acts.every((a) => firstRooms(a).length >= 2));
   assert('maps actually branch', map.acts.every((a) => a.nodes.some((n) => n.next.length >= 2)));
   assert('act 1 shop weights have no legendary', SHOP_WEIGHTS[1].legendary === 0);
+}
+
+
+
+// ---- deploy cap ----------------------------------------------------------
+//
+// Supply caps what an army is worth; deploy caps how many bodies it has. With
+// only the first, AI duels showed the cheapest body always won and the win-rate
+// curve ran strictly backwards. See deployBudget() in run.js.
+
+{
+  const run = createRun(1);
+  const cap = deployBudget(run, gate);
+  assert('an encounter has a deploy cap', Number.isFinite(cap) && cap >= 2, String(cap));
+  assert('the cap is tighter than the supply budget',
+    cap < supplyBudget(run, gate) || gate.supply <= 3,
+    `cap=${cap} supply=${supplyBudget(run, gate)}`);
+}
+
+{
+  // A pawn horde is stopped by the body cap well before it runs out of points.
+  const run = createRun(1);
+  for (let i = 0; i < 10; i++) addToBag(run, 'p');
+  const cap = deployBudget(run, courtyardOrGate());
+  const enc = courtyardOrGate();
+  const horde = run.bag.filter((p) => p.type === 'p').slice(0, cap + 2).map((p) => p.uid);
+  const check = validateLoadout(run, enc, horde);
+  assert('a horde over the cap is rejected', !check.ok, JSON.stringify(check));
+  assert('rejection names the piece count', /pieces/i.test(check.reason || ''), check.reason);
+
+  const legal = run.bag.filter((p) => p.type === 'p').slice(0, cap).map((p) => p.uid);
+  const ok = validateLoadout(run, enc, legal);
+  assert('exactly the cap is allowed', ok.ok, JSON.stringify(ok));
+}
+
+{
+  const run = createRun(1);
+  run.deployBonus = 2;
+  const enc = courtyardOrGate();
+  assert('the shop upgrade widens the cap',
+    deployBudget(run, enc) === deployBudget(createRun(1), enc) + 2);
+}
+
+function courtyardOrGate() {
+  return ENCOUNTERS.courtyard || gate;
 }
 
 console.log(failures ? `\n${failures} run failure(s)` : '\nAll run tests passed.');

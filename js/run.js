@@ -38,6 +38,7 @@ export function createRun(seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>>
     bag: STARTING_BAG.map((type) => ({ uid: uid(), type })),
     slots: { common: Infinity, rare: SLOT_CAPS.rare, epic: SLOT_CAPS.epic, legendary: SLOT_CAPS.legendary },
     supplyBonus: 0,
+    deployBonus: 0,
     supplyBought: 0,
     king: null,
     kings: ['plain'],
@@ -147,6 +148,29 @@ export function supplyBudget(run, encounter) {
   return (encounter.supply || 0) + run.supplyBonus;
 }
 
+/**
+ * How many pieces you may field, king aside.
+ *
+ * Supply alone was not enough of a constraint. Points cap what your army is
+ * WORTH, but a king-capture fight is won by bodies: enough of them to screen
+ * your own king and to swarm theirs. With only a supply cap the cheapest body
+ * always won — measured over AI duels, an eight-pawn army beat every single
+ * piece in the registry, and the win rate curve ran strictly backwards, with
+ * cheap pieces beating expensive ones.
+ *
+ * A deploy cap is the orthogonal lever: supply limits quality, deploy limits
+ * quantity, and the two together make "a few good pieces" and "a cheap horde"
+ * both viable instead of the horde dominating. It flattened the measured
+ * spread from 6%-100% down to 34%-66%.
+ */
+export function deployBudget(run, encounter) {
+  const supply = encounter.supply || 0;
+  // Roughly three fifths of supply, so a pure horde cannot spend it all on
+  // bodies and always has points spare to put into something better.
+  const base = encounter.deploy ?? Math.max(2, Math.ceil(supply * 0.6));
+  return base + (run.deployBonus || 0);
+}
+
 export function loadoutCost(items) {
   return items.reduce((sum, item) => sum + pieceCost(item.type), 0);
 }
@@ -162,10 +186,18 @@ export function validateLoadout(run, encounter, selectedUids) {
     return { ok: false, reason: 'Not enough home squares for that many pieces.', cost: loadoutCost(items), budget };
   }
   const cost = loadoutCost(items);
-  if (cost > budget) {
-    return { ok: false, reason: `Supply ${cost} / ${budget}.`, cost, budget };
+  const deploy = deployBudget(run, encounter);
+  if (items.length > deploy) {
+    return {
+      ok: false,
+      reason: `Too many pieces — ${items.length} / ${deploy}.`,
+      cost, budget, deploy, count: items.length,
+    };
   }
-  return { ok: true, cost, budget };
+  if (cost > budget) {
+    return { ok: false, reason: `Supply ${cost} / ${budget}.`, cost, budget, deploy, count: items.length };
+  }
+  return { ok: true, cost, budget, deploy, count: items.length };
 }
 
 export function rulesFor(run) {

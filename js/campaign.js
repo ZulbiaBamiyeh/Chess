@@ -6,7 +6,7 @@ import { BoardView, pieceImage, pieceHue, kingSkin, shake, confetti, toast } fro
 import {
   createRun, currentNode, validateLoadout, buildFight, settleFight,
   openShop, buyOffer, rerollShop, closeShop, retryAllowed,
-  autoPlace, supplyBudget, occupiedSlots, freeHomeSquares,
+  autoPlace, supplyBudget, deployBudget, occupiedSlots, freeHomeSquares,
   completeNode, pickNode, rest, REST_GOLD, turnClock,
   bagSummary, equipKing,
 } from './run.js';
@@ -334,10 +334,14 @@ export function initCampaign(ctx) {
       const def = pieceById(item.type);
       const placed = used.has(item.uid);
       const tooDear = !placed && def.cost > left;
+      // Bodies are capped as well as points, so a horde runs out of room
+      // before it runs out of supply.
+      const atDeployCap = !placed
+        && placements.filter((p) => p.uid !== 'king').length >= deployBudget(state.run, state.encounter);
       const btn = document.createElement('button');
       btn.className = 'bag-item'
         + (placed ? ' used' : '')
-        + (tooDear ? ' dear' : '')
+        + (tooDear || atDeployCap ? ' dear' : '')
         + (selectedUid === item.uid ? ' on' : '');
       btn.title = def.blurb || def.name;
       const hue = pieceHue(item.type);
@@ -359,6 +363,11 @@ export function initCampaign(ctx) {
         if (tooDear) {
           audio.illegal();
           toast(`Needs ${def.cost} supply`, 'danger');
+          return;
+        }
+        if (atDeployCap) {
+          audio.illegal();
+          toast(`No room — ${deployBudget(state.run, state.encounter)} pieces max`, 'danger');
           return;
         }
         selectedUid = selectedUid === item.uid ? null : item.uid;
@@ -570,6 +579,15 @@ export function initCampaign(ctx) {
     $('supply-text').textContent = `${cost} / ${budget}`;
     $('supply-fill').style.width = `${budget ? Math.min(100, (cost / budget) * 100) : 0}%`;
     $('supply-fill').classList.toggle('over', cost > budget);
+
+    // Bodies are capped separately from points — see deployBudget().
+    const deploy = check.deploy ?? deployBudget(state.run, enc);
+    const count = check.count ?? items.length;
+    if ($('deploy-text')) {
+      $('deploy-text').textContent = `${count} / ${deploy}`;
+      $('deploy-fill').style.width = `${deploy ? Math.min(100, (count / deploy) * 100) : 0}%`;
+      $('deploy-fill').classList.toggle('over', count > deploy);
+    }
     $('btn-loadout-fight').disabled = !check.ok;
   }
 
@@ -882,7 +900,12 @@ export function initCampaign(ctx) {
     const pick = [];
     let cost = 0;
     const budget = supplyBudget(state.run, enc);
-    for (const item of remaining) {
+    const room = deployBudget(state.run, enc);
+    // Spend the supply on the best pieces that fit rather than the first ones
+    // out of the bag — with bodies capped, quality is what the budget is for.
+    const byValue = [...remaining].sort((a, b) => pieceCost(b.type) - pieceCost(a.type));
+    for (const item of byValue) {
+      if (pick.length >= room) break;
       const c = pieceCost(item.type);
       if (cost + c > budget) continue;
       pick.push(item);

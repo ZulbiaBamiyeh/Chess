@@ -472,13 +472,42 @@ const KC = { kingCapture: true, checks: false, castling: false };
 }
 
 {
+  // Rime freezes orthogonally, not diagonally, and freezes herself with them.
+  // The diagonal exemption is what keeps her answerable: a pawn only captures
+  // on the diagonal, so freezing all eight neighbours made her untouchable.
   const g = Chess.fromDiagram(`
-    . n k
-    . {w:rime} .
-    . . K
+    n n k
+    . . .
+    . {w:rime} K
   `, { files: 3, ranks: 3, rules: KC });
-  g.move({ from: 'b2', to: 'a2' });
-  assert('rime freezes an adjacent enemy', (g.statusAt('b3') & 1) !== 0, `status=${g.statusAt('b3')}`);
+  g.move({ from: 'b1', to: 'b2' });
+  assert('rime freezes the enemy orthogonally beside her',
+    (g.statusAt('b3') & 1) !== 0, `status=${g.statusAt('b3')}`);
+  assert('rime leaves a diagonal enemy free',
+    (g.statusAt('a3') & 1) === 0, `status=${g.statusAt('a3')}`);
+  assert('rime freezes herself on the recoil',
+    (g.statusAt('b2') & 1) !== 0, `status=${g.statusAt('b2')}`);
+
+  const frozen = g.moves().some((m) => m.from === g.sqOf('b3'));
+  const free = g.moves().some((m) => m.from === g.sqOf('a3'));
+  assert('the frozen knight cannot move', !frozen);
+  assert('the untouched knight still can', free);
+}
+
+{
+  // Recoil has to survive undo, since the search relies on it.
+  const g = Chess.fromDiagram(`
+    n n k
+    . . .
+    . {w:rime} K
+  `, { files: 3, ranks: 3, rules: KC });
+  const before = g.fen();
+  const mv = g.moves().find((m) => m.from === g.sqOf('b1') && m.to === g.sqOf('b2'));
+  g.makeMove(mv);
+  g.undo();
+  assert('undo restores the board after a freeze', g.fen() === before, g.fen());
+  assert('undo clears the recoil', (g.statusAt('b1') & 1) === 0);
+  assert('undo thaws what she froze', (g.statusAt('b3') & 1) === 0);
 }
 
 {

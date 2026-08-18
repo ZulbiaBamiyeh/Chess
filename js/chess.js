@@ -1033,8 +1033,17 @@ export class Chess {
       }
 
       if (def?.ice) {
+        // Rime freezes only its ORTHOGONAL neighbours, and the cold takes her
+        // too. Both halves of that matter.
+        //
+        // Freezing all eight neighbours made her literally untouchable: every
+        // piece close enough to punish her was disabled before it got a turn,
+        // and a pawn — which can only capture on the diagonal — could never
+        // answer her at all. Leaving the diagonals live means there is always
+        // a reply. Freezing herself costs her the initiative and opens the
+        // window in which that reply can land.
         extra.iced = [];
-        for (const off of KING_OFFSETS) {
+        for (const off of ROOK_DIRS) {
           const sq = dest + off;
           if (!this.inBounds(sq)) continue;
           const p = board[sq];
@@ -1043,6 +1052,9 @@ export class Chess {
             this.status[sq] |= ST_FROZEN;
           }
         }
+        // Recoil. Undo restores this square from `extra.statusTo`, so it needs
+        // no bookkeeping of its own.
+        if (extra.iced.length) this.status[dest] |= ST_FROZEN;
       }
 
       const tookWisp = move.captured && PIECES[move.captured]?.wisp
