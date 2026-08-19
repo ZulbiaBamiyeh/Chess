@@ -65,6 +65,8 @@ const BISHOP_DIRS = [-17, -15, 15, 17];
 const ROOK_DIRS = [-16, -1, 1, 16];
 /** The 3–1 leap, for Longshot's extended firing range. */
 const CAMEL_OFFSETS = [-49, -47, -19, -13, 13, 19, 47, 49];
+/** The Vanguard king's dash: two squares in a straight line, jumping the one between. */
+const VANGUARD_OFFSETS = [-32, 32, -2, 2];
 /** Every square within two, for a banner's widened reach. */
 const RING2_OFFSETS = [
   -34, -33, -32, -31, -30, -18, -14, -2, 2, 14, 18, 30, 31, 32, 33, 34,
@@ -146,6 +148,13 @@ export class Chess {
     this.status = new Uint8Array(128);
     this.terrain = new Uint8Array(128);
     this.fireUntil = new Uint16Array(128);
+    // A telegraphed square: the ply count at which it detonates, or 0 for
+    // none. Same shape as fireUntil, snapshotted and restored the same way.
+    this.warnUntil = new Uint16Array(128);
+    // A boss's scripted behaviour: none of this is reachable by the player's
+    // own king, only by an encounter naming it. Kept as plain config rather
+    // than one-off flags so envTick() has a single place to read from.
+    this.bossScript = options.bossScript || null;
     this.kings = { w: -1, b: -1 };
     this.history = [];
     this.duck = -1;
@@ -318,6 +327,11 @@ export class Chess {
     return this.terrain[sq] === TILE.FIRE || this.fireUntil[sq] > this.history.length;
   }
 
+  /** True while `sq` is telegraphed for a boss strike that hasn't landed yet. */
+  isWarned(sq) {
+    return this.warnUntil[sq] > this.history.length;
+  }
+
   paintFire(sq, until, extra) {
     if (!this.inBounds(sq) || this.isBlocked(sq)) return;
     this.fireUntil[sq] = until;
@@ -359,6 +373,7 @@ export class Chess {
       ranks: this.ranks,
       rules: { ...this.rules },
       kingPassives: this.kingPassives.slice(),
+      bossScript: this.bossScript ? { ...this.bossScript } : null,
       terrain,
       status,
       fire,
@@ -623,6 +638,11 @@ export class Chess {
         if (from + off === target && this.inBounds(target)) return true;
       }
     }
+    if (piece.type === KING && piece.color === WHITE && this.kingPassives.includes('vanguard')) {
+      for (const off of VANGUARD_OFFSETS) {
+        if (from + off === target && this.inBounds(target)) return true;
+      }
+    }
     if (this.kingPassives.includes('court') && isQueenLike(piece.type)) {
       for (const off of KNIGHT_OFFSETS) {
         if (from + off === target && this.inBounds(target)) return true;
@@ -824,6 +844,7 @@ export class Chess {
     const startRank = us === WHITE ? this.ranks - 2 : 1;
     const extraRoyal = this.rules.royalLeaps;
     const court = this.kingPassives.includes('court');
+    const vanguard = us === WHITE && this.kingPassives.includes('vanguard');
 
     const only = square == null ? null : this.sqOf(square);
 
@@ -995,6 +1016,9 @@ export class Chess {
       }
       if (piece.type === KING && extraRoyal) {
         for (const off of extraRoyal) land(from + off, FLAG.NORMAL);
+      }
+      if (piece.type === KING && vanguard) {
+        for (const off of VANGUARD_OFFSETS) land(from + off, FLAG.NORMAL);
       }
       if (court && isQueenLike(piece.type)) {
         for (const off of KNIGHT_OFFSETS) land(from + off, FLAG.NORMAL);
@@ -1382,12 +1406,130 @@ export class Chess {
       }
     }
 
+    if (extra && this.bossScript) this.envTick(extra);
+
     this.halfMoves = (move.piece === PAWN
       || (move.flags & (FLAG.CAPTURE | FLAG.EP_CAPTURE | FLAG.GUARD_FALLS)))
       ? 0
       : this.halfMoves + 1;
     if (us === BLACK) this.moveNumber++;
     this.turn = them;
+  }
+
+  /**
+   * A boss's scripted battlefield changes, ticked once per real ply (this
+   * runs from inside makeMove, so the AI's search plans around it exactly
+   * like a player would — it isn't a display-only overlay). Every mutation
+   * is snapshotted onto `extra` the same way fire already is, so undo
+   * reverses it exactly; the AI calls undo constantly while searching, so
+   * that symmetry isn't optional.
+   *
+   * Three scripts, each independent and all keyed off `this.history.length`
+   * (never wall-clock or a counter of its own) so a search that revisits the
+   * same position gets the same answer every time:
+   *  - meteor: telegraphs a cross of squares around the white king, then
+   *    detonates it a couple of plies later — killing whatever is still
+   *    standing there and leaving real fire behind.
+   *  - blizzard: freezes a fresh strip of the board every so often, and
+   *    freezes whatever it catches. The tile stays frost after that, so
+   *    anyone who steps there later still pays for it via the ordinary
+   *    frost rule — this only has to handle the moment it forms.
+   *  - shrink: closes the outermost living ring of the board down, one ring
+   *    per pulse, killing anything caught on it. Stops well short of
+   *    closing the arena entirely.
+   */
+  envTick(extra) {
+    const script = this.bossScript;
+    if (!script) return;
+    const N = this.history.length;
+    const killed = [];
+
+    if (script.meteor) {
+      extra.warnSnap = this.warnUntil.slice();
+      const { period, delay = 2 } = script.meteor;
+      for (let sq = 0; sq <= 119; sq++) {
+        if (sq & 0x88) { sq += 7; continue; }
+        if (this.warnUntil[sq] !== N) continue;
+        this.warnUntil[sq] = 0;
+        const victim = this.board[sq];
+        if (victim && !PIECES[victim.type]?.uncapturable) {
+          killed.push(sq, victim);
+          if (victim.type === KING) this.kings[victim.color] = -1;
+          this.board[sq] = null;
+          this.status[sq] = 0;
+        }
+        extra.fireSnap = extra.fireSnap ?? this.fireUntil.slice();
+        this.paintFire(sq, N + 3, extra);
+      }
+      if (N > 0 && N % period === 0) {
+        const center = this.kings.w;
+        if (center >= 0) {
+          const warned = [];
+          for (const sq of [center, center - 16, center + 16, center - 1, center + 1]) {
+            if (!this.inBounds(sq) || this.terrain[sq] === TILE.BLOCK) continue;
+            this.warnUntil[sq] = N + delay;
+            warned.push(sq);
+          }
+          extra.meteorWarned = warned;
+        }
+      }
+    }
+
+    if (script.blizzard) {
+      const { period } = script.blizzard;
+      if (N > 0 && N % period === 0) {
+        const stage = Math.floor(N / period) - 1;
+        const row = stage % this.ranks;
+        extra.terrainSnap = extra.terrainSnap ?? this.terrain.slice();
+        const frozen = [];
+        for (let f = 0; f < this.files; f++) {
+          const sq = row * 16 + f;
+          if (this.terrain[sq] === TILE.BLOCK) continue;
+          this.terrain[sq] = TILE.FROST;
+          const p = this.board[sq];
+          if (p && !this.freezeImmune(p) && !(this.status[sq] & ST_FROZEN)) {
+            frozen.push(sq, this.status[sq]);
+            this.status[sq] |= ST_FROZEN;
+          }
+        }
+        extra.envFrozen = frozen;
+      }
+    }
+
+    if (script.shrink) {
+      const { period, floor = 4 } = script.shrink;
+      if (N > 0 && N % period === 0) {
+        const stage = Math.floor(N / period) - 1;
+        // Guard the size that would remain AFTER this ring closes, not the
+        // size before it — checking the "before" size let one extra ring
+        // through every time and could crush an 8-wide board to a 2-wide
+        // sliver instead of stopping at `floor`.
+        if (Math.min(this.files, this.ranks) - 2 * (stage + 1) >= floor) {
+          extra.terrainSnap = extra.terrainSnap ?? this.terrain.slice();
+          const closeRing = (sq) => {
+            if (this.terrain[sq] === TILE.BLOCK) return;
+            this.terrain[sq] = TILE.BLOCK;
+            const p = this.board[sq];
+            if (p && !PIECES[p.type]?.uncapturable) {
+              killed.push(sq, p);
+              if (p.type === KING) this.kings[p.color] = -1;
+              this.board[sq] = null;
+              this.status[sq] = 0;
+            }
+          };
+          for (let f = stage; f < this.files - stage; f++) {
+            closeRing(stage * 16 + f);
+            closeRing((this.ranks - 1 - stage) * 16 + f);
+          }
+          for (let r = stage + 1; r < this.ranks - 1 - stage; r++) {
+            closeRing(r * 16 + stage);
+            closeRing(r * 16 + (this.files - 1 - stage));
+          }
+        }
+      }
+    }
+
+    if (killed.length) extra.envKilled = killed;
   }
 
   undo() {
@@ -1411,9 +1553,16 @@ export class Chess {
     }
 
     if (extra?.fireSnap) this.fireUntil = extra.fireSnap;
+    if (extra?.warnSnap) this.warnUntil = extra.warnSnap;
+    if (extra?.terrainSnap) this.terrain = extra.terrainSnap;
     if (extra?.iced) {
       for (let i = 0; i < extra.iced.length; i += 2) {
         this.status[extra.iced[i]] = extra.iced[i + 1];
+      }
+    }
+    if (extra?.envFrozen) {
+      for (let i = 0; i < extra.envFrozen.length; i += 2) {
+        this.status[extra.envFrozen[i]] = extra.envFrozen[i + 1];
       }
     }
 
@@ -1421,6 +1570,14 @@ export class Chess {
       for (let i = 0; i < extra.blast.length; i += 2) {
         const sq = extra.blast[i];
         const piece = extra.blast[i + 1];
+        board[sq] = piece;
+        if (piece.type === KING) this.kings[piece.color] = sq;
+      }
+    }
+    if (extra?.envKilled) {
+      for (let i = 0; i < extra.envKilled.length; i += 2) {
+        const sq = extra.envKilled[i];
+        const piece = extra.envKilled[i + 1];
         board[sq] = piece;
         if (piece.type === KING) this.kings[piece.color] = sq;
       }

@@ -4,7 +4,7 @@
 import { Chess, WHITE, BLACK, TILE, ST_FROZEN, ST_SHIELD } from './chess.js';
 import { PIECES } from './pieces.js';
 import { KING_PASSIVES, PLAIN_KING, kingDef } from './content.js';
-import { BoardView, pieceImage, pieceHue, kingSkin } from './ui.js';
+import { BoardView, pieceImage, pieceHue, kingSkin, kingHue } from './ui.js';
 
 const KING_STEPS = [-17, -16, -15, -1, 1, 15, 16, 17];
 
@@ -62,7 +62,7 @@ export function initSandbox({ $, showScreen, audio }) {
   }
 
   function refresh() {
-    box.view.setWhiteKingSkin(kingSkin(box.king));
+    box.view.setWhiteKingSkin(kingSkin(box.king), kingHue(box.king));
     box.view.syncFromGame(box.game);
     box.view.setInteractive(true);
     paintCoords();
@@ -169,8 +169,9 @@ export function initSandbox({ $, showScreen, audio }) {
         btn.type = 'button';
         btn.className = 'sandbox-pick' + (box.king === def.id ? ' on' : '');
         btn.title = def.blurb;
+        const kingFilter = kingHue(def.id) ? ` filter:hue-rotate(${kingHue(def.id)}deg);` : '';
         btn.innerHTML =
-          `<i style="background-image:url('${pieceImage('k', WHITE, kingSkin(def.id))}')"></i>`
+          `<i style="background-image:url('${pieceImage('k', WHITE, kingSkin(def.id))}');${kingFilter}"></i>`
           + `<span>${def.name}</span>`;
         btn.addEventListener('click', () => {
           box.king = def.id;
@@ -189,8 +190,9 @@ export function initSandbox({ $, showScreen, audio }) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'sandbox-pick' + (box.color === id ? ' on' : '');
+        const sideFilter = id === WHITE && kingHue(box.king) ? ` filter:hue-rotate(${kingHue(box.king)}deg);` : '';
         btn.innerHTML =
-          `<i style="background-image:url('${pieceImage('k', id, id === WHITE ? kingSkin(box.king) : null)}')"></i>`
+          `<i style="background-image:url('${pieceImage('k', id, id === WHITE ? kingSkin(box.king) : null)}');${sideFilter}"></i>`
           + `<span>${label}</span>`;
         btn.addEventListener('click', () => {
           box.color = id;
@@ -213,8 +215,9 @@ export function initSandbox({ $, showScreen, audio }) {
         btn.type = 'button';
         btn.className = 'sandbox-pick' + (on ? ' on' : '');
         btn.title = def.blurb;
-        const hue = pieceHue(id);
-        const skin = id === 'k' && box.color === WHITE ? kingSkin(box.king) : null;
+        const isWhiteKingTile = id === 'k' && box.color === WHITE;
+        const skin = isWhiteKingTile ? kingSkin(box.king) : null;
+        const hue = isWhiteKingTile ? kingHue(box.king) : pieceHue(id);
         btn.innerHTML =
           `<i style="background-image:url('${pieceImage(id, box.color, skin)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`
           + `<span>${def.name}</span>`;
@@ -312,6 +315,7 @@ export function initSandbox({ $, showScreen, audio }) {
       }
     }
     const skin = type === 'k' ? kingSkin(box.king) : null;
+    const hue = type === 'k' ? kingHue(box.king) : pieceHue(type);
     if ($('sb-md-name')) {
       $('sb-md-name').textContent = king && king.id !== 'plain' ? `${king.name} King` : def.name;
     }
@@ -323,7 +327,7 @@ export function initSandbox({ $, showScreen, audio }) {
     }
     if ($('sb-md-art')) {
       $('sb-md-art').style.backgroundImage = `url('${pieceImage(type, WHITE, skin)}')`;
-      $('sb-md-art').style.filter = pieceHue(type) ? `hue-rotate(${pieceHue(type)}deg)` : '';
+      $('sb-md-art').style.filter = hue ? `hue-rotate(${hue}deg)` : '';
     }
     host.innerHTML = '';
     for (let r = 0; r < ranks; r++) {
@@ -334,7 +338,7 @@ export function initSandbox({ $, showScreen, audio }) {
         if (sq === mid) {
           const fig = document.createElement('b');
           fig.style.backgroundImage = `url('${pieceImage(type, WHITE, skin)}')`;
-          if (pieceHue(type)) fig.style.filter = `hue-rotate(${pieceHue(type)}deg)`;
+          if (hue) fig.style.filter = `hue-rotate(${hue}deg)`;
           cell.appendChild(fig);
         } else if (dest.has(sq)) {
           cell.classList.add(dest.get(sq) ? 'cap' : 'go');

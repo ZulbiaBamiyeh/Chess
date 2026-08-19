@@ -7,7 +7,8 @@ import { LEVELS, levelById, chooseDuck } from './ai.js';
 import { pieceCost, pieceById } from './pieces.js';
 import { ShaderBackground } from './bg.js';
 import { audio } from './audio.js';
-import { BoardView, pieceImage, pieceHue, shake, confetti, toast } from './ui.js';
+import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, toast } from './ui.js';
+import { kingDef } from './content.js';
 import { initCampaign } from './campaign.js';
 import { initSandbox } from './sandbox.js';
 
@@ -445,10 +446,11 @@ function paintFightDiagram(type, color) {
   const enemy = color === WHITE ? BLACK : WHITE;
   const files = 7;
   const ranks = 7;
-  // The real ruleset, not a generic one — king movement varies with the
-  // encounter (a dash king leaps, royal guard changes what a capture does),
-  // and a diagram that ignores that would just teach the wrong thing.
-  const g = new Chess({ files, ranks, rules: state.game.rules });
+  // The real ruleset and king passives, not generic ones — king movement
+  // varies with the encounter (a dash king leaps, royal guard changes what a
+  // capture does, a Vanguard or Court king moves differently from a plain
+  // one), and a diagram that ignores that would just teach the wrong thing.
+  const g = new Chess({ files, ranks, rules: state.game.rules, kingPassives: state.game.kingPassives });
   const mid = 3 * 16 + 3;
   g.board[mid] = { type, color };
   if (type === 'k') g.kings[color] = mid;
@@ -475,11 +477,15 @@ function paintFightDiagram(type, color) {
     }
   }
 
-  $('fight-md-name').textContent = def.name;
-  $('fight-md-blurb').textContent = def.blurb || '';
-  $('fight-md-cost').textContent = `${def.cost} supply · ${def.rarity}`;
-  $('fight-md-art').style.backgroundImage = `url('${pieceImage(type, color)}')`;
-  $('fight-md-art').style.filter = pieceHue(type) ? `hue-rotate(${pieceHue(type)}deg)` : '';
+  const isWhiteKing = type === 'k' && color === WHITE;
+  const skin = isWhiteKing ? kingSkin(state.run?.king) : null;
+  const hue = isWhiteKing ? kingHue(state.run?.king) : pieceHue(type);
+
+  $('fight-md-name').textContent = isWhiteKing ? kingDef(state.run?.king).name + ' King' : def.name;
+  $('fight-md-blurb').textContent = (isWhiteKing ? kingDef(state.run?.king).blurb : def.blurb) || '';
+  $('fight-md-cost').textContent = isWhiteKing ? '' : `${def.cost} supply · ${def.rarity}`;
+  $('fight-md-art').style.backgroundImage = `url('${pieceImage(type, color, skin)}')`;
+  $('fight-md-art').style.filter = hue ? `hue-rotate(${hue}deg)` : '';
 
   host.innerHTML = '';
   for (let r = 0; r < ranks; r++) {
@@ -489,8 +495,8 @@ function paintFightDiagram(type, color) {
       cell.className = 'md-sq' + ((r + f) % 2 ? ' dark' : ' light');
       if (sq2 === mid) {
         const fig = document.createElement('b');
-        fig.style.backgroundImage = `url('${pieceImage(type, color)}')`;
-        if (pieceHue(type)) fig.style.filter = `hue-rotate(${pieceHue(type)}deg)`;
+        fig.style.backgroundImage = `url('${pieceImage(type, color, skin)}')`;
+        if (hue) fig.style.filter = `hue-rotate(${hue}deg)`;
         cell.appendChild(fig);
       } else if (dest.has(sq2)) {
         cell.classList.add(dest.get(sq2) ? 'cap' : 'go');

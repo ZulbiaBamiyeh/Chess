@@ -7,9 +7,9 @@
 import {
   Chess, WHITE, BLACK, FLAG, ST_FROZEN, ST_SHIELD, TILE, defaultRules, parseSquare,
 } from '../js/chess.js';
-import { ENCOUNTERS } from '../js/content.js';
+import { ENCOUNTERS, KING_PASSIVES } from '../js/content.js';
 import { PIECES } from '../js/pieces.js';
-import { rulesFor, createRun } from '../js/run.js';
+import { rulesFor, createRun, buildFight, autoPlace, applyStartStatuses } from '../js/run.js';
 
 let failures = 0;
 
@@ -854,6 +854,242 @@ const GUARD = { ...KC, royalGuard: true };
   const run = createRun(1);
   const rules = rulesFor(run);
   assert('the run guards only the enemy king', rules.royalGuard === BLACK, String(rules.royalGuard));
+}
+
+// ---- new king variants -----------------------------------------------------
+
+{
+  // Every king id must resolve back to itself — the shop and the bag both
+  // key kings off run.king, and the engine's own kingPassives checks look
+  // for that exact string, so a king whose object key drifted from its id
+  // field would silently stop doing anything the moment it was equipped.
+  const mismatched = Object.entries(KING_PASSIVES).filter(([key, def]) => key !== def.id);
+  assert('every king id matches its own registry key',
+    mismatched.length === 0, mismatched.map(([k]) => k).join(', '));
+}
+
+{
+  // Vanguard: a straight two-square jump, clearing whatever sits between —
+  // and only for the player's own king, the same asymmetry every other new
+  // king passive respects.
+  const g = Chess.fromDiagram(`
+    . . . . .
+    . . . . .
+    . {w:pawn} {w:king} . .
+    . . . . .
+    . . . . .
+  `, { files: 5, ranks: 5, rules: { ...KC }, kingPassives: ['vanguard'] });
+  const moves = g.moves({ square: g.kings.w, legal: false });
+  assert('Vanguard king can leap two squares', moves.some((m) => m.to === g.kings.w - 2));
+  assert('Vanguard king still moves one square too', moves.some((m) => m.to === g.kings.w - 16));
+
+  const black = Chess.fromDiagram(`
+    . . . . .
+    . . . . .
+    . {b:pawn} {b:king} . .
+    . . . . .
+    . . . . .
+  `, { files: 5, ranks: 5, rules: { ...KC }, kingPassives: ['vanguard'], turn: BLACK });
+  const blackMoves = black.moves({ square: black.kings.b, legal: false });
+  assert('Vanguard does not reach the enemy king',
+    !blackMoves.some((m) => m.to === black.kings.b - 2));
+}
+
+{
+  // Sentinel opts the player's own king back into the escort the run
+  // otherwise reserves for the enemy.
+  const rules = rulesFor({ king: 'sentinel' });
+  assert('Sentinel guards the player\'s own king too', rules.royalGuard === true);
+  const plain = rulesFor({ king: null });
+  assert('a plain king still leaves the run default (enemy only)', plain.royalGuard === BLACK);
+}
+
+{
+  // Duck: the run wires it straight into the existing Duck Chess rule.
+  const rules = rulesFor({ king: 'duck' });
+  assert('the Duck king turns on duckChess', rules.duckChess === true);
+  const plain = rulesFor({ king: null });
+  assert('duckChess is off without it', plain.duckChess === false);
+}
+
+{
+  // Palisade grants the same token Icebound Cloak does — a king built on an
+  // existing, already-balanced relic effect rather than a new one.
+  const g = Chess.fromDiagram(`
+    {b:rime} . .
+    . {w:pawn} .
+    . . .
+  `, { files: 3, ranks: 3, rules: { ...KC }, kingPassives: ['icebound'] });
+  assert('Palisade (icebound) protects a piece from freezeImmune',
+    g.freezeImmune(g.board[g.sqOf('b2')]));
+}
+
+{
+  // Marksman grants Longshot's extended 3-1 range to shooters.
+  const g = Chess.fromDiagram(`
+    . . . . . . .
+    . . . . . . .
+    . . . . . . .
+    . . . {w:crossbow} . . .
+    . . . . . . .
+    . . . . . . .
+    . . . . . . .
+  `, { files: 7, ranks: 7, rules: { ...KC }, kingPassives: ['longshot'] });
+  const def = PIECES.crossbow;
+  const offsets = g.shootOffsets(def, WHITE);
+  assert('Marksman extends the crossbow to the camel leap',
+    offsets.length > def.shootOff.length);
+}
+
+{
+  // Warden, Anchor and Formation all act at fight start via
+  // applyStartStatuses rather than any engine hook, so they're testable
+  // directly against a hand-built position.
+  const diagram = `
+    . . . . .
+    . {w:king} {w:queen} . .
+    . . . . .
+    . . . . .
+    . . . . {w:pawn}
+  `;
+  const warden = Chess.fromDiagram(diagram, { files: 5, ranks: 5, rules: { ...KC } });
+  applyStartStatuses(warden, { king: 'rampart', relics: [] });
+  // Read the squares back from the board rather than guessing algebraic
+  // names against the diagram's row/rank orientation.
+  const queenSq = warden.pieces().find((p) => p.type === 'q').square;
+  const pawnSq = warden.pieces().find((p) => p.type === 'p').square;
+  assert('Warden shields the piece beside the king', Boolean(warden.status[queenSq] & ST_SHIELD));
+  assert('Warden does not shield a piece further away', !(warden.status[pawnSq] & ST_SHIELD));
+
+  const anchor = Chess.fromDiagram(diagram, { files: 5, ranks: 5, rules: { ...KC } });
+  applyStartStatuses(anchor, { king: 'anchor', relics: [] });
+  assert('Anchor shields the single costliest piece', Boolean(anchor.status[queenSq] & ST_SHIELD));
+  assert('Anchor leaves the cheaper piece alone', !(anchor.status[pawnSq] & ST_SHIELD));
+
+  const formation = Chess.fromDiagram(diagram, { files: 5, ranks: 5, rules: { ...KC } });
+  applyStartStatuses(formation, { king: 'formation', relics: [] });
+  assert('Formation shields the pawn', Boolean(formation.status[pawnSq] & ST_SHIELD));
+  assert('Formation leaves the queen unshielded', !(formation.status[queenSq] & ST_SHIELD));
+}
+
+{
+  // End-to-end: the run layer actually reaches an equipped king through the
+  // whole buildFight pipeline, not just in the unit tests above.
+  const run = createRun(42);
+  run.king = 'duck';
+  const enc = ENCOUNTERS.gate;
+  const game = buildFight(run, enc, autoPlace(enc, []));
+  assert('buildFight wires the Duck king into the live rules', game.rules.duckChess === true);
+  assert('a fresh Duck Chess fight starts with a duck placed', game.duck >= 0);
+}
+
+// ---- boss scripts -----------------------------------------------------------
+
+{
+  // Meteor: telegraphs a cross around the white king, detonates it two plies
+  // later, and undo has to unwind all of it — the kill, the fire it leaves,
+  // and the telegraph state itself.
+  const g = new Chess({
+    files: 8, ranks: 8, rules: { ...KC }, bossScript: { meteor: { period: 4, delay: 2 } },
+  });
+  const wk = g.sqOf('e1');
+  const bk = g.sqOf('a8');
+  g.board[wk] = { type: 'k', color: WHITE }; g.kings.w = wk;
+  g.board[bk] = { type: 'k', color: BLACK }; g.kings.b = bk;
+  g.turn = WHITE;
+  g.refreshMode();
+
+  const step = (from, to) => {
+    const m = g.moves({ square: from, legal: false }).find((mv) => mv.to === to);
+    g.makeMove(m);
+    return m;
+  };
+  step(wk, g.sqOf('e2'));                 // ply 1
+  step(bk, g.sqOf('a7'));                 // ply 2
+  step(g.sqOf('e2'), wk);                 // ply 3, king walks home
+  assert('meteor has not warned before its period', !g.isWarned(wk));
+  step(g.sqOf('a7'), bk);                 // ply 4 — telegraph fires (a cross around e1)
+  assert('meteor warns the white king square on schedule', g.isWarned(wk));
+
+  // d2 is diagonal from e1 — outside the orthogonal cross the telegraph
+  // marked — so this is a genuine dodge, not just a step within the blast.
+  const d2 = g.sqOf('d2');
+  step(wk, d2);                           // ply 5 — the player's one warning
+  step(bk, g.sqOf('a7'));                 // ply 6 — detonation
+  assert('meteor spares a king that actually left the marked squares', g.kings.w === d2);
+  assert('meteor leaves fire on the square it hit, not the empty king start', g.isFire(wk));
+
+  let undone = 0;
+  while (g.history.length) { g.undo(); undone++; }
+  assert('meteor undo rewinds every ply', undone === 6);
+  assert('meteor undo clears the telegraph', g.warnUntil.every((v) => v === 0));
+  assert('meteor undo clears the fire it left', g.fireUntil.every((v) => v === 0));
+  assert('meteor undo restores the king that moved out of the blast',
+    g.board[wk] && g.board[wk].type === 'k');
+}
+
+{
+  // Blizzard: freezes a fresh row every period, and freezes whoever is
+  // caught standing on it — the tile itself stays frost afterward via the
+  // ordinary frost rule, so this only has to prove the moment it forms.
+  const g = new Chess({
+    files: 6, ranks: 6, rules: { ...KC }, bossScript: { blizzard: { period: 2 } },
+  });
+  const wk = g.sqOf('a6');
+  const bk = g.sqOf('f1');
+  g.board[wk] = { type: 'k', color: WHITE }; g.kings.w = wk;
+  g.board[bk] = { type: 'k', color: BLACK }; g.kings.b = bk;
+  const caught = g.sqOf('c6');
+  g.board[caught] = { type: 'p', color: WHITE };
+  g.turn = WHITE;
+  g.refreshMode();
+
+  const step = (from, to) => {
+    const m = g.moves({ square: from, legal: false }).find((mv) => mv.to === to);
+    g.makeMove(m);
+  };
+  step(wk, g.sqOf('a5'));                 // ply 1
+  step(bk, g.sqOf('f2'));                 // ply 2 — blizzard pulses the board's row 0
+
+  assert('blizzard turns the row to frost', g.terrain[caught] === TILE.FROST);
+  assert('blizzard freezes whatever was caught on it', Boolean(g.status[caught] & ST_FROZEN));
+
+  let undone = 0;
+  while (g.history.length) { g.undo(); undone++; }
+  assert('blizzard undo clears the frost', g.terrain.every((v) => v === TILE.NONE));
+  assert('blizzard undo thaws what it froze', !(g.status[caught] & ST_FROZEN));
+}
+
+{
+  // Shrink: closes the outer ring to holes, killing anything left standing
+  // on it, and stops well short of closing the arena.
+  const g = new Chess({
+    files: 8, ranks: 8, rules: { ...KC }, bossScript: { shrink: { period: 2, floor: 3 } },
+  });
+  const wk = g.sqOf('e4');
+  const bk = g.sqOf('e5');
+  g.board[wk] = { type: 'k', color: WHITE }; g.kings.w = wk;
+  g.board[bk] = { type: 'k', color: BLACK }; g.kings.b = bk;
+  const onRing = g.sqOf('a1');
+  g.board[onRing] = { type: 'p', color: BLACK };
+  g.turn = WHITE;
+  g.refreshMode();
+
+  const step = (from, to) => {
+    const m = g.moves({ square: from, legal: false }).find((mv) => mv.to === to);
+    g.makeMove(m);
+  };
+  step(wk, g.sqOf('e3'));
+  step(bk, g.sqOf('e6'));                 // N=2 — the outer ring closes
+
+  assert('shrink walls off a corner of the outer ring', g.terrain[g.sqOf('a8')] === TILE.BLOCK);
+  assert('shrink kills what was standing on the closing ring', g.board[onRing] === null);
+  assert('shrink leaves the interior open', g.terrain[wk] === TILE.NONE);
+
+  let undone = 0;
+  while (g.history.length) { g.undo(); undone++; }
+  assert('shrink undo reopens the ring', g.terrain.every((v) => v === TILE.NONE));
+  assert('shrink undo restores what was standing there', Boolean(g.board[onRing]));
 }
 
 console.log(failures ? `\n${failures} variant failure(s)` : '\nAll variant tests passed.');

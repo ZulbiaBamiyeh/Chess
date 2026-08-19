@@ -2,7 +2,7 @@
 
 import { WHITE, BLACK, FLAG, parseSquare, squareName, TILE } from './chess.js';
 import { pieceById, pieceCost, rarityOf } from './pieces.js';
-import { BoardView, pieceImage, pieceHue, kingSkin, shake, confetti, toast } from './ui.js';
+import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, toast } from './ui.js';
 import {
   createRun, currentNode, validateLoadout, buildFight, settleFight,
   openShop, buyOffer, rerollShop, closeShop, retryAllowed,
@@ -398,7 +398,7 @@ export function initCampaign(ctx) {
     const enc = state.encounter;
     const { Chess } = ctx;
     const game = buildFight(state.run, enc, placements);
-    deployView.setWhiteKingSkin(kingSkin(state.run.king));
+    deployView.setWhiteKingSkin(kingSkin(state.run.king), kingHue(state.run.king));
     deployView.setFlipped(false);
     deployView.syncFromGame(game);
     deployView.setInteractive(true);
@@ -409,11 +409,15 @@ export function initCampaign(ctx) {
   function paintKingChip(run) {
     const def = kingDef(run.king);
     const skin = kingSkin(run.king);
+    const hue = kingHue(run.king);
     for (const prefix of ['map', 'load', 'shop', 'rest']) {
       const art = $(`${prefix}-king-art`);
       const name = $(`${prefix}-king-name`);
       const chip = $(`${prefix}-king`);
-      if (art) art.style.backgroundImage = `url('${pieceImage('k', WHITE, skin)}')`;
+      if (art) {
+        art.style.backgroundImage = `url('${pieceImage('k', WHITE, skin)}')`;
+        art.style.filter = hue ? `hue-rotate(${hue}deg)` : '';
+      }
       if (name) name.textContent = `${def.name} King`;
       if (chip) chip.title = def.blurb;
     }
@@ -664,8 +668,9 @@ export function initCampaign(ctx) {
         btn.type = 'button';
         btn.className = 'bag-tile king-tile' + (on ? ' on' : ' idle');
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        const kingFilter = kingHue(id) ? ` filter:hue-rotate(${kingHue(id)}deg);` : '';
         btn.innerHTML =
-          `<i style="background-image:url('${pieceImage('k', WHITE, kingSkin(id))}')"></i>`
+          `<i style="background-image:url('${pieceImage('k', WHITE, kingSkin(id))}');${kingFilter}"></i>`
           + (on ? '<span class="bag-tile-count">ON</span>' : '')
           + `<span class="bag-tile-name">${def.name}</span>`
           + `<span class="bag-tile-meta">${on ? 'active this run' : 'set as active'}</span>`;
@@ -849,7 +854,7 @@ export function initCampaign(ctx) {
     }
     const game = buildFight(state.run, enc, placements);
     state.game = game;
-    state.view.setWhiteKingSkin(kingSkin(state.run.king));
+    state.view.setWhiteKingSkin(kingSkin(state.run.king), kingHue(state.run.king));
     state.gameOver = false;
     state.thinking = false;
     state.generation++;
@@ -1124,7 +1129,7 @@ export function initCampaign(ctx) {
       const art = offer.type
         ? `<i class="shop-art" style="background-image:url('${pieceImage(offer.type, WHITE)}');${pieceHue(offer.type) ? `filter:hue-rotate(${pieceHue(offer.type)}deg)` : ''}"></i>`
         : offer.kind === 'king'
-          ? `<i class="shop-art" style="background-image:url('${pieceImage('k', WHITE, offer.sprite || kingSkin(offer.king))}')"></i>`
+          ? `<i class="shop-art" style="background-image:url('${pieceImage('k', WHITE, offer.sprite || kingSkin(offer.king))}');${kingHue(offer.king) ? `filter:hue-rotate(${kingHue(offer.king)}deg)` : ''}"></i>`
           : offer.kind === 'supply'
             ? `<i class="shop-art" style="background-image:url('assets/map-shop.png')"></i>`
             : offer.kind === 'relic'

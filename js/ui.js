@@ -8,6 +8,7 @@
 
 import { WHITE, squareName, parseSquare, rank, file, fromRowCol, FLAG, TILE, ST_FROZEN, ST_SHIELD } from './chess.js';
 import { pieceById } from './pieces.js';
+import { kingDef } from './content.js';
 
 const PIECE_NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
 
@@ -26,10 +27,15 @@ export const pieceImage = (type, color, skin = null) => {
   return `assets/${sprite}-${color === WHITE ? 'white' : 'black'}.png${ASSET_VERSION}`;
 };
 
+// Only the first five kings ever got dedicated art (assets/king-<id>-*.png).
+// Every king since reuses the plain king sprite and leans on `kingHue()`
+// for a colour identity instead — the same trick pieceHue() already uses so
+// a growing roster doesn't need a matching flood of new PNGs.
 export function kingSkin(id) {
-  if (!id || id === 'plain') return 'king';
-  return `king-${id}`;
+  return kingDef(id).sprite || 'king';
 }
+
+export const kingHue = (id) => kingDef(id).hue || 0;
 
 export const pieceHue = (type) => pieceById(type)?.hue || 0;
 
@@ -60,6 +66,7 @@ export class BoardView {
     this.ranks = 8;
     this.squares = new Map();
     this.whiteKingSkin = 'king';
+    this.whiteKingHue = 0;
     this.resize(8, 8);
 
     root.addEventListener('pointerdown', (e) => this.onPointerDown(e));
@@ -117,6 +124,7 @@ export class BoardView {
     for (const [sq, el] of this.squares) this.placeSquare(el, sq);
     for (const [sq, el] of this.pieceEls) this.placeSquare(el, sq);
     this.root.classList.toggle('flipped', flipped);
+    this.updateBoardMask();
   }
 
   setInteractive(on) {
@@ -125,8 +133,9 @@ export class BoardView {
     if (!on) this.clearSelection();
   }
 
-  setWhiteKingSkin(skin) {
+  setWhiteKingSkin(skin, hue = 0) {
     this.whiteKingSkin = skin || 'king';
+    this.whiteKingHue = hue || 0;
   }
 
   // ---- rendering ---------------------------------------------------------
@@ -160,22 +169,66 @@ export class BoardView {
 
   paintTerrain(game) {
     for (const [sq, el] of this.squares) {
-      el.classList.remove('tile-block', 'tile-frost', 'tile-fort', 'tile-fire');
+      el.classList.remove('tile-block', 'tile-frost', 'tile-fort', 'tile-fire', 'tile-warn');
       const tile = game.tileAt(sq);
       if (tile === TILE.BLOCK) el.classList.add('tile-block');
       else if (tile === TILE.FROST) el.classList.add('tile-frost');
       else if (tile === TILE.FORT) el.classList.add('tile-fort');
       if (game.isFire?.(sq) || tile === TILE.FIRE) el.classList.add('tile-fire');
+      if (game.isWarned?.(sq)) el.classList.add('tile-warn');
     }
+    this.updateBoardMask();
+  }
+
+  /**
+   * A wall doesn't paint a wall texture any more — it cuts a real hole
+   * through the board so the shader field behind the whole app shows through
+   * it, which reads as "the ground gives out here" instead of "there's a
+   * grey box here". CSS can't punch a dynamic, per-cell hole through a
+   * background-image with anything simpler than a mask, so this builds one:
+   * a tiny inline SVG, one rounded cutout per blocked square, in the same
+   * row/col space `place()` already uses (so it stays correct under flip).
+   */
+  updateBoardMask() {
+    const holes = [];
+    for (const [sq, el] of this.squares) {
+      if (!el.classList.contains('tile-block')) continue;
+      const row = this.flipped ? this.ranks - 1 - rank(sq) : rank(sq);
+      const col = this.flipped ? this.files - 1 - file(sq) : file(sq);
+      holes.push([col, row]);
+    }
+    if (!holes.length) {
+      this.root.style.maskImage = '';
+      this.root.style.webkitMaskImage = '';
+      return;
+    }
+    // Whether a browser's mask-image treats this as luminance or alpha
+    // varies (that mismatch is why an opaque-black cutout on a white field
+    // painted solid white squares here instead of holes on Chromium's
+    // alpha-mode default). An evenodd path is mode-proof: the hole is a
+    // literal gap in what gets painted, so it is unrendered — alpha 0 and
+    // luminance 0 at once — rather than a color the wrong mode ignores.
+    const outer = `M0,0H${this.files}V${this.ranks}H0Z`;
+    const cut = holes
+      .map(([c, r]) => `M${c + 0.09},${r + 0.09}h0.82v0.82h-0.82Z`)
+      .join('');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${this.files} ${this.ranks}">`
+      + `<path fill="#fff" fill-rule="evenodd" d="${outer}${cut}"/></svg>`;
+    const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+    this.root.style.maskImage = url;
+    this.root.style.webkitMaskImage = url;
+    this.root.style.maskSize = '100% 100%';
+    this.root.style.webkitMaskSize = '100% 100%';
   }
 
   addPiece(sq, type, color, status = 0) {
     const el = document.createElement('div');
     el.className = `piece ${color === WHITE ? 'white' : 'black'}`;
     el.dataset.type = type;
-    const skin = (type === 'k' && color === WHITE) ? this.whiteKingSkin : null;
+    const isWhiteKing = type === 'k' && color === WHITE;
+    const skin = isWhiteKing ? this.whiteKingSkin : null;
     el.style.backgroundImage = `url('${pieceImage(type, color, skin)}')`;
-    const hue = pieceHue(type);
+    const hue = isWhiteKing ? this.whiteKingHue : pieceHue(type);
     if (hue) el.style.filter = `hue-rotate(${hue}deg) drop-shadow(0 3px 3px rgba(0,0,0,0.45))`;
     this.applyStatus(el, status);
     this.placeSquare(el, sq);

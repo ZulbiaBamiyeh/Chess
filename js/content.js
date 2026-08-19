@@ -80,6 +80,133 @@ export const KING_PASSIVES = {
     cost: 7,
     sprite: 'king-hoarfrost',
   },
+
+  // Everything below reuses the plain king's art with a hue shift instead of
+  // a dedicated sprite — twenty kings' worth of new paintings isn't a fight
+  // worth picking, and a tint reads as clearly as a repaint at tile size.
+  duck: {
+    id: 'duck',
+    name: 'Duck',
+    blurb: 'Drop a yellow duck on an empty square after every move of yours — '
+      + 'yours or theirs, nothing can land on it or pass through it.',
+    cost: 9,
+    sprite: 'king',
+    hue: 48,
+  },
+  sentinel: {
+    id: 'sentinel',
+    name: 'Sentinel',
+    blurb: 'Your king gets the same escort the enemy king already has — a blow '
+      + 'meant for it falls on whoever stands beside it instead, once.',
+    cost: 7,
+    sprite: 'king',
+    hue: 205,
+  },
+  vanguard: {
+    id: 'vanguard',
+    name: 'Vanguard',
+    blurb: 'Your king may also leap two squares in a straight line, clearing '
+      + 'whatever stands between.',
+    cost: 9,
+    sprite: 'king',
+    hue: 12,
+  },
+  icebound: {
+    id: 'icebound',
+    name: 'Palisade',
+    blurb: 'Nothing of yours can be frozen. Not by them, not by the ground.',
+    cost: 6,
+    sprite: 'king',
+    hue: 190,
+  },
+  longshot: {
+    id: 'longshot',
+    name: 'Marksman',
+    blurb: 'Your shooters reach the long 3–1 leap as well as the knight’s.',
+    cost: 6,
+    sprite: 'king',
+    hue: 95,
+  },
+  rampart: {
+    id: 'rampart',
+    name: 'Rampart',
+    blurb: 'Every piece that starts a fight beside your king walks in shielded.',
+    cost: 8,
+    sprite: 'king',
+    hue: 260,
+  },
+  anchor: {
+    id: 'anchor',
+    name: 'Anchor',
+    blurb: 'Your single most expensive piece on the board starts each fight shielded.',
+    cost: 7,
+    sprite: 'king',
+    hue: 300,
+  },
+  formation: {
+    id: 'formation',
+    name: 'Formation',
+    blurb: 'Your pawns start every fight shielded.',
+    cost: 7,
+    sprite: 'king',
+    hue: 330,
+  },
+  provisioner: {
+    id: 'provisioner',
+    name: 'Provisioner',
+    blurb: 'Training a piece at camp costs two less gold.',
+    cost: 6,
+    sprite: 'king',
+    hue: 150,
+  },
+  ranger: {
+    id: 'ranger',
+    name: 'Ranger',
+    blurb: 'Foraging pays four gold more.',
+    cost: 5,
+    sprite: 'king',
+    hue: 70,
+  },
+  broker: {
+    id: 'broker',
+    name: 'Broker',
+    blurb: 'Every shop price is a gold cheaper.',
+    cost: 7,
+    sprite: 'king',
+    hue: 235,
+  },
+  convalescent: {
+    id: 'convalescent',
+    name: 'Convalescent',
+    blurb: 'Camping heals three HP more.',
+    cost: 6,
+    sprite: 'king',
+    hue: 340,
+  },
+  steadfast: {
+    id: 'steadfast',
+    name: 'Steadfast',
+    blurb: 'Losing a fight costs two less HP.',
+    cost: 8,
+    sprite: 'king',
+    hue: 20,
+  },
+  nomad: {
+    id: 'nomad',
+    name: 'Nomad',
+    blurb: 'One more piece fits in every fight, over your usual limit.',
+    cost: 8,
+    sprite: 'king',
+    hue: 170,
+  },
+  financier: {
+    id: 'financier',
+    name: 'Financier',
+    blurb: 'Rerolling a shop costs a gold less, down to just one.',
+    cost: 5,
+    sprite: 'king',
+    hue: 280,
+  },
 };
 
 const AI = {
@@ -502,9 +629,14 @@ export const ENCOUNTERS = {
   },
   rimeguard: {
     id: 'rimeguard', kind: 'fight', tier: 'boss', act: 2, boss: true,
-    name: 'The Rime Guard', blurb: 'Two rimes and a field of ice. Bring something that leaps.',
+    name: 'The Rime Guard',
+    blurb: 'Two rimes and a field of ice — and the cold keeps spreading. Bring something that leaps.',
     files: 8, ranks: 8, supply: 20, ai: AI.boss, theme: 'ice',
     terrain: { c5: TILE.FROST, d5: TILE.FROST, e5: TILE.FROST, f5: TILE.FROST },
+    // A fresh row freezes over every six plies — three full rounds — and
+    // freezes whatever it catches standing there. Slow enough to plan
+    // around, relentless enough that camping in one place stops being safe.
+    bossScript: { blizzard: { period: 6 } },
     enemy: [
       { type: 'k', at: 'd8' }, { type: 'i', at: 'c7' }, { type: 'i', at: 'e7' },
       { type: 'r', at: 'a8' }, { type: 'b', at: 'g8' }, { type: 'p', at: 'd7' },
@@ -649,9 +781,16 @@ export const ENCOUNTERS = {
   },
   conflagration: {
     id: 'conflagration', kind: 'fight', tier: 'boss', act: 3, boss: true,
-    name: 'The Conflagration', blurb: 'It sets the board alight and walks through it.',
+    name: 'The Conflagration',
+    blurb: 'It sets the board alight and walks through it — and calls down fire of its own '
+      + 'on marked ground. Watch for the warning, and be somewhere else.',
     files: 8, ranks: 8, supply: 24, ai: AI.boss, theme: 'flame',
     terrain: { c5: TILE.FIRE, d5: TILE.FIRE, e5: TILE.FIRE, f5: TILE.FIRE },
+    // Marks a cross around your king every eight plies, burns it two plies
+    // later. This boss already fields a full army over static fire — eight
+    // gives a full round to actually deal with whatever the board is doing
+    // before the sky joins in, rather than stacking both pressures at once.
+    bossScript: { meteor: { period: 8, delay: 2 } },
     enemy: [
       { type: 'k', at: 'd8' }, { type: 'l', at: 'c8' }, { type: 'l', at: 'f8' },
       { type: 'a', at: 'e8' }, { type: 'x', at: 'd7' }, { type: 'p', at: 'b8' },
@@ -836,9 +975,15 @@ export const ENCOUNTERS = {
   },
   gravetide: {
     id: 'gravetide', kind: 'fight', tier: 'boss', act: 3, boss: true,
-    name: 'The Grave Tide', blurb: 'It does not need an army. It takes yours.',
+    name: 'The Grave Tide',
+    blurb: 'It does not need an army. It takes yours — and the ground along with it, '
+      + 'the edges of the board swallowed a ring at a time.',
     files: 8, ranks: 8, supply: 24, ai: AI.boss, theme: 'grave',
     terrain: { d5: TILE.FORT, e5: TILE.FORT },
+    // The outer ring gives way every eight plies, then the next ring in —
+    // stopping well short of closing the board, but a piece parked on the
+    // edge too long does not get a warning first.
+    bossScript: { shrink: { period: 8, floor: 4 } },
     enemy: [
       { type: 'k', at: 'd8' }, { type: 'reaper', at: 'c8' },
       { type: 'reaper', at: 'e8' }, { type: 'dragon', at: 'g8' },

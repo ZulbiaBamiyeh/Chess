@@ -181,7 +181,8 @@ export function deployBudget(run, encounter) {
   // Roughly three fifths of supply, so a pure horde cannot spend it all on
   // bodies and always has points spare to put into something better.
   const base = encounter.deploy ?? Math.max(2, Math.ceil(supply * 0.6));
-  return Math.max(1, base + (run.deployBonus || 0) + relicTotals(run.relics).deploy);
+  const nomad = run.king === 'nomad' ? 1 : 0;
+  return Math.max(1, base + (run.deployBonus || 0) + relicTotals(run.relics).deploy + nomad);
 }
 
 export function loadoutCost(items, run = null) {
@@ -226,7 +227,15 @@ export function rulesFor(run) {
     // forward as to keep it home, and left the Aegis king's shield with
     // nothing to do (the guard always spent itself first). Now Aegis is the
     // only thing standing between a pushed king and a lost run.
-    royalGuard: BLACK,
+    //
+    // Sentinel opts back in: it is a purchase, not the default, so a player
+    // who wants the escort back — instead of Aegis's unconditional block —
+    // can choose it, and the two remain genuinely different kings.
+    royalGuard: run.king === 'sentinel' ? true : BLACK,
+    // Duck Chess is normally its own encounter-level rule (see the pond and
+    // flock rooms); the Duck king just turns it on everywhere, for both
+    // sides, the way any other duckChess room already works.
+    duckChess: run.king === 'duck',
   };
   return rules;
 }
@@ -249,6 +258,7 @@ export function buildFight(run, encounter, placements) {
     kingPassives: [...(run.king ? [run.king] : []), ...relicTotals(run.relics).tokens],
     terrain,
     duck: encounter.duckAt,
+    bossScript: encounter.bossScript || null,
   });
 
   for (const enemy of encounter.enemy || []) {
@@ -335,6 +345,28 @@ export function applyStartStatuses(game, run) {
       if (p && p.color === BLACK) game.status[sq] |= ST_FROZEN;
     }
   }
+  if (run.king === 'rampart') {
+    for (const off of [-17, -16, -15, -1, 1, 15, 16, 17]) {
+      const sq = king + off;
+      if (!game.inBounds(sq)) continue;
+      const p = game.board[sq];
+      if (p && p.color === WHITE) game.status[sq] |= ST_SHIELD;
+    }
+  }
+  if (run.king === 'formation') {
+    for (const piece of game.pieces()) {
+      if (piece.color === WHITE && piece.type === 'p') game.status[piece.square] |= ST_SHIELD;
+    }
+  }
+  if (run.king === 'anchor') {
+    let best = null;
+    for (const piece of game.pieces()) {
+      if (piece.color !== WHITE || piece.type === 'k') continue;
+      const cost = PIECES[piece.type]?.cost || 0;
+      if (!best || cost > best.cost) best = { square: piece.square, cost };
+    }
+    if (best) game.status[best.square] |= ST_SHIELD;
+  }
 }
 
 export function remainingArmy(game, color) {
@@ -403,9 +435,9 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
     // the content file unused, so a single lost fight ended a forty-minute run
     // outright — and every HP system in the game (rests, the Field Surgeon,
     // Second Wind, the whole heal economy) had nothing to protect you from.
-    hpLost = forfeit
+    hpLost = Math.max(1, (forfeit
       ? (FORFEIT_HP[tier] ?? 2)
-      : (LOSS_HP[tier] ?? 3);
+      : (LOSS_HP[tier] ?? 3)) - (run.king === 'steadfast' ? 2 : 0));
     run.hp -= hpLost;
 
     if (run.hp <= 0) {
@@ -513,15 +545,17 @@ export function pickNode(run, nodeId) {
  */
 export function rest(run) {
   const before = run.hp;
-  run.hp = Math.min(run.hpMax, run.hp + REST_HEAL);
+  const heal = REST_HEAL + (run.king === 'convalescent' ? 3 : 0);
+  run.hp = Math.min(run.hpMax, run.hp + heal);
   run.gold += REST_GOLD;
   return { healed: run.hp - before, gold: REST_GOLD };
 }
 
 /** Skip the healing and walk off with more coin instead. */
 export function forage(run) {
-  run.gold += FORAGE_GOLD;
-  return { gold: FORAGE_GOLD };
+  const gold = FORAGE_GOLD + (run.king === 'ranger' ? 4 : 0);
+  run.gold += gold;
+  return { gold };
 }
 
 /**
@@ -534,8 +568,9 @@ export function trainPiece(run, itemUid) {
   const item = run.bag.find((p) => p.uid === itemUid);
   if (!item || item.type === 'k') return { ok: false, reason: 'Can’t train that.' };
   if (item.trained) return { ok: false, reason: 'Already trained.' };
-  if (run.gold < TRAIN_COST) return { ok: false, reason: `Needs ${TRAIN_COST} gold.` };
-  run.gold -= TRAIN_COST;
+  const cost = Math.max(1, TRAIN_COST - (run.king === 'provisioner' ? 2 : 0));
+  if (run.gold < cost) return { ok: false, reason: `Needs ${cost} gold.` };
+  run.gold -= cost;
   item.trained = true;
   return { ok: true };
 }
@@ -653,8 +688,14 @@ export function openShop(run) {
   // Merchant's Seal and friends discount the whole board.
   const discount = 1 - Math.min(0.6, relicTotals(run.relics).shopDiscount);
   for (const offer of offers) offer.cost = Math.max(1, Math.round(offer.cost * discount));
+  // Broker: a flat gold off every sticker, after the percentage discounts —
+  // a percentage off a percentage off would make it worth more stacked with
+  // Merchant's Seal than alone, which isn't the point of a flat discount.
+  if (run.king === 'broker') {
+    for (const offer of offers) offer.cost = Math.max(1, offer.cost - 1);
+  }
 
-  run.shop = { offers, rerollCost: 2 };
+  run.shop = { offers, rerollBase: 2, rerollCost: rerollCostFor(run, 2) };
   return run.shop;
 }
 
@@ -717,14 +758,27 @@ export function buyOffer(run, offerId) {
   return { ok: true, offer };
 }
 
+/**
+ * Financier knocks a gold off the sticker price, floor one. Kept separate
+ * from the escalating base cost (rerollBase) so the discount is applied
+ * fresh each time rather than compounding into the ladder itself — without
+ * that split, discounting the already-discounted price before climbing it
+ * would flatten the ladder at 1 forever instead of still rising underneath
+ * the discount.
+ */
+function rerollCostFor(run, base) {
+  return Math.max(1, base - (run.king === 'financier' ? 1 : 0));
+}
+
 export function rerollShop(run) {
   const shop = run.shop;
   if (!shop) return { ok: false, reason: 'No shop is open.' };
   if (run.gold < shop.rerollCost) return { ok: false, reason: 'Not enough gold.' };
   run.gold -= shop.rerollCost;
-  const next = Math.min(6, shop.rerollCost + 1);
+  const nextBase = Math.min(6, (shop.rerollBase || shop.rerollCost) + 1);
   openShop(run);
-  run.shop.rerollCost = next;
+  run.shop.rerollBase = nextBase;
+  run.shop.rerollCost = rerollCostFor(run, nextBase);
   return { ok: true };
 }
 
