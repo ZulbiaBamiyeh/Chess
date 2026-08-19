@@ -75,8 +75,11 @@ const alley = ENCOUNTERS.alley;
   const wk = game.kings.w;
   game.board[wk] = null;
   game.kings.w = -1;
+  const before = run.hp;
   const reward = settleFight(run, game, gate);
-  assert('losing ends the run', !reward.won && run.over, JSON.stringify(reward));
+  assert('losing costs HP rather than the run',
+    !reward.won && !run.over && run.hp === before - reward.hpLost && reward.hpLost > 0,
+    JSON.stringify({ before, after: run.hp, reward }));
   assert('pieces still return after a loss', run.bag.length === 6);
 }
 
@@ -88,7 +91,7 @@ const alley = ENCOUNTERS.alley;
     . K .
   `, { files: 3, ranks: 3, rules: { kingCapture: true, checks: false, castling: false } });
   const reward = settleFight(run, game, gate);
-  assert('unwinnable fight is a defeat', !reward.won && run.over && reward.reason === 'unwinnable',
+  assert('unwinnable fight is a defeat', !reward.won && reward.reason === 'unwinnable',
     JSON.stringify(reward));
 }
 
@@ -505,6 +508,29 @@ function courtyardOrGate() {
   assert('the shop stocks a relic', shop.offers.some((o) => o.kind === 'relic'));
   assert("Merchant's Seal discounts the board",
     shop.offers.every((o) => o.cost >= 1));
+}
+
+{
+  // Losing costs HP; only running out of HP ends the run.
+  const run = createRun(1);
+  let losses = 0;
+  while (!run.over && losses < 30) {
+    const game = buildFight(run, gate, autoPlace(gate, []));
+    game.board[game.kings.w] = null;
+    game.kings.w = -1;
+    settleFight(run, game, gate);
+    losses++;
+  }
+  assert('a run survives more than one lost fight', losses > 1, String(losses));
+  assert('running out of HP ends the run', run.over && run.hp === 0, String(run.hp));
+}
+
+{
+  // Resting is the other half of that economy.
+  const run = createRun(1);
+  run.hp = 2;
+  const gained = rest(run);
+  assert('camping heals and pays', run.hp > 2 && run.gold > 0, JSON.stringify(gained));
 }
 
 console.log(failures ? `\n${failures} run failure(s)` : '\nAll run tests passed.');

@@ -7,8 +7,9 @@ import {
   createRun, currentNode, validateLoadout, buildFight, settleFight,
   openShop, buyOffer, rerollShop, closeShop, retryAllowed,
   autoPlace, supplyBudget, deployBudget, occupiedSlots, freeHomeSquares,
-  completeNode, pickNode, rest, REST_GOLD, turnClock,
+  completeNode, pickNode, rest, REST_GOLD, REST_HEAL, turnClock,
   bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
+  suggestLoadout,
 } from './run.js';
 import { encounterFor, kingDef, EVENTS } from './content.js';
 import { relicById } from './relics.js';
@@ -231,7 +232,7 @@ export function initCampaign(ctx) {
   function openRest() {
     paintRunHud();
     $('rest-detail').textContent =
-      `Sit a moment. Take ${REST_GOLD} gold from the camp.`;
+      `Sit a moment. Recover ${REST_HEAL} HP and take ${REST_GOLD} gold from the camp.`;
     showScreen('screen-rest');
   }
 
@@ -742,17 +743,23 @@ export function initCampaign(ctx) {
       }
     } else if (reward.reason === 'unwinnable') {
       title = 'NO WAY THROUGH';
-      detail = 'Their king cannot be taken. The run is over.';
-    } else {
+      detail = 'Their king cannot be taken.';
+    } else if (run.over) {
       title = 'YOU DIED';
-      detail = 'Your king fell. The run is over.';
+      detail = `Your king fell, and you had nothing left. −${reward.hpLost} HP.`;
+    } else if (reward.secondWind) {
+      title = 'SECOND WIND';
+      detail = 'That should have finished you. You get up anyway, on one hit point.';
+    } else {
+      title = 'YOUR KING FALLS';
+      detail = `−${reward.hpLost} HP. You still have ${run.hp} left — go again.`;
     }
 
     setStatus(title, youWon ? 'good' : 'danger');
     $('btn-again').classList.toggle('hidden', !run.over);
     $('btn-again').textContent = run.won ? 'Embark again' : 'Try again';
     $('btn-continue').classList.toggle('hidden', !youWon || run.over);
-    $('btn-retry').classList.add('hidden');
+    $('btn-retry').classList.toggle('hidden', youWon || !retryAllowed(run));
     $('btn-result-menu').textContent = 'Menu';
 
     audio.setMusicStyle('ambient');
@@ -1048,22 +1055,7 @@ export function initCampaign(ctx) {
   if ($('btn-event-bag')) $('btn-event-bag').addEventListener('click', openBag);
   $('btn-loadout-auto').addEventListener('click', () => {
     const enc = state.encounter;
-    const remaining = state.run.bag.filter((p) => !placements.some((x) => x.uid === p.uid));
-    const pick = [];
-    let cost = 0;
-    const budget = supplyBudget(state.run, enc);
-    const room = deployBudget(state.run, enc);
-    // Spend the supply on the best pieces that fit rather than the first ones
-    // out of the bag — with bodies capped, quality is what the budget is for.
-    const byValue = [...remaining].sort((a, b) => pieceCost(b.type) - pieceCost(a.type));
-    for (const item of byValue) {
-      if (pick.length >= room) break;
-      const c = pieceCost(item.type);
-      if (cost + c > budget) continue;
-      pick.push(item);
-      cost += c;
-    }
-    placements = autoPlace(enc, pick);
+    placements = autoPlace(enc, suggestLoadout(state.run, enc));
     selectedUid = null;
     audio.place();
     rebuildDeploy();

@@ -10,7 +10,7 @@
 //   node tools/builds.mjs
 //   node tools/builds.mjs --games 3      # plays per encounter
 
-import { createRun, buildFight, autoPlace, supplyBudget, deployBudget, costFor } from '../js/run.js';
+import { createRun, buildFight, autoPlace, supplyBudget, deployBudget, costFor, suggestLoadout } from '../js/run.js';
 import { ENCOUNTERS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
 import { addToBag } from '../js/run.js';
@@ -66,28 +66,16 @@ function makeRun(spec) {
   return run;
 }
 
-/** Greedy loadout: the most expensive pieces that fit both budgets. */
-function pickLoadout(run, enc) {
-  const budget = supplyBudget(run, enc);
-  const room = deployBudget(run, enc);
-  const sorted = [...run.bag].sort((a, b) => costFor(run, b.type) - costFor(run, a.type));
-  const chosen = [];
-  let spent = 0;
-  for (const item of sorted) {
-    if (chosen.length >= room) break;
-    const c = costFor(run, item.type);
-    if (spent + c > budget) continue;
-    chosen.push(item);
-    spent += c;
-  }
-  return chosen;
-}
+const pickLoadout = (run, enc) => suggestLoadout(run, enc);
 
 function playOut(game) {
   for (let ply = 0; ply < PLY_CAP; ply++) {
     const done = game.outcome();
     if (done.over) return done.winner || 'draw';
-    const move = chooseMove(game, PROFILE);
+    // Faithful to the real game: you think at PROFILE, they think at whatever
+    // the encounter specifies. Running both sides at one strength measured a
+    // matchup the player never actually faces.
+    const move = chooseMove(game, game.turn === WHITE ? PROFILE : (enc.ai || PROFILE));
     if (!move) return game.turn === WHITE ? 'b' : 'w';
     if (!game.move({ from: move.from, to: move.to, promotion: move.promotion })) return 'draw';
     if (game.awaitingDuck) game.placeDuck(game.duckOptions()[0]);

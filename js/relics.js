@@ -65,8 +65,8 @@ export const RELICS = {
   // ---------------------------------------------------------------- swarm
   muster: {
     id: 'muster', name: 'Muster Roll', rarity: RARITY.COMMON, archetype: 'Swarm',
-    blurb: 'One more piece in every fight. Two less supply to equip them.',
-    deploy: 1, supply: -2,
+    blurb: 'Two more pieces in every fight. Two less supply to equip them.',
+    deploy: 2, supply: -2,
   },
   pressgang: {
     id: 'pressgang', name: 'Press Gang', rarity: RARITY.COMMON, archetype: 'Swarm',

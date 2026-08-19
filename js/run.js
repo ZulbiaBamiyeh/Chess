@@ -5,6 +5,7 @@ import { WHITE, BLACK, Chess, ST_SHIELD, ST_FROZEN, FLAG, TILE, parseSquare } fr
 import { PIECES, SLOT_CAPS, pieceCost, rarityOf, RARITY } from './pieces.js';
 import { relicTotals, discountedCost, hasTag, relicById, relicPool } from './relics.js';
 import {
+  LOSS_HP, FORFEIT_HP, REST_HEAL,
   START_HP, START_GOLD, STARTING_BAG, KING_PASSIVES, REST_GOLD,
   TURN_CLOCK, THEME_DROPS, DROP_CHANCE,
   generateMap, findNode, encounterFor, firstRooms, freeHomeSquares, homeSquares,
@@ -343,6 +344,7 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
   let gold = 0;
   let drop = null;
   let dropSold = 0;
+  let hpLost = 0;
 
   const relics = relicTotals(run.relics);
   // Martyr relics pay out for pieces of yours that died, win or lose.
@@ -376,14 +378,28 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
         run.gold += dropSold;
       }
     }
-  } else if (relics.secondWind && !run.secondWindUsed) {
-    // Second Wind turns the first fatal defeat of a run into a scratch.
-    run.secondWindUsed = true;
-    run.hp = 1;
-    run.survived = true;
   } else {
-    run.over = true;
-    run.won = false;
+    // Losing costs HP, not the run. LOSS_HP and FORFEIT_HP had been sitting in
+    // the content file unused, so a single lost fight ended a forty-minute run
+    // outright — and every HP system in the game (rests, the Field Surgeon,
+    // Second Wind, the whole heal economy) had nothing to protect you from.
+    hpLost = forfeit
+      ? (FORFEIT_HP[tier] ?? 2)
+      : (LOSS_HP[tier] ?? 3);
+    run.hp -= hpLost;
+
+    if (run.hp <= 0) {
+      if (relics.secondWind && !run.secondWindUsed) {
+        // Second Wind turns the first fatal defeat of a run into a scratch.
+        run.secondWindUsed = true;
+        run.hp = 1;
+        run.survived = true;
+      } else {
+        run.hp = 0;
+        run.over = true;
+        run.won = false;
+      }
+    }
   }
 
   run.lastReward = {
@@ -398,6 +414,7 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
     maxArmy,
     clockLeft,
     martyrGold,
+    hpLost,
     relicChoices: run.pendingRelics || [],
     healed: won ? relics.healPerFight : 0,
     secondWind: Boolean(run.survived),
@@ -467,13 +484,23 @@ export function pickNode(run, nodeId) {
   return node;
 }
 
+/**
+ * Camp: patch up and pocket a little coin.
+ *
+ * REST_HEAL had been declared and never used, so camping paid gold and healed
+ * nothing. With losses now costing HP that left the economy one-directional —
+ * HP only ever fell, and a long run could not survive its own difficulty curve.
+ */
 export function rest(run) {
+  const before = run.hp;
+  run.hp = Math.min(run.hpMax, run.hp + REST_HEAL);
   run.gold += REST_GOLD;
-  return REST_GOLD;
+  return { healed: run.hp - before, gold: REST_GOLD };
 }
 
-export function retryAllowed() {
-  return false;
+/** You may take a room again for as long as you are still standing. */
+export function retryAllowed(run) {
+  return Boolean(run) && !run.over && run.hp > 0;
 }
 
 export function openShop(run) {
@@ -654,6 +681,55 @@ export function closeShop(run) {
   run.shop = null;
 }
 
+/**
+ * A loadout worth fighting with: fill the bodies first, then spend what is left
+ * upgrading them.
+ *
+ * Spending supply on the most expensive pieces first looks sensible and loses
+ * games. On The Gate — a 4x4 with five supply and three slots — it fielded a
+ * knight and a ferz, two bodies, and lost every time; three pawns win it. When
+ * the deploy cap is the binding constraint, an empty slot is worth more than a
+ * costlier piece in the ones you filled.
+ */
+export function suggestLoadout(run, encounter) {
+  const budget = supplyBudget(run, encounter);
+  const slots = deployBudget(run, encounter);
+  const priceOf = (item) => costFor(run, item.type);
+
+  // Fill every slot we can afford, cheapest first, so bodies come first.
+  const pool = [...run.bag].sort((a, b) => priceOf(a) - priceOf(b));
+  const chosen = [];
+  let spent = 0;
+  for (const item of pool) {
+    if (chosen.length >= slots) break;
+    if (spent + priceOf(item) > budget) continue;
+    chosen.push(item);
+    spent += priceOf(item);
+  }
+
+  // Then trade up: swap the cheapest thing we brought for the best thing we
+  // left behind, as long as the supply stretches. Never costs a body.
+  for (let pass = 0; pass < chosen.length; pass++) {
+    const bench = run.bag
+      .filter((item) => !chosen.includes(item))
+      .sort((a, b) => priceOf(b) - priceOf(a));
+    let improved = false;
+    for (const candidate of bench) {
+      const weakest = chosen.reduce((lo, it) => (priceOf(it) < priceOf(lo) ? it : lo), chosen[0]);
+      if (!weakest) break;
+      const delta = priceOf(candidate) - priceOf(weakest);
+      if (delta > 0 && spent + delta <= budget) {
+        chosen[chosen.indexOf(weakest)] = candidate;
+        spent += delta;
+        improved = true;
+        break;
+      }
+    }
+    if (!improved) break;
+  }
+  return chosen;
+}
+
 export function autoPlace(encounter, selectedItems) {
   const free = freeHomeSquares(encounter);
   const withKing = [{ uid: 'king', type: 'k' }, ...selectedItems];
@@ -664,7 +740,7 @@ export function autoPlace(encounter, selectedItems) {
   return placements;
 }
 
-export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD };
+export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL };
 
 // ---- events ---------------------------------------------------------------
 
