@@ -288,6 +288,14 @@ export class Chess {
     return -1;
   }
 
+  /**
+   * Icebound Cloak and Rimewalker Boots keep your own army thawed — neither
+   * an enemy Rime nor the ground itself can freeze what you own.
+   */
+  freezeImmune(piece) {
+    return Boolean(piece) && piece.color === WHITE && this.kingPassives.includes('icebound');
+  }
+
   isFire(sq) {
     return this.fireUntil[sq] > this.history.length;
   }
@@ -1004,7 +1012,9 @@ export class Chess {
 
     if (extra) {
       const dest = move.to;
-      if (this.terrain[dest] === TILE.FROST) this.status[dest] |= ST_FROZEN;
+      if (this.terrain[dest] === TILE.FROST && !this.freezeImmune(board[dest])) {
+        this.status[dest] |= ST_FROZEN;
+      }
       if (this.terrain[dest] === TILE.FORT) this.status[dest] |= ST_SHIELD;
 
       extra.fireSnap = this.fireUntil.slice();
@@ -1012,7 +1022,8 @@ export class Chess {
       const paints = Boolean(def?.paintsFire || (this.kingPassives.includes('pyre') && def?.slideOff));
       if (paints) {
         extra.firePainted = [];
-        const expire = this.history.length + 1;
+        const expire = this.history.length + 1
+          + (this.kingPassives.includes('everburn') ? 2 : 0);
         this.paintFire(move.from, expire, extra);
         if (def?.slideOff) {
           const dir = this.slideDir(move.from, dest);
@@ -1044,11 +1055,16 @@ export class Chess {
         // a reply. Freezing herself costs her the initiative and opens the
         // window in which that reply can land.
         extra.iced = [];
-        for (const off of ROOK_DIRS) {
+        // Deep Freeze gives the diagonals back — the relic that turns Rime from
+        // a good piece into a build.
+        const reach = this.kingPassives.includes('deepfreeze') && us === WHITE
+          ? KING_OFFSETS
+          : ROOK_DIRS;
+        for (const off of reach) {
           const sq = dest + off;
           if (!this.inBounds(sq)) continue;
           const p = board[sq];
-          if (p && p.color === them) {
+          if (p && p.color === them && !this.freezeImmune(p)) {
             extra.iced.push(sq, this.status[sq]);
             this.status[sq] |= ST_FROZEN;
           }
@@ -1083,6 +1099,14 @@ export class Chess {
           extra.blast = blast;
           move.flags |= FLAG.WISP_BOOM;
         }
+      }
+
+      // Vengeful Ash — the captor of one of your pieces is frozen in place.
+      if (move.captured && us === BLACK && board[dest]
+        && this.kingPassives.includes('vengefulash')) {
+        extra.iced = extra.iced || [];
+        extra.iced.push(dest, this.status[dest]);
+        this.status[dest] |= ST_FROZEN;
       }
 
       const tookWisp = move.captured && PIECES[move.captured]?.wisp

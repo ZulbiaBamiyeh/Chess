@@ -124,11 +124,11 @@ export const PIECES = {
   },
   l: {
     id: 'l', name: 'Flame', blurb: 'A bishop whose path burns for a turn.',
-    cost: 5, rarity: RARITY.EPIC, value: 480, sprite: 'firebishop', slides: B, paintsFire: true,
+    cost: 4, rarity: RARITY.EPIC, value: 440, sprite: 'firebishop', slides: B, paintsFire: true,
   },
   y: {
     id: 'y', name: 'Wisp', blurb: 'If it is taken, the taker dies with it.',
-    cost: 4, rarity: RARITY.LEGENDARY, value: 380, sprite: 'wisp', leaps: B, wisp: true,
+    cost: 3, rarity: RARITY.LEGENDARY, value: 340, sprite: 'wisp', leaps: B, wisp: true,
   },
   z: {
     id: 'z', name: 'Zebra', blurb: 'The 3–2 leap. Lands where nothing else can reach.',
@@ -142,11 +142,11 @@ export const PIECES = {
   x: {
     id: 'x', name: 'Sapper',
     blurb: 'One orthogonal step. Take it and the blast kills the captor and all around it.',
-    cost: 5, rarity: RARITY.EPIC, value: 380, sprite: 'wazir', hue: 22, leaps: R, sapper: true,
+    cost: 3, rarity: RARITY.EPIC, value: 300, sprite: 'wazir', hue: 22, leaps: R, sapper: true,
   },
   v: {
     id: 'v', name: 'Warden', blurb: 'One step any way, and it walks into the fight shielded.',
-    cost: 5, rarity: RARITY.RARE, value: 400, sprite: 'rook', hue: 190, leaps: K, shielded: true,
+    cost: 4, rarity: RARITY.RARE, value: 370, sprite: 'rook', hue: 190, leaps: K, shielded: true,
   },
 };
 

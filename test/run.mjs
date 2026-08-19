@@ -7,13 +7,17 @@ import {
   occupiedSlots, supplyBudget, deployBudget, openShop, buyOffer, autoPlace, currentNode,
   completeNode, pickNode, rest, currentEncounter,
   bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
+  costFor, claimRelic, RELIC_SHIELD_CAP,
 } from '../js/run.js';
 import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
 import { Chess } from '../js/chess.js';
 import { RARITY, PIECES } from '../js/pieces.js';
+import { RELICS, RELIC_IDS } from '../js/relics.js';
+import { ST_SHIELD as ST_SHIELD_BIT } from '../js/chess.js';
 
 let failures = 0;
+function assert2(cond, name) { if (!cond) { failures++; console.log(`FAIL  ${name}`); } }
 function assert(name, cond, detail = '') {
   if (cond) console.log(`PASS  ${name}`);
   else { failures++; console.log(`FAIL  ${name}${detail ? ` — ${detail}` : ''}`); }
@@ -404,6 +408,103 @@ function courtyardOrGate() {
     assert(`${PIECES[id].name} has a cost and a value`,
       PIECES[id].cost > 0 && PIECES[id].value > 0);
   }
+}
+
+// ---- relics --------------------------------------------------------------
+//
+// The synergy layer. Relics change rules and key off piece tags, which is what
+// makes an army a build rather than a shopping list.
+
+{
+  assert('there is a relic book', RELIC_IDS.length >= 20, String(RELIC_IDS.length));
+  const arch = new Set(Object.values(RELICS).map((r) => r.archetype));
+  assert('relics point at several archetypes', arch.size >= 6, String(arch.size));
+  assert('every relic explains itself',
+    Object.values(RELICS).every((r) => r.name && r.blurb && r.rarity));
+}
+
+{
+  const run = createRun(1);
+  const enc = ENCOUNTERS.courtyard;
+  const baseSupply = supplyBudget(run, enc);
+  const baseDeploy = deployBudget(run, enc);
+
+  const swarm = createRun(1);
+  swarm.relics = ['muster', 'levy'];
+  assert('swarm relics trade supply for bodies',
+    deployBudget(swarm, enc) > baseDeploy && supplyBudget(swarm, enc) < baseSupply);
+  assert('Levy Writ makes pawns free', costFor(swarm, 'p') === 0);
+
+  const quality = createRun(1);
+  quality.relics = ['warrant'];
+  assert('quality relics trade bodies for supply',
+    supplyBudget(quality, enc) > baseSupply && deployBudget(quality, enc) < baseDeploy);
+
+  const cav = createRun(1);
+  cav.relics = ['cavalry'];
+  assert('Cavalry Standard discounts leapers only',
+    costFor(cav, 'c') === PIECES.c.cost - 1 && costFor(cav, 'b') === PIECES.b.cost);
+}
+
+{
+  // Budgets must never fall below something playable, however you stack.
+  const run = createRun(1);
+  run.relics = ['warrant', 'commission', 'heavystandard', 'farrier'];
+  for (const enc of Object.values(ENCOUNTERS)) {
+    assert2(supplyBudget(run, enc) >= 1 && deployBudget(run, enc) >= 1,
+      `budgets stay playable on ${enc.id}`);
+  }
+  assert('stacked deploy penalties never reach zero', true);
+}
+
+{
+  // Relic shields cover your army, and only up to the cap.
+  const run = createRun(1);
+  run.relics = ['farrier'];
+  run.bag = [];
+  for (const t of ['n', 'n', 'c', 'z']) addToBag(run, t);
+  const enc = ENCOUNTERS.gate;
+  const game = buildFight(run, enc, autoPlace(enc, run.bag.slice(0, 3)));
+  const shielded = game.pieces()
+    .filter((p) => p.color === WHITE && (game.statusAt(p.square) & ST_SHIELD_BIT));
+  assert('a class-shield relic shields at most the cap',
+    shielded.length <= RELIC_SHIELD_CAP, `${shielded.length} shielded`);
+  assert('relic shields never cover the enemy',
+    !game.pieces().some((p) => p.color !== 'w' && (game.statusAt(p.square) & ST_SHIELD_BIT)
+      && p.type !== 'v'));
+}
+
+{
+  // Relic tokens must actually reach the engine.
+  const run = createRun(1);
+  run.relics = ['deepfreeze', 'ashboots'];
+  const game = buildFight(run, ENCOUNTERS.gate, autoPlace(ENCOUNTERS.gate, []));
+  assert('relic tokens reach the engine modifier list',
+    game.kingPassives.includes('deepfreeze') && game.kingPassives.includes('ashboots'),
+    JSON.stringify(game.kingPassives));
+}
+
+{
+  // Elites and bosses must hand over a relic choice.
+  const run = createRun(1);
+  const enc = ENCOUNTERS.pond;
+  const game = buildFight(run, enc, autoPlace(enc, []));
+  game.board[game.kings.b] = null;
+  game.kings.b = -1;
+  const reward = settleFight(run, game, enc, {});
+  assert('an elite offers relics', (reward.relicChoices || []).length > 0);
+  const first = reward.relicChoices[0];
+  assert('a relic can be claimed', claimRelic(run, first) && run.relics.includes(first));
+  assert('claiming clears the rest', run.pendingRelics.length === 0);
+}
+
+{
+  const run = createRun(1);
+  run.relics = ['seal'];
+  const shop = openShop(run);
+  assert('the shop stocks a relic', shop.offers.some((o) => o.kind === 'relic'));
+  assert("Merchant's Seal discounts the board",
+    shop.offers.every((o) => o.cost >= 1));
 }
 
 console.log(failures ? `\n${failures} run failure(s)` : '\nAll run tests passed.');

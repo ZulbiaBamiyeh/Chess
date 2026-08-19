@@ -152,6 +152,7 @@
         <span id="hud-clock" class="hud-chip hud-clock hidden">10</span>
         <span id="hud-gold" class="hud-chip hud-gold">0g</span>
         <span id="hud-army" class="hud-chip hud-army">Army 0</span>
+        <span id="game-relics" class="relic-tray hidden"></span>
       </div>
       <div id="status" class="status">Your move</div>
       <div class="topbar-controls">
@@ -223,6 +224,7 @@
           <i id="map-king-art"></i><span id="map-king-name">Plain King</span>
         </button>
         <span id="map-gold" class="hud-chip hud-gold">0g</span>
+        <span id="map-relics" class="relic-tray hidden"></span>
         <span id="map-supply" class="hud-chip hud-army">Supply +0</span>
       </div>
       <div class="topbar-controls">
@@ -251,6 +253,7 @@
           <i id="load-king-art"></i><span id="load-king-name">Plain King</span>
         </span>
         <span id="load-gold" class="hud-chip hud-gold">0g</span>
+        <span id="loadout-relics" class="relic-tray hidden"></span>
       </div>
     </header>
     <p id="loadout-blurb" class="loadout-blurb"></p>
@@ -372,6 +375,15 @@
       <button id="btn-shop-leave" class="btn btn-gold">Leave</button>
     </div>
   </section>
+
+  <div id="modal-relic" class="modal hidden">
+    <div class="modal-card relic-modal">
+      <h2>They were carrying something</h2>
+      <p>Take one. It changes a rule for the rest of the run.</p>
+      <div id="relic-choices" class="relic-choices"></div>
+      <button id="btn-relic-skip" class="btn btn-ghost">Leave them</button>
+    </div>
+  </div>
 
   <div id="modal-result" class="modal hidden">
     <div class="modal-card result-card">

@@ -8,9 +8,10 @@ import {
   openShop, buyOffer, rerollShop, closeShop, retryAllowed,
   autoPlace, supplyBudget, deployBudget, occupiedSlots, freeHomeSquares,
   completeNode, pickNode, rest, REST_GOLD, turnClock,
-  bagSummary, equipKing, applyChoice, choiceAvailable,
+  bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
 } from './run.js';
 import { encounterFor, kingDef, EVENTS } from './content.js';
+import { relicById } from './relics.js';
 
 export function initCampaign(ctx) {
   const {
@@ -23,6 +24,7 @@ export function initCampaign(ctx) {
   let placements = []; // { uid, type, sq }
 
   function paintRunHud() {
+    paintRelics();
     const run = state.run;
     if (!run) return;
     for (const id of ['hud-gold', 'map-gold', 'load-gold', 'shop-gold', 'rest-gold']) {
@@ -768,9 +770,15 @@ export function initCampaign(ctx) {
     $('modal-result').classList.add('hidden');
     resetClassicButtons();
     if (state.run.over) { endRun(); return; }
-    completeNode(state.run);
-    if (state.run.over) { endRun(); return; }
-    showMap();
+
+    const pending = state.run.pendingRelics || [];
+    const advance = () => {
+      completeNode(state.run);
+      if (state.run.over) { endRun(); return; }
+      showMap();
+    };
+    if (pending.length) { offerRelics(pending, advance); return; }
+    advance();
   }
 
   function retryFight() {
@@ -867,6 +875,58 @@ export function initCampaign(ctx) {
     showMap();
   }
 
+/** The relic tray — small marks with the rule they change on hover. */
+  function paintRelics() {
+    for (const id of ['map-relics', 'loadout-relics', 'game-relics']) {
+      const host = $(id);
+      if (!host) continue;
+      const owned = state.run?.relics || [];
+      host.innerHTML = '';
+      host.classList.toggle('hidden', owned.length === 0);
+      for (const rid of owned) {
+        const relic = relicById(rid);
+        if (!relic) continue;
+        const chip = document.createElement('span');
+        chip.className = `relic-chip rarity-${relic.rarity}`;
+        chip.innerHTML = '✦<span class="relic-tip"><b>' + relic.name + '</b>'
+          + relic.blurb + '</span>';
+        host.appendChild(chip);
+      }
+    }
+  }
+
+  /** After an elite or boss, choose one of the relics they were carrying. */
+  function offerRelics(choices, done) {
+    const host = $('relic-choices');
+    host.innerHTML = '';
+    for (const rid of choices) {
+      const relic = relicById(rid);
+      if (!relic) continue;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `relic-card rarity-${relic.rarity}`;
+      btn.innerHTML = '<span class="relic-mark">✦</span>'
+        + `<span class="relic-name">${relic.name}</span>`
+        + `<span class="relic-arch">${relic.archetype}</span>`
+        + `<span class="relic-blurb">${relic.blurb}</span>`;
+      btn.addEventListener('click', () => {
+        claimRelic(state.run, rid);
+        audio.victory();
+        $('modal-relic').classList.add('hidden');
+        paintRelics();
+        done();
+      });
+      btn.addEventListener('pointerenter', () => audio.hover());
+      host.appendChild(btn);
+    }
+    $('btn-relic-skip').onclick = () => {
+      skipRelics(state.run);
+      $('modal-relic').classList.add('hidden');
+      done();
+    };
+    $('modal-relic').classList.remove('hidden');
+  }
+
   function openShopScreen() {
     const node = currentNode(state.run);
     openShop(state.run);
@@ -893,7 +953,9 @@ export function initCampaign(ctx) {
           ? `<i class="shop-art" style="background-image:url('${pieceImage('k', WHITE, offer.sprite || kingSkin(offer.king))}')"></i>`
           : offer.kind === 'supply'
             ? `<i class="shop-art" style="background-image:url('assets/map-shop.png')"></i>`
-            : `<i class="shop-art shop-art-${offer.kind === 'slot' ? 'slot' : 'purse'}"></i>`;
+            : offer.kind === 'relic'
+              ? '<i class="shop-art shop-art-relic">✦</i>'
+              : `<i class="shop-art shop-art-${offer.kind === 'slot' ? 'slot' : 'purse'}"></i>`;
       card.innerHTML = art
         + `<span class="shop-card-name">${offer.name}</span>`
         + `<span class="shop-card-blurb">${offer.blurb}</span>`
