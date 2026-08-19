@@ -400,6 +400,12 @@ function onAttemptMove(from, to) {
   if (options.length === 0) {
     audio.illegal();
     state.view.reject(to);
+    // Say why, when the reason is a rule the player has just met. A capture
+    // that looks legal and is silently refused reads as a bug.
+    const target = state.game.board[to];
+    if (target && target.type === 'k' && state.game.kingGuarded(to)) {
+      toast('Their king is guarded', 'danger');
+    }
     return;
   }
   if (options[0].promotion) {

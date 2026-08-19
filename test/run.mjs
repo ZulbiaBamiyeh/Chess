@@ -52,7 +52,8 @@ const alley = ENCOUNTERS.alley;
   const places = autoPlace(gate, pawns);
   assert('auto-place includes the king', places.some((p) => p.uid === 'king'));
   const game = buildFight(run, gate, places);
-  assert('fight is 4×4 king-capture', game.files === 4 && game.ranks === 4 && game.rules.kingCapture);
+  assert('the fight is built at the encounter\'s size, in king-capture mode',
+    game.files === gate.files && game.ranks === gate.ranks && game.rules.kingCapture);
   assert('both kings present', game.kings.w >= 0 && game.kings.b >= 0);
 }
 

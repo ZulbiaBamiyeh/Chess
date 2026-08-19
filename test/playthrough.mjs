@@ -10,7 +10,7 @@
 import {
   createRun, currentNode, buildFight, settleFight, autoPlace, supplyBudget,
   deployBudget, costFor, suggestLoadout, completeNode, pickNode, rest, forage, trainPiece,
-  currentEncounter,
+  currentEncounter, turnClock,
   openShop, buyOffer, closeShop, claimRelic, applyChoice, addToBag,
 } from '../js/run.js';
 import { EVENTS, ENCOUNTERS } from '../js/content.js';
@@ -25,22 +25,48 @@ function assert(name, cond, detail = '') {
 }
 
 // A competent player. The point is to exercise the flow, not to measure
-// difficulty — tools/builds.mjs does that.
-const PROFILE = { depth: 4, budget: 220, slip: 0 };
+// difficulty — tools/builds.mjs and tools/difficulty.mjs do that.
+//
+// The budget has to at least match what the encounters give the opponent
+// (450ms in act 1). At 220 this profile was simply the weaker engine, so it
+// lost every act-1 fight and the walk bled out on floor six without ever
+// reaching a shop, an event or an act boundary — the things it exists to
+// cover.
+// Both sides play the same shallow, fast search. This file's job is to walk
+// the flow, and for that the fights only have to END — how well they are
+// played does not matter, and measuring difficulty is tools/difficulty.mjs's
+// job. Two things forced this:
+//
+//  - The profile must not be the WEAKER engine. At 220ms against encounters
+//    that think for 450 it lost every act-1 fight, and the walk bled out on
+//    floor six without reaching a shop, an event or an act boundary — the
+//    things it exists to cover.
+//  - It must be cheap. Fights stopped ending on the first ply this pass, so
+//    twenty real AI games at a generous budget turned this into an
+//    eight-minute test.
+const THINK = 60;
+const PROFILE = { depth: 2, budget: THINK, slip: 0 };
+// Cap DEPTH as well as budget. Capping only the clock left act-2 and act-3
+// rooms searching at depth 5 and 6, and once the walk started winning fights
+// it reached them — one move there costs more than this whole file should.
+const opponent = (enc) => ({
+  ...(enc.ai || PROFILE), depth: PROFILE.depth, budget: THINK,
+});
 
 const loadoutFor = (run, enc) => suggestLoadout(run, enc);
 
 function fight(run, enc) {
   const game = buildFight(run, enc, autoPlace(enc, loadoutFor(run, enc)));
-  for (let ply = 0; ply < 80; ply++) {
+  // Bound by the encounter's own turn clock, the way the real game does it.
+  // A flat 80-ply cap meant every unresolved fight burned the full budget at
+  // up to 2.4s a move once fights stopped ending on the first ply.
+  const plyCap = turnClock(enc, run) * 2;
+  for (let ply = 0; ply < plyCap; ply++) {
     if (game.outcome().over) break;
-    // Faithful to the real game: you think at PROFILE, they think at whatever
-    // the encounter specifies. Running both sides at one strength measured a
-    // matchup the player never actually faces.
-    const move = chooseMove(game, game.turn === WHITE ? PROFILE : (enc.ai || PROFILE));
+    const move = chooseMove(game, game.turn === WHITE ? PROFILE : opponent(enc));
     if (!move) break;
     if (!game.move({ from: move.from, to: move.to, promotion: move.promotion })) break;
-    if (game.awaitingDuck) game.placeDuck(game.duckOptions()[0]);
+    if (game.awaitingDuck) game.placeDuck(game.duckSquares()[0]);
   }
   return { game, reward: settleFight(run, game, enc, {}) };
 }
@@ -52,8 +78,11 @@ function fight(run, enc) {
 // on the first floor.
 const run = createRun(987654321);
 run.slots = { common: Infinity, rare: 9, epic: 9, legendary: 9 };
-for (const t of ['r', 'b', 'n', 'c', 'q']) addToBag(run, t);
-run.relics = ['muster', 'surgeon'];
+for (const t of ['r', 'b', 'n', 'c', 'q', 'dragon', 'gnu', 't']) addToBag(run, t);
+// Supply relics, not just a fat bag. Rooms grew to 6x6 and a king now costs
+// its escorts as well as itself, so a starting-supply army cannot close a
+// fight and the walk simply bled out on floor six every time.
+run.relics = ['commission', 'warrant', 'tide', 'surgeon'];
 let steps = 0;
 let fights = 0;
 let shops = 0;
@@ -64,7 +93,7 @@ let threw = null;
 const seenKinds = new Set();
 
 try {
-  while (!run.over && !run.won && steps < 120) {
+  while (!run.over && !run.won && steps < 12) {
     steps++;
     // Route like a player rather than always taking the leftmost door: rest
     // when hurt, otherwise take the softest room on offer. Picking blind walked

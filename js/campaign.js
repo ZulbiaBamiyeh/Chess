@@ -1257,12 +1257,15 @@ export function initCampaign(ctx) {
     resetClassicButtons,
     abandon,
     tickClock() {
+      // This used to decrement to zero and then return false forever, so the
+      // clock on the HUD was pure decoration and nothing stopped you taking
+      // fifty quiet moves to grind a fight down. It ends the fight now, which
+      // is what makes the Royal Guard a problem to solve rather than a wall to
+      // wait behind.
       if (state.clock == null) return false;
-      if (state.clock > 0) {
-        state.clock -= 1;
-        paintRunHud();
-      }
-      return false;
+      if (state.clock > 0) state.clock -= 1;
+      paintRunHud();
+      return state.clock <= 0;
     },
     isRun() { return state.mode === 'run'; },
   };

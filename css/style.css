@@ -2062,6 +2062,22 @@ kbd {
   box-shadow: 0 0 12px rgba(255, 207, 63, 0.5);
   pointer-events: none;
 }
+
+/* A guarded king cannot be taken while a friend stands beside it. Without a
+   mark for it, the rule just reads as the game refusing a legal-looking
+   capture, so it gets its own ring — cooler and heavier than a shield's. */
+.piece.guarded::before {
+  content: '';
+  position: absolute;
+  inset: -2%;
+  border-radius: 50%;
+  border: 2px dashed rgba(67, 217, 255, 0.75);
+  box-shadow: 0 0 14px rgba(67, 217, 255, 0.35), inset 0 0 10px rgba(67, 217, 255, 0.18);
+  pointer-events: none;
+  animation: guard-turn 9s linear infinite;
+}
+@keyframes guard-turn { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .piece.guarded::before { animation: none; } }
 .piece.rebounds { animation: land 0.3s cubic-bezier(.2, .9, .3, 1.2); }
 .board.sized .sq.light { background-color: rgba(238, 226, 200, 0.28); }
 .board.sized .sq.dark { background-color: rgba(20, 10, 6, 0.32); }

@@ -220,6 +220,7 @@ export function rulesFor(run) {
     kingCapture: true,
     castling: false,
     royalLeaps: null,
+    royalGuard: true,
   };
   return rules;
 }

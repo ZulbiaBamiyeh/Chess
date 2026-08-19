@@ -92,7 +92,7 @@ function playOut(game, enc) {
     const move = chooseMove(game, PROFILE);
     if (!move) return game.turn === WHITE ? 'b' : 'w';
     if (!game.move({ from: move.from, to: move.to, promotion: move.promotion })) return 'draw';
-    if (game.awaitingDuck) game.placeDuck(game.duckOptions()[0]);
+    if (game.awaitingDuck) game.placeDuck(game.duckSquares()[0]);
   }
   return 'draw';
 }

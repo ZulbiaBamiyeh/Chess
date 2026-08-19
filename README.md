@@ -19,6 +19,14 @@ or run it locally (see below). Every push deploys through GitHub Actions.
 - **King capture ends the fight.** Losing yours costs **HP** by tier, not the
   run — you can take the room again for as long as you are still standing, and
   the run ends only when the HP does. The shop heals, pieces always come home.
+- **A king does not die while someone stands beside him.** A blow aimed at a
+  guarded king kills an escort instead. Guards are finite, so a fight always
+  ends — but a king with three friends around him costs four blows, not one.
+  Uncapturable pieces cannot be spent as guards (a Drake would soak forever)
+  and neither can frozen ones, which is frost's answer to a dug-in king.
+- **The turn clock is real.** Run out and you lose the room. Together with the
+  guard that is what makes a fight "take the escort apart, and quickly" rather
+  than either a one-move snipe or an unhurried grind.
 - **Camp is a real choice, not a button.** Rest heals and pays a little gold;
   Forage skips the heal for more gold; Train spends gold to give one piece in
   the bag a permanent shield, every fight from then on — the only camp choice
@@ -64,6 +72,7 @@ Pricing is set by measurement, not by feel. Two harnesses:
 node tools/balance.mjs --games 16 --deploy 6 --budget 12   # per piece
 node tools/builds.mjs --games 4 --act 3                    # per archetype
 node tools/builds.mjs --games 3 --bosses                   # vs every boss
+node tools/difficulty.mjs --act 1 --games 2                # unbuilt player
 ```
 
 `balance.mjs` plays AI-vs-AI duels at equal supply, both colours, and reports
@@ -79,11 +88,28 @@ Two methodology notes worth keeping, because both produced wrong answers first:
 - Build tests have to **normalise the bag**. The first version handed the
   quality build a bag worth 28 supply while swarm got 10, so it measured the
   pieces rather than the relics.
+- Both sides need **the same thinking time**. A probe that gave White 150ms
+  against the encounter's own 450ms said act 1 was brutally hard; it was
+  measuring a weak engine against a stronger one, not the matchup a player
+  actually faces.
 
 Current state: eleven archetypes span 33%–74%, a spread of 46 points, with the
 no-relic baseline sitting at the floor (28%) and every build beating it. Bosses
 are a real wall — an unspecialised army wins about 20% of them, a committed one
 far more.
+
+`tools/difficulty.mjs` asks the separate question the early game was failing:
+can a player with *no build at all* brute-force the rooms anyway? It used to be
+yes, trivially — a diagnostic over the whole book found that **76 of 78
+encounters could be won on the first ply** by dropping a rook on an open line to
+their king. You deploy knowing exactly where their king stands, so the fight was
+a one-move puzzle. That is what the royal guard and the 6x6 board floor are for;
+the same diagnostic now reports 0 of 78.
+
+The difficulty curve that replaced it, measured on act-1 rooms: a **weak** search
+(depth 3) loses nearly all of them, and a **strong** one (depth 5) wins in 15–21
+turns against a 24-turn clock. Losing costs HP rather than the run, so a bad
+fight is a real setback and not a reset.
 
 Both harnesses are noisy at small sample counts — one piece measured 40% and
 then 13% at an unchanged price across two runs — so treat a single reading as a

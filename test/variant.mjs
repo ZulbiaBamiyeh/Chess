@@ -5,8 +5,9 @@
 // Run with: node test/variant.mjs
 
 import {
-  Chess, WHITE, BLACK, FLAG, ST_FROZEN, ST_SHIELD, TILE,
+  Chess, WHITE, BLACK, FLAG, ST_FROZEN, ST_SHIELD, TILE, defaultRules, parseSquare,
 } from '../js/chess.js';
+import { ENCOUNTERS } from '../js/content.js';
 import { PIECES } from '../js/pieces.js';
 
 let failures = 0;
@@ -695,6 +696,119 @@ const snap = (g) => JSON.stringify(g.pieces());
   const back = new Chess({ fen, files: 3, ranks: 3, rules: KC });
   assert('a multi-letter piece survives a FEN round trip',
     JSON.stringify(back.pieces()) === JSON.stringify(g.pieces()), fen);
+}
+
+// ---- the royal guard ----------------------------------------------------
+// Free deployment against a known, static enemy meant any slider dropped on
+// an open line to their king won on the first ply — 76 of 78 encounters could
+// be ended that way. A king with a friend beside it cannot be taken, so a
+// fight is now "dismantle the escort" rather than "find the line".
+
+const GUARD = { ...KC, royalGuard: true };
+
+{
+  const g = Chess.fromDiagram(`
+    . {b:pawn} {b:king} .
+    . . . .
+    . . . .
+    . . {w:rook} .
+  `, { files: 4, ranks: 4, rules: GUARD });
+  const kingSq = g.kings.b;
+  const blows = g.moves({ legal: false }).filter((m) => m.to === kingSq);
+  assert('a blow at a guarded king is legal but absorbed',
+    blows.length === 1 && Boolean(blows[0].flags & FLAG.GUARD_FALLS), String(blows.length));
+
+  const before = JSON.stringify(g.pieces());
+  g.makeMove(blows[0]);
+  const after = g.pieces();
+  assert('the escort dies in his place',
+    !after.some((p) => p.type === 'p') && g.kings.b >= 0, JSON.stringify(after));
+  assert('the attacker does not take the square',
+    after.some((p) => p.type === 'r' && p.square === blows[0].from));
+  g.undo();
+  assert('undo stands the escort back up', JSON.stringify(g.pieces()) === before);
+
+  // Escorts are finite, so the fight always ends — this is the whole reason
+  // the rule spends a guard instead of forbidding the capture outright.
+  g.makeMove(blows[0]);
+  g.turn = WHITE;
+  assert('with the escort spent the king can be taken',
+    g.moves({ legal: false }).some((m) => m.to === g.kings.b && !(m.flags & FLAG.GUARD_FALLS)));
+
+  const bare = Chess.fromDiagram(`
+    . . {b:king} .
+    . . . .
+    . . . .
+    . . {w:rook} .
+  `, { files: 4, ranks: 4, rules: GUARD });
+  assert('an unguarded king is taken outright',
+    bare.moves({ legal: false }).some(
+      (m) => m.to === bare.kings.b && !(m.flags & FLAG.GUARD_FALLS)));
+}
+
+{
+  // A Drake next to a king would otherwise make it permanently unkillable,
+  // because a Drake cannot be taken at all.
+  const g = Chess.fromDiagram(`
+    . {b:drake} {b:king} .
+    . . . .
+    . . . .
+    . . {w:rook} .
+  `, { files: 4, ranks: 4, rules: GUARD });
+  assert('an uncapturable piece cannot be spent as a guard',
+    g.moves({ legal: false }).some(
+      (m) => m.to === g.kings.b && !(m.flags & FLAG.GUARD_FALLS)));
+}
+
+{
+  // Frozen guards are not guarding — this is frost's answer to a dug-in king.
+  const g = Chess.fromDiagram(`
+    . {b:pawn} {b:king} .
+    . . . .
+    . . . .
+    . . {w:rook} .
+  `, { files: 4, ranks: 4, rules: GUARD });
+  const guardSq = g.kings.b - 1;
+  const absorbed = (game) => game.moves({ legal: false })
+    .some((m) => m.to === game.kings.b && (m.flags & FLAG.GUARD_FALLS));
+  assert('an awake guard soaks the blow', absorbed(g));
+  g.status[guardSq] |= ST_FROZEN;
+  assert('a frozen guard soaks nothing — the king is takeable', !absorbed(g)
+    && g.moves({ legal: false }).some((m) => m.to === g.kings.b));
+}
+
+{
+  // A shot is a capture too, so the guard has to stop it.
+  const g = Chess.fromDiagram(`
+    . {b:pawn} {b:king} . .
+    . . . . .
+    . {w:crossbow} . . .
+    . . . . .
+    . . . . .
+  `, { files: 5, ranks: 5, rules: GUARD });
+  const shot = g.moves({ legal: false }).find((m) => m.to === g.kings.b);
+  assert('a shot at a guarded king spends the guard too',
+    Boolean(shot) && Boolean(shot.flags & FLAG.GUARD_FALLS) && Boolean(shot.flags & FLAG.SHOOT));
+}
+
+{
+  // Classic chess must not pick the rule up.
+  assert('the royal guard is off by default', defaultRules().royalGuard === false);
+}
+
+{
+  // Every king in the book has to start with an escort beside it, or the rule
+  // does nothing for that room and the one-ply snipe comes straight back.
+  const unguarded = [];
+  for (const enc of Object.values(ENCOUNTERS)) {
+    const at = new Map();
+    for (const p of enc.enemy) at.set(parseSquare(p.at, enc.ranks), p.type);
+    const kingSq = [...at.entries()].find(([, t]) => t === 'k')?.[0];
+    const guarded = [-17, -16, -15, -1, 1, 15, 16, 17]
+      .some((off) => at.has(kingSq + off) && at.get(kingSq + off) !== 'k');
+    if (!guarded) unguarded.push(enc.id);
+  }
+  assert('every encounter king starts with a guard', unguarded.length === 0, unguarded.join(', '));
 }
 
 console.log(failures ? `\n${failures} variant failure(s)` : '\nAll variant tests passed.');
