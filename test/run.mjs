@@ -611,5 +611,60 @@ function courtyardOrGate() {
     Number.isFinite(run.hp) && run.hp === run.hpMax);
 }
 
+{
+  // gain now understands every rarity tier, not just 'random-rare' with
+  // everything else silently falling back to common.
+  const run = createRun(7);
+  for (let i = 0; i < 30; i++) {
+    const before = run.bag.length;
+    applyChoice(run, { effects: [{ gain: 'random-legendary' }] });
+    if (run.bag.length > before) {
+      const added = run.bag[run.bag.length - 1];
+      assert('random-legendary actually gains a legendary piece',
+        PIECES[added.type]?.rarity === RARITY.LEGENDARY, added.type);
+      break;
+    }
+  }
+}
+
+{
+  // 'priciest' drops the single most expensive piece in the bag, not the
+  // first one found and not the king.
+  const run = createRun(8);
+  run.bag = [
+    { uid: 'a', type: 'p' },
+    { uid: 'b', type: 'q' },
+    { uid: 'c', type: 'n' },
+  ];
+  const result = applyChoice(run, { effects: [{ lose: 'priciest' }] });
+  assert('priciest removes the queen, not the pawn or knight',
+    result.ok && !run.bag.some((p) => p.uid === 'b') && run.bag.length === 2,
+    JSON.stringify(run.bag));
+}
+
+{
+  // The eight new no-safe-option rooms actually made it into the pool the
+  // map draws from, and every choice in them still resolves cleanly.
+  const newRooms = ['tollkeeper', 'ledger', 'hightable', 'scale', 'plaguecart', 'beggar', 'cairn', 'fasttrack'];
+  const missing = newRooms.filter((id) => !EVENTS[id]);
+  assert('the new stsesque rooms are registered', missing.length === 0, missing.join(', '));
+  let broke = 0;
+  for (const id of newRooms) {
+    for (const choice of EVENTS[id].choices) {
+      for (let trial = 0; trial < 12; trial++) {
+        const run = createRun(1);
+        run.gold = 300;
+        for (const t of ['p', 'p', 'n', 'b', 'r']) addToBag(run, t);
+        try {
+          const res = applyChoice(run, choice, run.bag[0]?.uid);
+          if (!res.ok || !Number.isFinite(run.hp) || !Number.isFinite(run.gold)
+            || run.hp > run.hpMax || run.hp < 0 || run.gold < 0) broke++;
+        } catch { broke++; }
+      }
+    }
+  }
+  assert('every choice in the new rooms resolves cleanly', broke === 0, String(broke));
+}
+
 console.log(failures ? `\n${failures} run failure(s)` : '\nAll run tests passed.');
 process.exit(failures ? 1 : 0);

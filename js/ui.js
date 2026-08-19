@@ -124,7 +124,6 @@ export class BoardView {
     for (const [sq, el] of this.squares) this.placeSquare(el, sq);
     for (const [sq, el] of this.pieceEls) this.placeSquare(el, sq);
     this.root.classList.toggle('flipped', flipped);
-    this.updateBoardMask();
   }
 
   setInteractive(on) {
@@ -169,56 +168,15 @@ export class BoardView {
 
   paintTerrain(game) {
     for (const [sq, el] of this.squares) {
-      el.classList.remove('tile-block', 'tile-frost', 'tile-fort', 'tile-fire', 'tile-warn');
+      el.classList.remove('tile-block', 'tile-frost', 'tile-fort', 'tile-fire', 'tile-warn', 'tile-glass');
       const tile = game.tileAt(sq);
       if (tile === TILE.BLOCK) el.classList.add('tile-block');
       else if (tile === TILE.FROST) el.classList.add('tile-frost');
       else if (tile === TILE.FORT) el.classList.add('tile-fort');
+      else if (tile === TILE.GLASS) el.classList.add('tile-glass');
       if (game.isFire?.(sq) || tile === TILE.FIRE) el.classList.add('tile-fire');
       if (game.isWarned?.(sq)) el.classList.add('tile-warn');
     }
-    this.updateBoardMask();
-  }
-
-  /**
-   * A wall doesn't paint a wall texture any more — it cuts a real hole
-   * through the board so the shader field behind the whole app shows through
-   * it, which reads as "the ground gives out here" instead of "there's a
-   * grey box here". CSS can't punch a dynamic, per-cell hole through a
-   * background-image with anything simpler than a mask, so this builds one:
-   * a tiny inline SVG, one rounded cutout per blocked square, in the same
-   * row/col space `place()` already uses (so it stays correct under flip).
-   */
-  updateBoardMask() {
-    const holes = [];
-    for (const [sq, el] of this.squares) {
-      if (!el.classList.contains('tile-block')) continue;
-      const row = this.flipped ? this.ranks - 1 - rank(sq) : rank(sq);
-      const col = this.flipped ? this.files - 1 - file(sq) : file(sq);
-      holes.push([col, row]);
-    }
-    if (!holes.length) {
-      this.root.style.maskImage = '';
-      this.root.style.webkitMaskImage = '';
-      return;
-    }
-    // Whether a browser's mask-image treats this as luminance or alpha
-    // varies (that mismatch is why an opaque-black cutout on a white field
-    // painted solid white squares here instead of holes on Chromium's
-    // alpha-mode default). An evenodd path is mode-proof: the hole is a
-    // literal gap in what gets painted, so it is unrendered — alpha 0 and
-    // luminance 0 at once — rather than a color the wrong mode ignores.
-    const outer = `M0,0H${this.files}V${this.ranks}H0Z`;
-    const cut = holes
-      .map(([c, r]) => `M${c + 0.09},${r + 0.09}h0.82v0.82h-0.82Z`)
-      .join('');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${this.files} ${this.ranks}">`
-      + `<path fill="#fff" fill-rule="evenodd" d="${outer}${cut}"/></svg>`;
-    const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-    this.root.style.maskImage = url;
-    this.root.style.webkitMaskImage = url;
-    this.root.style.maskSize = '100% 100%';
-    this.root.style.webkitMaskSize = '100% 100%';
   }
 
   addPiece(sq, type, color, status = 0) {

@@ -1092,5 +1092,43 @@ const GUARD = { ...KC, royalGuard: true };
   assert('shrink undo restores what was standing there', Boolean(g.board[onRing]));
 }
 
+// ---- glass terrain ----------------------------------------------------------
+
+{
+  const g = Chess.fromDiagram(`
+    k . . .
+    . . . .
+    . ~ . .
+    K . . .
+  `, { files: 4, ranks: 4, rules: KC });
+  assert('glass tile recorded', g.tileAt('b2') === TILE.GLASS);
+  assert('glass does not block a slide before it breaks', hasMove(g, 'a1', 'b2'), names(g, 'a1').join(','));
+
+  const landed = g.move({ from: 'a1', to: 'b2' });
+  assert('landing on glass is a legal move', Boolean(landed));
+  assert('glass breaks into a wall once something lands on it', g.tileAt('b2') === TILE.BLOCK);
+  assert('the piece that broke it still stands there', g.get('b2')?.type === 'k');
+
+  g.undo();
+  assert('undo restores the glass', g.tileAt('b2') === TILE.GLASS);
+  assert('undo puts the king back where it started', g.get('a1')?.type === 'k' && !g.get('b2'));
+}
+
+{
+  // A slide that only PASSES OVER glass (not landing on it) leaves it whole —
+  // only landing breaks it.
+  const g = Chess.fromDiagram(`
+    k . . . .
+    . . . . .
+    . ~ . . .
+    . . . . .
+    K R . . .
+  `, { files: 5, ranks: 5, rules: KC });
+  assert('a rook can slide past an unbroken glass tile', hasMove(g, 'b1', 'b5'), names(g, 'b1').join(','));
+  const rook = g.move({ from: 'b1', to: 'b5' });
+  assert('the slide lands past the glass, not on it', Boolean(rook) && g.get('b5')?.type === 'r');
+  assert('glass survives being passed over, not landed on', g.tileAt('b3') === TILE.GLASS);
+}
+
 console.log(failures ? `\n${failures} variant failure(s)` : '\nAll variant tests passed.');
 process.exit(failures ? 1 : 0);

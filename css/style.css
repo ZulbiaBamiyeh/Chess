@@ -699,11 +699,11 @@ kbd {
   position: relative;
   width: calc(var(--cell) * var(--files));
   height: calc(var(--cell) * var(--ranks));
-  /* One painted square per cell: crop the 8×8 art instead of squashing it. */
-  background-image: url('../assets/board.png');
-  background-repeat: no-repeat;
-  background-size: calc(100% * 8 / var(--files)) calc(100% * 8 / var(--ranks));
-  background-position: left bottom;
+  /* No background of its own any more — see .sq.light/.sq.dark below. A
+     single cropped 8×8 image here meant a wall could never be a real hole
+     (there was always wood painted behind it), and a non-8×8 board had to
+     fudge the crop with a translucent tint on every square just to look
+     right. Each square painting its own flat colour fixes both at once. */
   border-radius: 6px;
   box-shadow:
     0 0 0 4px var(--wood-line),
@@ -763,6 +763,8 @@ kbd {
   place-items: center;
   transition: background-color 0.18s ease, box-shadow 0.18s ease;
 }
+.sq.light { background: #e8d4b0; }
+.sq.dark { background: #6b4530; }
 .sq .dot, .sq .ring {
   position: absolute;
   border-radius: 50%;
@@ -2001,14 +2003,20 @@ kbd {
 
 /* ---------- terrain & statuses ---------- */
 
-/* A wall is a hole now, not a texture — `.board`'s own CSS mask (built in
-   updateBoardMask()) cuts the actual transparency, so anything painted here
-   only shows in the thin unmasked rim around that cutout. This is that rim:
-   a dark falloff toward the edge so the cut reads as a socket the square
-   sits in, not a flat sticker. */
+/* A wall is a hole now, not a texture. Every other square paints its own
+   background (see .sq.light/.sq.dark); this one simply doesn't, which is
+   the whole trick — nothing stands between it and the app's shader field
+   behind the board, so a wall genuinely reads as the ground giving out
+   rather than a grey box standing in for one. An earlier version tried to
+   fake this with a CSS mask cut through `.board`'s own painted background,
+   but a mask's luminance-vs-alpha handling varies by browser (Chromium's
+   default painted the "cut" solid white instead of transparent), and none
+   of that machinery is needed once nothing is being painted there to cut
+   in the first place. The box-shadow is just a dark rim so the edge still
+   reads as a socket rather than a flat void. */
 .sq.tile-block {
-  background: radial-gradient(circle, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
-  box-shadow: inset 0 0 10px 2px rgba(0, 0, 0, 0.7);
+  background: transparent;
+  box-shadow: inset 0 0 10px 3px rgba(0, 0, 0, 0.85);
 }
 /* Frost and fire are drawn rather than photographed.
    The old tiles were raster textures — a washed-out photographic frost and a
@@ -2068,6 +2076,39 @@ kbd {
 }
 .sq.tile-fort {
   box-shadow: inset 0 0 0 3px rgba(255, 207, 63, 0.55), inset 0 0 18px rgba(255, 207, 63, 0.2);
+}
+/* Glass reads as thin and load-bearing, not as ice: a pale, almost-clear
+   pane with a crack pattern already fixed in it rather than frost's
+   creeping fronds, so a player can tell "walk here once" from "walk here
+   and get frozen" at a glance. */
+.sq.tile-glass {
+  overflow: hidden;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.28), rgba(180, 226, 240, 0.16));
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.55),
+    inset 0 0 16px rgba(200, 235, 245, 0.4);
+}
+.sq.tile-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.6;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg stroke='%23fbffff' stroke-width='2' fill='none' stroke-linecap='round'%3E%3Cpath d='M50 50 L18 14'/%3E%3Cpath d='M50 50 L86 22'/%3E%3Cpath d='M50 50 L78 82'/%3E%3Cpath d='M50 50 L22 90'/%3E%3Cpath d='M50 50 L10 54'/%3E%3Cpath d='M32 32 L40 16'/%3E%3Cpath d='M66 34 L82 30'/%3E%3Cpath d='M64 66 L74 78'/%3E%3C/g%3E%3C/svg%3E") center / 90% 90% no-repeat;
+}
+/* A slow glint, slower and colder than frost's, so the two tiles don't
+   read as the same animation in different colours. */
+.sq.tile-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.5) 50%, transparent 58%);
+  background-size: 260% 260%;
+  animation: frost-glint 6.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sq.tile-glass::after { animation: none; }
 }
 /* Nothing stands on a fire tile — it denies the square — so the flames own it.
    Charred ground underneath, two tongues on top at different rhythms so the
@@ -2139,8 +2180,6 @@ kbd {
 @keyframes guard-turn { to { rotate: 360deg; } }
 @media (prefers-reduced-motion: reduce) { .piece.guarded::before { animation: none; } }
 .piece.rebounds { animation: land 0.3s cubic-bezier(.2, .9, .3, 1.2); }
-.board.sized .sq.light { background-color: rgba(238, 226, 200, 0.28); }
-.board.sized .sq.dark { background-color: rgba(20, 10, 6, 0.32); }
 
 @media (max-width: 980px) {
   .loadout-grid { grid-template-columns: 1fr; }

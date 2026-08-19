@@ -51,10 +51,16 @@ export const TILE = {
   FROST: 2,
   FORT: 3,
   FIRE: 4,
+  /** Holds exactly once — the first piece to land on it breaks it into a
+   *  BLOCK for the rest of the fight. A bridge you cross, not a room. */
+  GLASS: 5,
 };
 
-export const TILE_NAME = { 0: 'none', 1: 'block', 2: 'frost', 3: 'fort', 4: 'fire' };
-export const TILE_ID = { none: 0, block: 1, frost: 2, fort: 3, fire: 4, '#': 1, '*': 2, '+': 3, '^': 4 };
+export const TILE_NAME = { 0: 'none', 1: 'block', 2: 'frost', 3: 'fort', 4: 'fire', 5: 'glass' };
+export const TILE_ID = {
+  none: 0, block: 1, frost: 2, fort: 3, fire: 4, glass: 5,
+  '#': 1, '*': 2, '+': 3, '^': 4, '~': 5,
+};
 
 export const ST_FROZEN = 1;
 export const ST_SHIELD = 2;
@@ -1273,6 +1279,14 @@ export class Chess {
         this.status[dest] |= ST_FROZEN;
       }
       if (this.terrain[dest] === TILE.FORT) this.status[dest] |= ST_SHIELD;
+      // Glass holds exactly once. Whoever lands on it gets to stand there —
+      // the break happens under their feet, not before they arrive — but it
+      // is a BLOCK for everyone from the next move on, itself included if
+      // it ever leaves and tries to come back.
+      if (this.terrain[dest] === TILE.GLASS) {
+        extra.terrainSnap = extra.terrainSnap ?? this.terrain.slice();
+        this.terrain[dest] = TILE.BLOCK;
+      }
 
       extra.fireSnap = this.fireUntil.slice();
       const def = PIECES[move.piece];
@@ -1941,7 +1955,7 @@ export class Chess {
         const token = row[f] || '.';
         const sq = r * 16 + f;
         if (token === '.' || token === '-') continue;
-        if (token === '#' || token === '*' || token === '+') {
+        if (token === '#' || token === '*' || token === '+' || token === '^' || token === '~') {
           terrain.push({ sq, tile: TILE_ID[token] });
           continue;
         }

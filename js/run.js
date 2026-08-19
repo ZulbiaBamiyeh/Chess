@@ -932,9 +932,13 @@ export function applyChoice(run, choice, pickedUid = null) {
     }
     if (effect.lose) {
       const uid = effect.lose === 'choose' ? pickedUid : null;
+      // 'priciest' picks itself — a stake worth naming without asking the
+      // player to pick their own loss, the way 'choose' does.
       const at = uid
         ? run.bag.findIndex((p) => p.uid === uid)
-        : run.bag.findIndex((p) => p.type === effect.lose);
+        : effect.lose === 'priciest'
+          ? priciestIndex(run.bag)
+          : run.bag.findIndex((p) => p.type === effect.lose);
       if (at >= 0) {
         const [gone] = run.bag.splice(at, 1);
         lines.push(`${PIECES[gone.type].name} left behind`);
@@ -944,10 +948,29 @@ export function applyChoice(run, choice, pickedUid = null) {
   return { ok: true, lines };
 }
 
+/** The index of the single most expensive non-king piece in a bag, if any. */
+function priciestIndex(bag) {
+  let best = -1;
+  let bestCost = -1;
+  bag.forEach((item, i) => {
+    if (item.type === 'k') return;
+    const cost = PIECES[item.type]?.cost || 0;
+    if (cost > bestCost) { bestCost = cost; best = i; }
+  });
+  return best;
+}
+
+const GAIN_RARITY = {
+  'random-common': RARITY.COMMON,
+  'random-rare': RARITY.RARE,
+  'random-epic': RARITY.EPIC,
+  'random-legendary': RARITY.LEGENDARY,
+};
+
 /** Turns a `gain` token into a concrete piece id the bag has room for. */
 function rollGain(run, token) {
   if (PIECES[token]) return token;
-  const wantRarity = token === 'random-rare' ? RARITY.RARE : RARITY.COMMON;
+  const wantRarity = GAIN_RARITY[token] || RARITY.COMMON;
   const pool = Object.values(PIECES)
     .filter((p) => p.rarity === wantRarity && p.rarity !== RARITY.UNIQUE && !p.royal);
   if (!pool.length) return null;

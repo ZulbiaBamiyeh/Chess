@@ -15,6 +15,8 @@ const TERRAIN = [
   { id: 'frost', name: 'Frost', tile: TILE.FROST, blurb: 'Landing here freezes the piece for a turn.' },
   { id: 'fort', name: 'Fort', tile: TILE.FORT, blurb: 'Landing here grants a shield. The first hit knocks the piece aside.' },
   { id: 'fire', name: 'Fire', tile: TILE.FIRE, blurb: 'Lingering fire. A piece that steps here burns.' },
+  { id: 'glass', name: 'Glass', tile: TILE.GLASS,
+    blurb: 'Holds once. The first piece to land here turns it into a wall for the rest of the fight.' },
 ];
 
 // Derived, not hand-listed: the hardcoded version silently went stale every

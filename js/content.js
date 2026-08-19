@@ -264,6 +264,25 @@ export const ENCOUNTERS = {
       { type: 'p', at: 'd6' },
     ],
   },
+  crossing: {
+    id: 'crossing', kind: 'fight', tier: 'trash', act: 1,
+    pool: 'hard',
+    name: 'The Frozen Lake',
+    blurb: 'The ice is thin down the middle. Whoever steps on it closes that lane behind them.',
+    files: 6, ranks: 6, supply: 12, ai: AI.mid, theme: 'ice',
+    enemy: [
+      { type: 'k', at: 'd6' },
+      { type: 'p', at: 'b6' },
+      { type: 'n', at: 'e6' },
+    ],
+    // Four glass panes across the middle row, not all six — the flanks
+    // (a3, f3) stay open on purpose, so a bad crossing costs a lane, not
+    // the whole board. Break enough of them and the two sides are still
+    // pushed toward whichever gap is left, which is the point.
+    terrain: {
+      b3: TILE.GLASS, c3: TILE.GLASS, d3: TILE.GLASS, e3: TILE.GLASS,
+    },
+  },
   pond: {
     id: 'pond', kind: 'fight', tier: 'elite', act: 1,
     name: 'The Duck', blurb: 'After every move you must park the yellow duck on an empty square.',
@@ -1210,6 +1229,99 @@ export const EVENTS = {
       { label: 'Ask for his own kit', detail: 'A Guard joins the bag, free.',
         effects: [{ gain: 'guard' }] },
       { label: 'March past', detail: 'You have somewhere to be.', effects: [] },
+    ],
+  },
+
+  // Every room above leaves a free "walk away" on the table. These don't,
+  // on purpose — the road only goes one way and every way costs something.
+  // A run that never takes a real risk should still feel that absence.
+  tollkeeper: {
+    id: 'tollkeeper', name: 'The Toll Bridge',
+    text: 'One stone bridge, one man sitting in the middle of it with a spear '
+      + 'across his knees. "Toll," he says. "Coin or blood. Everybody pays one."',
+    choices: [
+      { label: 'Pay in coin', detail: '−18 gold.', effects: [{ gold: -18 }] },
+      { label: 'Pay in blood', detail: '−6 HP.', effects: [{ hp: -6 }] },
+      { label: 'Force the bridge', detail: 'You get across. It costs more than either toll (−28 gold, −4 HP).',
+        effects: [{ gold: -28 }, { hp: -4 }] },
+    ],
+  },
+  ledger: {
+    id: 'ledger', name: 'The Standing Debt',
+    text: 'Someone has been keeping a ledger on you since before you knew this '
+      + 'road existed. "It is due," the collector says, not unkindly. "Pick the page."',
+    choices: [
+      { label: 'Settle in coin', detail: '−32 gold.', effects: [{ gold: -32 }] },
+      { label: 'Settle in kind', detail: 'Drop a piece of your choice.', effects: [{ lose: 'choose' }] },
+      { label: 'Settle in years', detail: '−3 maximum HP, permanently.', effects: [{ maxHp: -3 }] },
+    ],
+  },
+  hightable: {
+    id: 'hightable', name: 'The High Table',
+    text: 'Not the shell game — the real one, played for a seat at the table '
+      + 'and everything on it. "Sit down," the dealer says. "Or don\'t. Nobody\'s forcing you."',
+    choices: [
+      { label: 'Sit down', detail: 'One in three, a legendary piece. Otherwise you lose your priciest piece to the house.',
+        gamble: { odds: 0.34, win: [{ gain: 'random-legendary' }], lose: [{ lose: 'priciest' }] }, effects: [] },
+      { label: "Don't", detail: 'You keep your seat empty and your bag intact.', effects: [] },
+    ],
+  },
+  scale: {
+    id: 'scale', name: 'The Broken Scale',
+    text: 'A relic-monger with no relics left to sell, only the tools to remake '
+      + 'what you already carry. "It will cost you something real," she warns. "It always does."',
+    choices: [
+      { label: 'Widen the ranks', detail: '−4 HP, permanently. +1 piece in every fight.',
+        effects: [{ maxHp: -4 }, { deploy: 1 }] },
+      { label: 'Deepen the stores', detail: '−4 HP, permanently. +3 supply in every fight.',
+        effects: [{ maxHp: -4 }, { supply: 3 }] },
+      { label: 'Keep what you have', detail: 'She shrugs and packs up her tools.', effects: [] },
+    ],
+  },
+  plaguecart: {
+    id: 'plaguecart', name: 'The Plague Cart',
+    text: 'Still warm, still loaded, and nobody is coming back for it. Whatever '
+      + 'took the driver did not take the cargo.',
+    choices: [
+      { label: 'Take what it carries', detail: 'Gain a rare piece. Whatever got the driver leaves its mark on you too (−6 HP).',
+        effects: [{ gain: 'random-rare' }, { hp: -6 }] },
+      { label: 'Burn it where it stands', detail: 'No risk, no take. +6 HP from warming yourself at the fire.',
+        effects: [{ heal: 6 }] },
+    ],
+  },
+  beggar: {
+    id: 'beggar', name: 'The Man on the Road',
+    text: 'He has not eaten in a while and he is not going to pretend otherwise. '
+      + '"I have nothing to trade you," he says. "I am only asking."',
+    choices: [
+      { label: 'Feed him', detail: '−12 gold. Nothing else happens — that was the point.',
+        effects: [{ gold: -12 }] },
+      { label: 'Take his measure instead', detail: '+15 gold from whatever he still has. −3 HP; he does not go quietly.',
+        effects: [{ gold: 15 }, { hp: -3 }] },
+      { label: 'Walk past', detail: 'He is still there when the road bends.', effects: [] },
+    ],
+  },
+  cairn: {
+    id: 'cairn', name: 'The Cairn',
+    text: 'A stack of stones with a name under every one, and space left for more. '
+      + 'Someone has been adding to it for a long time. It is not clear who buries whom.',
+    choices: [
+      { label: 'Add a stone', detail: 'Drop a piece of your choice. The cairn pays for it (+38 gold).',
+        effects: [{ lose: 'choose' }, { gold: 38 }] },
+      { label: 'Take a stone instead', detail: '−5 HP prising one loose. Gain a common piece someone left buried with it.',
+        effects: [{ hp: -5 }, { gain: 'random-common' }] },
+      { label: 'Leave it standing', detail: 'Some debts are not yours.', effects: [] },
+    ],
+  },
+  fasttrack: {
+    id: 'fasttrack', name: 'The Shortcut',
+    text: 'A gap in the hedge that was not on the map, going the right direction. '
+      + 'Shortcuts on this road are never free — the only question is what they take.',
+    choices: [
+      { label: 'Take it', detail: 'Skip straight past the next room\'s worth of walking — recover 9 HP for the time saved. '
+        + 'You come out the other side lighter (−15 gold, whoever was watching the gap was not watching for free).',
+        effects: [{ heal: 9 }, { gold: -15 }] },
+      { label: 'Keep to the road', detail: 'Slower, but yours.', effects: [] },
     ],
   },
 };
