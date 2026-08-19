@@ -12,24 +12,64 @@ or run it locally (see below). Every push deploys through GitHub Actions.
 
 - **A run.** Three acts on a branching map, a boss at the end of each.
   Trash fights are small boards; elites are nastier; bosses play on 8×8.
+- **63 encounters**, at Slay the Spire's scale — an easy pool and a deep hard
+  pool per act, three elites and three bosses each. Fights draw without
+  replacement, so an act never repeats itself, and every act opens on the easy
+  pool so a run cannot die to its first room.
 - **King capture ends the fight.** Losing yours costs **HP**, not the run.
   Rest nodes and the shop heal. Pieces always come home.
-- **Bag + supply.** Commons are uncapped; rares, epics and one legendary
-  slot are limited. Each fight has a point budget (classic values stay
-  classic).
-- **Drops.** Beating someone can yield gold or one of *their* pieces.
-- **Shop.** Rarity weights climb by act. Kings are a single loud passive
-  (Aegis, Pioneer, Court, Pyre, Hoarfrost).
-- **Fairy pieces** live in the shop and in drops — discover them there.
+- **Two budgets.** Supply caps what your army is *worth*; deploy caps how many
+  *bodies* it has. Supply alone was not enough — a king-capture fight is won by
+  bodies, so with points as the only limit the cheapest body always won.
+- **25 relics across nine archetypes** — Swarm, Few and Fine, Frost, Fire,
+  Cavalry, Martyr, Coin, Endure, Tempo. Relics change a rule and key off piece
+  tags, so owning one makes you want particular pieces and owning two makes you
+  want a particular army. They drop from elites and bosses as a choice, and
+  appear in shops.
+- **22 pieces**, classic six plus a fairy set: camel, zebra, wazir, ferz,
+  champion, princess, empress, amazon, hopper, nightrider, drake, rime, flame,
+  wisp, sapper, warden.
+- **12 ? rooms** in the shape of Slay the Spire's — a scene and two or three
+  choices, most of them a trade rather than a gift.
+- **Six kings**, each a single loud passive: Aegis, Pioneer, Court, Pyre,
+  Hoarfrost, and the plain one that just gives supply.
 - **Classic chess** is still here — every rule, five opponents, verified
   against the standard perft counts.
+
+## Balance
+
+Pricing is set by measurement, not by feel. Two harnesses:
+
+```bash
+node tools/balance.mjs --games 16 --deploy 6 --budget 12   # per piece
+node tools/builds.mjs --games 4 --act 3                    # per archetype
+node tools/builds.mjs --games 3 --bosses                   # vs every boss
+```
+
+`balance.mjs` plays AI-vs-AI duels at equal supply, both colours, and reports
+how often each piece actually wins. `builds.mjs` asks the question that matters
+for a roguelike — can several *different* armies all beat the game?
+
+Two methodology notes worth keeping, because both produced wrong answers first:
+
+- The reference army has to **spend its budget**. A flat wall of pawns is only
+  fair at low budgets; at 16 supply it left ten points unspent and flattered
+  anything expensive. The Queen was never measured at all until the budget flag
+  existed, because she cost more than the harness had to spend.
+- Build tests have to **normalise the bag**. The first version handed the
+  quality build a bag worth 28 supply while swarm got 10, so it measured the
+  pieces rather than the relics.
+
+Current state: the registry runs 29%–64% at a mid-game budget, and no archetype
+is unplayable. Bosses are a real wall — an unspecialised army wins about 20% of
+them, a committed one far more.
 
 ## Testing
 
 ```bash
 node test/perft.mjs     # 26 classic counts
-node test/variant.mjs   # king-capture, boards, terrain, fairy pieces
-node test/run.mjs       # bag, loadout, shop, settlement, AI
+node test/variant.mjs   # king-capture, boards, terrain, fairy pieces, statuses
+node test/run.mjs       # bag, loadout, shop, settlement, AI, map, events, relics
 ```
 
 Classic perft still covers the six standard positions through the published
@@ -104,7 +144,8 @@ js/pieces.js        Piece registry — cost, rarity, movement
 js/chess.js         Rules engine — 0x88, variable boards, terrain, king-capture
 js/ai.js            Negamax + alpha-beta + quiescence
 js/ai-worker.js     Runs the search off the main thread
-js/content.js       Encounters, shop stock, king passives
+js/content.js       Encounters, ? room events, shop stock, king passives
+js/relics.js        Relics, piece tags, archetypes
 js/run.js           Bag, slots, supply, loadout, settlement
 js/campaign.js      Map / loadout / shop screens
 js/audio.js         SFX synthesis + the generative ambient bed

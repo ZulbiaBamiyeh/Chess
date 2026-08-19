@@ -73,7 +73,7 @@ export const PIECES = {
   },
   q: {
     id: 'q', name: 'Queen', blurb: 'Bishop and rook in one body.',
-    cost: 9, rarity: RARITY.EPIC, value: 900, sprite: 'queen', slides: K,
+    cost: 11, rarity: RARITY.EPIC, value: 900, sprite: 'queen', slides: K,
   },
   k: {
     id: 'k', name: 'King', blurb: 'One step any way. Capture it and the fight ends.',
@@ -98,15 +98,15 @@ export const PIECES = {
   },
   s: {
     id: 's', name: 'Princess', blurb: 'Bishop plus knight.',
-    cost: 7, rarity: RARITY.EPIC, value: 780, sprite: 'bishop', hue: 280, leaps: N, slides: B,
+    cost: 8, rarity: RARITY.EPIC, value: 780, sprite: 'bishop', hue: 280, leaps: N, slides: B,
   },
   t: {
     id: 't', name: 'Empress', blurb: 'Rook plus knight.',
-    cost: 7, rarity: RARITY.EPIC, value: 850, sprite: 'rook', hue: 155, leaps: N, slides: R,
+    cost: 9, rarity: RARITY.EPIC, value: 850, sprite: 'rook', hue: 155, leaps: N, slides: R,
   },
   a: {
     id: 'a', name: 'Amazon', blurb: 'Queen plus knight. A problem.',
-    cost: 12, rarity: RARITY.LEGENDARY, value: 1250, sprite: 'queen', hue: 318, leaps: N, slides: K,
+    cost: 17, rarity: RARITY.LEGENDARY, value: 1250, sprite: 'queen', hue: 318, leaps: N, slides: K,
   },
   g: {
     id: 'g', name: 'Hopper', blurb: 'Hops the first piece it meets, lands just beyond.',

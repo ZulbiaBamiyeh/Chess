@@ -23,10 +23,14 @@ const GAMES = gamesFlag >= 0 ? Number(args[gamesFlag + 1]) : 24;
 const deployFlag = args.indexOf('--deploy');
 const DEPLOY = deployFlag >= 0 ? Number(args[deployFlag + 1]) : Infinity;
 const only = args.filter((a) => !a.startsWith('--') && PIECES[a]);
+const numeric = new Set(args.filter((a) => /^\d+$/.test(a)));
 
-const FILES = 6;
-const RANKS = 6;
-const BUDGET = 8;              // supply each side spends
+const bi = args.indexOf('--budget');
+const FILES = 7;
+const RANKS = 7;
+// Default 8 kept the expensive pieces out of the sample entirely — the Queen
+// costs 9, so it was never measured at all.
+const BUDGET = bi >= 0 ? Number(args[bi + 1]) : 8;
 const MOVE_CAP = 70;           // plies before the duel is called a draw
 const PROFILE = { depth: 3, budget: 120, slip: 0.12 };
 
@@ -53,7 +57,28 @@ function armyFor(id) {
   return [id, ...Array(fill).fill('p')];
 }
 
-const REFERENCE = Array(Math.min(BUDGET, DEPLOY)).fill('p');
+/**
+ * The yardstick: a sensible mixed army that fills its slots and spends its
+ * budget. A flat wall of pawns is only a fair comparison at low budgets — at
+ * 16 supply it left ten points unspent, which flattered anything expensive.
+ */
+function referenceArmy() {
+  const ladder = ['n', 'b', 'n', 'b', 'r', 'n', 'b', 'r'];
+  const army = [];
+  let spent = 0;
+  const slots = Math.min(DEPLOY, BUDGET);
+  for (const type of ladder) {
+    if (army.length >= slots) break;
+    const c = PIECES[type].cost;
+    if (spent + c > BUDGET) continue;
+    army.push(type);
+    spent += c;
+  }
+  while (army.length < slots && spent + 1 <= BUDGET) { army.push('p'); spent += 1; }
+  return army;
+}
+
+const REFERENCE = referenceArmy();
 
 function build(whiteArmy, blackArmy, rng) {
   const game = new Chess({
@@ -112,7 +137,7 @@ const ids = (only.length ? only : Object.keys(PIECES))
 
 console.log(`Duels: ${GAMES} per piece, ${BUDGET} supply a side, `
   + `deploy cap ${DEPLOY === Infinity ? 'none' : DEPLOY}, ${FILES}x${RANKS}, `
-  + `depth ${PROFILE.depth}. Reference army is ${REFERENCE.length} pawns.\n`);
+  + `depth ${PROFILE.depth}. Reference: ${REFERENCE.join('')}.\n`);
 console.log('piece         cost  value   win%   draw%   loss%   verdict');
 console.log('-'.repeat(66));
 

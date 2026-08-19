@@ -40,11 +40,15 @@ const BUILDS = {
  *  threaten a build that has come together? */
 const ai = args.indexOf('--act');
 const ACT = ai >= 0 ? Number(args[ai + 1]) : 12;
-const TRIALS = ACT === 3
-  ? ['nightwatch', 'crucible', 'frostgate', 'parliament', 'lantern',
-     'bulwark', 'stable', 'furnace', 'procession']
-  : ['courtyard', 'bailey', 'kennels', 'cloister', 'dunes',
-     'forge', 'gallery', 'reliquary', 'glacier'];
+const BOSSES = args.includes('--bosses');
+const TRIALS = BOSSES
+  ? ['marshal', 'quartermaster', 'steward', 'rimeguard', 'collector',
+     'warden', 'conflagration', 'archivist', 'throne']
+  : ACT === 3
+    ? ['nightwatch', 'crucible', 'frostgate', 'parliament', 'lantern',
+       'bulwark', 'stable', 'furnace', 'procession']
+    : ['courtyard', 'bailey', 'kennels', 'cloister', 'dunes',
+       'forge', 'gallery', 'reliquary', 'glacier'];
 
 function makeRun(spec) {
   const run = createRun(20240818);
@@ -52,7 +56,7 @@ function makeRun(spec) {
   // By act 3 a player has been collecting all run, so the bag is roughly double
   // and supply actually binds again. Testing an act-3 budget against an act-1
   // bag measures nothing but which bag holds the best piece.
-  if (ACT === 3) spec = { ...spec, bag: [...spec.bag, ...spec.bag] };
+  if (ACT === 3 || BOSSES) spec = { ...spec, bag: [...spec.bag, ...spec.bag] };
   run.bag = [];
   for (const type of spec.bag) addToBag(run, type);
   // Slots can block exotic bags; the harness is testing armies, not slot maths.
