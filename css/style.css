@@ -2012,11 +2012,10 @@ kbd {
    but a mask's luminance-vs-alpha handling varies by browser (Chromium's
    default painted the "cut" solid white instead of transparent), and none
    of that machinery is needed once nothing is being painted there to cut
-   in the first place. The box-shadow is just a dark rim so the edge still
-   reads as a socket rather than a flat void. */
+   in the first place. No box-shadow either, on purpose — a rim there was
+   still a coat of paint, and the point is that there is nothing at all. */
 .sq.tile-block {
   background: transparent;
-  box-shadow: inset 0 0 10px 3px rgba(0, 0, 0, 0.85);
 }
 /* Frost and fire are drawn rather than photographed.
    The old tiles were raster textures — a washed-out photographic frost and a

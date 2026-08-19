@@ -472,6 +472,25 @@ export const ENCOUNTERS = {
     terrain: { b4: TILE.BLOCK, d4: TILE.BLOCK },
     enemy: [{ type: 'k', at: 'c6' }, { type: 'z', at: 'e6' }, { type: 'p', at: 'b6' }],
   },
+  sinkhole: {
+    id: 'sinkhole', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
+    name: 'The Sinkhole', blurb: 'The middle of the board simply is not there any more.',
+    files: 6, ranks: 6, supply: 13, ai: AI.mid, theme: 'grave',
+    // Most rooms with terrain drop one or two lone walls as an obstacle to
+    // route around. This is the other kind — an actually dramatic hole, a
+    // 2×2 pit dead centre. A wider version of this (a row spanning four or
+    // more of the six files) measured badly: it squeezed every crossing
+    // down to one file on each flank, and that narrow a chokepoint made the
+    // fight easy to wall off and stall out on repetition far more than any
+    // other room in the book. A compact pit leaves both flanks two files
+    // wide, which reads just as dramatic and doesn't wall the board in
+    // half. Kept rare on purpose: if every room looked like this it would
+    // stop reading as a landmark.
+    terrain: {
+      c4: TILE.BLOCK, d4: TILE.BLOCK, c3: TILE.BLOCK, d3: TILE.BLOCK,
+    },
+    enemy: [{ type: 'k', at: 'c6' }, { type: 'b', at: 'b6' }, { type: 'p', at: 'e6' }],
+  },
   rookery: {
     id: 'rookery', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
     name: 'The Rookery', blurb: 'A hopper wants a crowd. Do not give it one.',
