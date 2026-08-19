@@ -121,8 +121,8 @@ export const RELICS = {
   // ----------------------------------------------------------------- fire
   brand: {
     id: 'brand', name: 'Everburning Brand', rarity: RARITY.RARE, archetype: 'Fire',
-    blurb: 'The fire you leave burns a turn longer, and you march with two more supply.',
-    tokens: ['everburn'], supply: 2,
+    blurb: 'The fire you leave burns a turn longer.',
+    tokens: ['everburn'], supply: 1,
   },
   ashboots: {
     id: 'ashboots', name: 'Ash Boots', rarity: RARITY.COMMON, archetype: 'Fire',

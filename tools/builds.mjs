@@ -24,14 +24,16 @@ const PLY_CAP = 90;
 
 /** The archetypes a player could plausibly assemble by act 2. */
 const BUILDS = {
+  // Two relics each: an earlier version gave swarm and fire three and the
+  // others two, which measured generosity rather than synergy.
   // Every bag is worth ~18 supply at base cost. The first pass at this handed
   // the "quality" build a bag worth 28 while swarm got 10, so it measured how
   // good the pieces were rather than how good the relics were.
   baseline: { relics: [], bag: ['p', 'p', 'n', 'b', 'r', 'f', 'w'] },
-  swarm: { relics: ['muster', 'levy', 'pressgang'], bag: ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'f', 'w', 'n'] },
+  swarm: { relics: ['muster', 'levy'], bag: ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'f', 'w', 'n'] },
   quality: { relics: ['warrant', 'heavystandard'], bag: ['q', 'r', 'n', 'p'] },
   frost: { relics: ['deepfreeze', 'icebound'], bag: ['i', 'i', 'b', 'n', 'p', 'p'] },
-  fire: { relics: ['pyroclast', 'ashboots', 'brand'], bag: ['l', 'l', 'b', 'n', 'p', 'p'] },
+  fire: { relics: ['pyroclast', 'ashboots'], bag: ['l', 'l', 'b', 'n', 'p', 'p'] },
   cavalry: { relics: ['cavalry', 'farrier'], bag: ['n', 'n', 'c', 'z', 'h', 'p', 'p'] },
   martyr: { relics: ['vengefulash', 'bonetithe'], bag: ['y', 'x', 'v', 'b', 'p'] },
 };
@@ -75,7 +77,12 @@ function playOut(game, enc) {
     // Faithful to the real game: you think at PROFILE, they think at whatever
     // the encounter specifies. Running both sides at one strength measured a
     // matchup the player never actually faces.
-    const move = chooseMove(game, game.turn === WHITE ? PROFILE : (enc.ai || PROFILE));
+    // One profile for both sides. This sweep compares builds AGAINST EACH
+    // OTHER, so a constant opponent is the controlled experiment; the act-3
+    // profiles run to 2.4s a move, which is right in the game and hopeless in
+    // a sweep. test/playthrough.mjs uses the real encounter AI, where
+    // faithfulness is the point.
+    const move = chooseMove(game, PROFILE);
     if (!move) return game.turn === WHITE ? 'b' : 'w';
     if (!game.move({ from: move.from, to: move.to, promotion: move.promotion })) return 'draw';
     if (game.awaitingDuck) game.placeDuck(game.duckOptions()[0]);
