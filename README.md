@@ -16,8 +16,10 @@ or run it locally (see below). Every push deploys through GitHub Actions.
   pool per act, three elites and three bosses each. Fights draw without
   replacement, so an act never repeats itself, and every act opens on the easy
   pool so a run cannot die to its first room.
-- **King capture ends the fight.** Losing yours costs **HP**, not the run.
-  Rest nodes and the shop heal. Pieces always come home.
+- **King capture ends the fight.** Losing yours costs **HP** by tier, not the
+  run — you can take the room again for as long as you are still standing, and
+  the run ends only when the HP does. Camping heals, the shop heals, pieces
+  always come home.
 - **Two budgets.** Supply caps what your army is *worth*; deploy caps how many
   *bodies* it has. Supply alone was not enough — a king-capture fight is won by
   bodies, so with points as the only limit the cheapest body always won.
@@ -67,10 +69,17 @@ them, a committed one far more.
 ## Testing
 
 ```bash
-node test/perft.mjs     # 26 classic counts
-node test/variant.mjs   # king-capture, boards, terrain, fairy pieces, statuses
-node test/run.mjs       # bag, loadout, shop, settlement, AI, map, events, relics
+node test/perft.mjs        # 26 classic counts
+node test/variant.mjs      # king-capture, boards, terrain, fairy pieces, statuses
+node test/run.mjs          # bag, loadout, shop, settlement, AI, map, events, relics
+node test/playthrough.mjs  # a whole run, end to end
 ```
+
+`playthrough.mjs` walks a run the way a player does — routing around elites when
+hurt, fighting with the real AI, settling, taking relics, shopping, resolving
+events, camping — and asserts the state stays coherent at every step. It is
+worth more than its size suggests: it is what surfaced three dead features that
+every unit test had been happy with.
 
 Classic perft still covers the six standard positions through the published
 depths (Kiwipete to depth 4 is 4,085,603 nodes). Variant tests cover

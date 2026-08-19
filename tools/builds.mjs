@@ -68,7 +68,7 @@ function makeRun(spec) {
 
 const pickLoadout = (run, enc) => suggestLoadout(run, enc);
 
-function playOut(game) {
+function playOut(game, enc) {
   for (let ply = 0; ply < PLY_CAP; ply++) {
     const done = game.outcome();
     if (done.over) return done.winner || 'draw';
@@ -99,7 +99,7 @@ for (const [name, spec] of Object.entries(BUILDS)) {
       if (!sampleSupply) { sampleSupply = supplyBudget(run, enc); sampleDeploy = deployBudget(run, enc); }
       const load = pickLoadout(run, enc);
       const game = buildFight(run, enc, autoPlace(enc, load));
-      const res = playOut(game);
+      const res = playOut(game, enc);
       if (res === 'w') w++; else if (res === 'b') l++; else d++;
     }
   }
