@@ -276,6 +276,8 @@ export function initCampaign(ctx) {
 
   function openRest() {
     paintRunHud();
+    const node = currentNode(state.run);
+    $('rest-name').textContent = node?.name || 'A Quiet Square';
     $('rest-detail').textContent = 'Choose how to spend the moment.';
     $('rest-outcome').classList.add('hidden');
     $('btn-rest-move-on').classList.add('hidden');
@@ -335,7 +337,10 @@ export function initCampaign(ctx) {
       btn.addEventListener('click', () => {
         const result = trainPiece(state.run, item.uid);
         if (!result.ok) { audio.illegal(); toast(result.reason, 'danger'); return; }
-        audio.click();
+        // Train is the one camp choice that compounds for the rest of the
+        // run — worth a bigger payoff than a click, same as claiming a relic.
+        audio.victory();
+        confetti(28);
         finishRest([`${def.name} is shielded, every fight from now on`]);
       });
       btn.addEventListener('pointerenter', () => audio.hover());
@@ -454,40 +459,62 @@ export function initCampaign(ctx) {
     host.textContent = bits.length ? `They bring ${bits.join(', ')}.` : '';
   }
 
+  /**
+   * Duplicate pieces (three pawns, say) used to each get their own full-width
+   * row, so a modest bag meant a lot of scrolling to look at identical text
+   * three times over. Group same type+trained copies into one tile — a
+   * count badge stands in for the repetition, and the tile still tracks
+   * which specific copy it's acting on underneath, so placing and picking
+   * back up work exactly as before.
+   */
   function renderBag() {
     const list = $('bag-list');
     list.innerHTML = '';
     const used = new Set(placements.map((p) => p.uid));
     const left = remainingSupply();
+    const groups = new Map();
     for (const item of state.run.bag) {
-      const def = pieceById(item.type);
-      const placed = used.has(item.uid);
-      const tooDear = !placed && def.cost > left;
+      const key = `${item.type}|${item.trained ? 1 : 0}`;
+      const g = groups.get(key) || { type: item.type, trained: Boolean(item.trained), items: [] };
+      g.items.push(item);
+      groups.set(key, g);
+    }
+    for (const g of groups.values()) {
+      const def = pieceById(g.type);
+      const freeItems = g.items.filter((it) => !used.has(it.uid));
+      const placedCount = g.items.length - freeItems.length;
+      const allPlaced = freeItems.length === 0;
+      const tooDear = !allPlaced && def.cost > left;
       // Bodies are capped as well as points, so a horde runs out of room
       // before it runs out of supply.
-      const atDeployCap = !placed
+      const atDeployCap = !allPlaced
         && placements.filter((p) => p.uid !== 'king').length >= deployBudget(state.run, state.encounter);
+      const activeItem = allPlaced ? g.items.find((it) => used.has(it.uid)) : freeItems[0];
       const btn = document.createElement('button');
-      btn.className = 'bag-item'
-        + (placed ? ' used' : '')
+      btn.className = 'bag-tile'
+        + (allPlaced ? ' used' : '')
         + (tooDear || atDeployCap ? ' dear' : '')
-        + (selectedUid === item.uid ? ' on' : '');
+        + (g.items.some((it) => it.uid === selectedUid) ? ' on' : '');
       btn.title = def.blurb || def.name;
-      const hue = pieceHue(item.type);
+      const hue = pieceHue(g.type);
+      const countBadge = g.items.length > 1
+        ? (placedCount > 0 ? `${freeItems.length}/${g.items.length}` : `×${g.items.length}`)
+        : '';
       btn.innerHTML =
-        `<i style="background-image:url('${pieceImage(item.type, WHITE)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`
-        + (item.trained ? '<span class="bag-trained" title="Trained: shielded every fight">⛨</span>' : '')
-        + `<span class="bag-name">${def.name}</span>`
-        + `<span class="bag-meta">${def.cost} · ${def.rarity}${placed ? ' · on board' : ''}</span>`;
+        `<i style="background-image:url('${pieceImage(g.type, WHITE)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`
+        + (countBadge ? `<span class="bag-tile-count">${countBadge}</span>` : '')
+        + (g.trained ? '<span class="bag-trained" title="Trained: shielded every fight">⛨</span>' : '')
+        + `<span class="bag-tile-name">${def.name}</span>`
+        + `<span class="bag-tile-meta">${def.cost}${allPlaced ? ' · on board' : ''}</span>`;
       btn.addEventListener('click', () => {
-        if (placed) {
-          placements = placements.filter((p) => p.uid !== item.uid);
-          selectedUid = item.uid;
+        if (allPlaced) {
+          placements = placements.filter((p) => p.uid !== activeItem.uid);
+          selectedUid = activeItem.uid;
           audio.lift();
           rebuildDeploy();
           renderBag();
           paintSupply();
-          paintMoveDiagram(item.type);
+          paintMoveDiagram(activeItem.type);
           return;
         }
         if (tooDear) {
@@ -500,10 +527,10 @@ export function initCampaign(ctx) {
           toast(`No room — ${deployBudget(state.run, state.encounter)} pieces max`, 'danger');
           return;
         }
-        selectedUid = selectedUid === item.uid ? null : item.uid;
+        selectedUid = selectedUid === activeItem.uid ? null : activeItem.uid;
         audio.click();
         renderBag();
-        paintMoveDiagram(selectedUid ? item.type : null);
+        paintMoveDiagram(selectedUid ? activeItem.type : null);
       });
       btn.addEventListener('pointerenter', () => audio.hover());
       list.appendChild(btn);

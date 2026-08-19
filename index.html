@@ -311,10 +311,12 @@
           <div id="md-board" class="md-board"></div>
         </div>
         <div id="loadout-selected" class="selected-list"></div>
-        <button id="btn-loadout-auto" class="btn btn-ghost btn-wide">Auto-place</button>
-        <button id="btn-loadout-clear" class="btn btn-ghost btn-wide">Clear</button>
-        <button id="btn-loadout-fight" class="btn btn-gold btn-wide">Fight</button>
-        <button id="btn-loadout-back" class="btn btn-ghost btn-wide">Back</button>
+        <div class="loadout-actions">
+          <button id="btn-loadout-auto" class="btn btn-ghost btn-wide">Auto-place</button>
+          <button id="btn-loadout-clear" class="btn btn-ghost btn-wide">Clear</button>
+          <button id="btn-loadout-fight" class="btn btn-gold btn-wide">Fight</button>
+          <button id="btn-loadout-back" class="btn btn-ghost btn-wide">Back</button>
+        </div>
       </div>
     </div>
   </section>
@@ -357,7 +359,7 @@
     </header>
     <div class="rest-card">
       <img class="rest-ico" src="assets/map-rest.png" alt="" width="72" height="72">
-      <h2>A Quiet Square</h2>
+      <h2 id="rest-name">A Quiet Square</h2>
       <p id="rest-detail">Choose how to spend the moment.</p>
       <div id="rest-choices" class="event-choices"></div>
       <div id="rest-outcome" class="event-outcome hidden"></div>

@@ -10,6 +10,16 @@ export const REST_HEAL = 7;
 export const REST_GOLD = 3;
 export const FORAGE_GOLD = 9;
 export const TRAIN_COST = 6;
+
+// A camp isn't one fixed room, so it shouldn't read like one — same choices
+// every time, but the map tooltip and the room's own name vary per visit.
+const REST_NAMES = [
+  { name: 'A Quiet Square', blurb: 'Rest, forage, or train — your call.' },
+  { name: 'Dead Coals', blurb: 'Someone camped here first. Rest, forage, or train.' },
+  { name: 'The Watch Fire', blurb: 'Still burning. Rest, forage, or train.' },
+  { name: 'A Sheltered Corner', blurb: 'Out of the wind, at least. Rest, forage, or train.' },
+  { name: 'The Last Mile Marker', blurb: 'Someone carved a name into it. Rest, forage, or train.' },
+];
 export const TURN_CLOCK = { trash: 10, elite: 14, boss: 18 };
 
 export const STARTING_BAG = ['p', 'p', 'p', 'n', 'f', 'w'];
@@ -900,9 +910,10 @@ export function generateMap(rng) {
             next: [],
           };
         } else if (kind === 'rest') {
+          const pick = REST_NAMES[Math.floor(rng() * REST_NAMES.length)];
           node = {
             id, act, col: layer.col, row, kind: 'rest',
-            name: 'A Quiet Square', blurb: `Camp. Take ${REST_GOLD} gold.`,
+            name: pick.name, blurb: pick.blurb,
             next: [],
           };
         } else {

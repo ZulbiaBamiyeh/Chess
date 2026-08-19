@@ -690,6 +690,7 @@ kbd {
   grid-template-rows: calc(var(--cell) * var(--ranks)) 1.1rem;
   gap: 0.2rem;
   justify-self: center;
+  max-width: 100%;
 }
 
 .board {
@@ -1004,30 +1005,120 @@ kbd {
 /* ---------- responsive ---------- */
 
 @media (max-width: 980px) {
+  /* .screen centers its content vertically, which is fine while everything
+     fits — but centering an *overflowing* flex container clips equally off
+     both ends instead of anchoring to the top, so the header and blurb were
+     scrolling out of reach above the fold with no way back to them. Once a
+     screen can be taller than the viewport, it needs to read top-down. */
+  .screen { justify-content: flex-start; }
+
   .table {
     grid-template-columns: 1fr;
     grid-template-areas: 'board' 'rail' 'moves';
     align-content: start;
   }
-  .board-wrap { grid-area: board; --board: min(72vw, 58vh); }
+  .board-wrap { grid-area: board; --board: min(64vw, 54vh); }
   .rail:not(.rail-moves) { grid-area: rail; flex-direction: row; flex-wrap: wrap; justify-content: center; }
   .rail:not(.rail-moves) .player-panel { flex: 1 1 180px; }
   .rail-actions { flex-direction: row; flex: 1 1 100%; }
   .rail-moves { grid-area: moves; max-height: 26vh; }
   .move-list { max-height: 20vh; }
-  .topbar { grid-template-columns: auto 1fr auto; }
   .brand { font-size: 0.8rem; }
+
+  /* Every topbar has a different mix of children (brand + hud + controls on
+     most screens; brand + status + hud + controls on the game and shop
+     screens, in different DOM orders between the two) — a fixed column
+     count for "the" topbar broke whichever screen didn't match it, which is
+     why the clock chip used to float above the rest of the HUD row on the
+     game screen. Grid areas key off class, not source order or count, so
+     the same rule works for every screen and an area with nothing in it
+     just collapses away. */
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "brand controls"
+      "status status"
+      "hud hud";
+    row-gap: 0.35rem;
+    column-gap: 0.5rem;
+    max-width: none;
+  }
+  .topbar .brand, .brand { grid-area: brand; }
+  .topbar .status, .topbar > .status { grid-area: status; justify-self: center; }
+  .topbar .run-hud, .topbar > .run-hud { grid-area: hud; justify-content: center; width: 100%; }
+  .topbar .topbar-controls { grid-area: controls; }
 }
 
 @media (max-width: 560px) {
+  .screen { padding: 0.5rem; gap: 0.5rem; }
+  .rail-moves { max-height: 16vh; }
+  .move-list { max-height: 11vh; }
+  .rail:not(.rail-moves) .player-panel { padding: 0.4rem 0.5rem; }
   .board-wrap {
-    --board: min(92vw, 52vh);
+    --board: min(78vw, 46vh);
     grid-template-columns: 0.9rem calc(var(--cell) * var(--files));
     grid-template-rows: calc(var(--cell) * var(--ranks)) 0.9rem;
   }
   .setup { grid-template-columns: 1fr; }
   .howto-grid { grid-template-columns: 1fr; }
   .status { font-size: 0.7rem; padding: 0.45em 0.8em; }
+
+  /* Loadout has three stacked panels competing for one viewport's height —
+     give the board a smaller budget than the fight screen's, and cap the
+     bag list so it scrolls internally instead of pushing the board and the
+     Fight button off the bottom of the screen. */
+  #screen-loadout .board-wrap { --board: min(66vw, 25vh); }
+  #screen-loadout .bag-list { max-height: 17vh; }
+  #screen-loadout .loadout-side { gap: 0.3rem; }
+  #screen-loadout .move-diagram { padding: 0.4rem; max-width: 220px; margin: 0 auto 0.2rem; }
+  #screen-loadout.screen, #screen-loadout { gap: 0.4rem; }
+  #screen-loadout .topbar { row-gap: 0.2rem; }
+  #screen-loadout .md-head { margin-bottom: 0.2rem; }
+  #screen-loadout .loadout-blurb { font-size: 0.78rem; margin: 0; }
+  #screen-loadout .enemy-roster { font-size: 0.76rem; padding: 0.25rem 0.7rem; }
+  #screen-loadout .loadout-grid { gap: 0.5rem; }
+  #screen-loadout .rail-title { margin: 0 0 0.25rem; font-size: 0.64rem; }
+  #screen-loadout .rail-title-sub { margin-top: 0.3rem; }
+  #screen-loadout .slot-line { margin: 0 0 0.25rem; }
+  #screen-loadout .supply-meter { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.6rem; }
+  #screen-loadout .supply-text { flex: none; margin: 0; }
+  #screen-loadout .supply-bar { flex: 1 1 100px; height: 6px; }
+  #screen-loadout .rail-title-sub { flex-basis: 100%; }
+  #screen-loadout .deploy-hint { display: none; }
+  #screen-loadout .move-diagram.empty { padding: 0.3rem 0.5rem; }
+  #screen-loadout .move-diagram.empty .md-head { margin-bottom: 0; grid-template-columns: 1fr; }
+  #screen-loadout .move-diagram.empty .md-head i { display: none; }
+  #screen-loadout .move-diagram.empty .md-head span { font-size: 0.68rem; }
+  #screen-loadout .loadout-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.35rem;
+  }
+  #screen-loadout #btn-loadout-fight { grid-column: 1 / -1; order: -1; }
+  #screen-loadout .btn-wide { padding: 0.5em; font-size: 0.74rem; }
+
+  /* Shop offers and camp/event choice lists are both "browse several cards"
+     screens — unlike the rest of the game there's no shrinking these down
+     to fit one viewport once there are more than three or four of them, so
+     they get an internal scroll region instead, the same pattern already
+     used for the bag and move lists. The header, blurb, and reroll/leave
+     buttons stay put outside the scroller. */
+  #screen-shop .shop-stage { padding: 0.7rem 0.5rem; }
+  #screen-shop .shop-offers {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    max-height: 48vh;
+    overflow-y: auto;
+    padding: 0.15rem;
+  }
+  #screen-shop .shop-card { padding: 0.5rem 0.4rem; gap: 0.15rem; max-width: none; }
+  #screen-shop .shop-art { width: 44px; height: 44px; }
+  #screen-shop .shop-card-blurb { font-size: 0.66rem; min-height: 2em; }
+  #screen-shop .shop-card-name { font-size: 0.68rem; }
+
+  .event-choices { max-height: 42vh; overflow-y: auto; padding-right: 0.15rem; }
+  .rest-card, .event-card { padding: 1rem 1rem 1.1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1360,6 +1451,12 @@ kbd {
   gap: 1rem;
   align-items: start;
 }
+.loadout-bag, .loadout-board, .loadout-side {
+  /* Grid items default to min-width: auto, which floors their shrink at the
+     content's natural size — a fixed-vw board then blows the whole grid
+     track (and the viewport) out sideways instead of scaling down. */
+  min-width: 0;
+}
 .loadout-bag, .loadout-side {
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -1368,35 +1465,20 @@ kbd {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 .slot-line { font-size: 0.74rem; color: var(--ink-faint); margin: 0 0 0.5rem; }
-.bag-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: 58vh; overflow: auto; }
-.bag-item {
-  position: relative;
+/* A stack of identical pieces used to be N identical full-width rows; now
+   it's one tile with a count badge, laid out in the same icon-grid as the
+   full bag modal so the two feel like one visual language. */
+.bag-list {
   display: grid;
-  grid-template-columns: 34px 1fr;
-  grid-template-rows: auto auto;
-  gap: 0 0.5rem;
-  text-align: left;
-  padding: 0.3rem 0.45rem;
-  background: rgba(30, 39, 73, 0.7);
-  border: 2px solid rgba(169, 179, 208, 0.18);
-  border-radius: 8px;
-  color: var(--ink);
-  font-family: var(--font-body);
-  cursor: pointer;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 0.45rem;
+  max-height: 58vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.1rem;
 }
-.bag-item i {
-  grid-row: 1 / 3;
-  width: 32px; height: 32px;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center bottom;
-}
-.bag-name { font-weight: 700; font-size: 0.88rem; }
-.bag-meta { font-size: 0.72rem; color: var(--ink-faint); }
-.bag-item:hover { border-color: rgba(255, 207, 63, 0.45); }
-.bag-item.on { border-color: var(--gold); background: rgba(255, 207, 63, 0.14); }
-.bag-item.used { opacity: 0.55; }
-.bag-item.dear { opacity: 0.4; }
+.bag-tile.used { opacity: 0.55; }
+.bag-tile.dear { opacity: 0.4; }
 .enemy-roster, .shop-bag {
   margin: 0;
   color: var(--ink-dim);
@@ -1537,7 +1619,6 @@ kbd {
   font-size: 0.62rem;
   line-height: 1.4;
 }
-.bag-item .bag-trained { top: 2px; left: 24px; }
 .bag-tile.peek {
   border-color: rgba(67, 217, 255, 0.7);
   box-shadow: 0 0 0 3px rgba(67, 217, 255, 0.12);
@@ -1715,6 +1796,22 @@ kbd {
   font-family: var(--font-body);
   cursor: pointer;
   transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+  animation: shop-card-in 0.32s cubic-bezier(.2, .8, .3, 1.1) backwards;
+}
+@keyframes shop-card-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+.shop-card:nth-child(1) { animation-delay: 0.02s; }
+.shop-card:nth-child(2) { animation-delay: 0.07s; }
+.shop-card:nth-child(3) { animation-delay: 0.12s; }
+.shop-card:nth-child(4) { animation-delay: 0.17s; }
+.shop-card:nth-child(5) { animation-delay: 0.22s; }
+.shop-card:nth-child(6) { animation-delay: 0.27s; }
+.shop-card:nth-child(7) { animation-delay: 0.32s; }
+.shop-card:nth-child(8) { animation-delay: 0.37s; }
+@media (prefers-reduced-motion: reduce) {
+  .shop-card { animation: none; }
 }
 .shop-card:hover:not(:disabled) {
   transform: translateY(-4px);
@@ -1765,7 +1862,17 @@ kbd {
   width: 72px;
   height: 72px;
   margin: 0 auto 0.7rem;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 16px rgba(255, 154, 74, 0.35));
+  animation: campfire-flicker 2.6s ease-in-out infinite;
+}
+@keyframes campfire-flicker {
+  0%, 100% { filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 16px rgba(255, 154, 74, 0.35)); transform: scale(1); }
+  30% { filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 22px rgba(255, 180, 90, 0.55)); transform: scale(1.015); }
+  55% { filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 12px rgba(255, 140, 60, 0.3)); transform: scale(0.99); }
+  80% { filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 20px rgba(255, 170, 80, 0.5)); transform: scale(1.01); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rest-ico { animation: none; }
 }
 .rest-card h2 {
   font-family: var(--font-pixel);
@@ -2245,6 +2352,14 @@ kbd {
   font-family: var(--font-body);
   cursor: pointer;
   transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+  animation: shop-card-in 0.36s cubic-bezier(.2, .8, .3, 1.1) backwards;
+}
+.relic-card:nth-child(1) { animation-delay: 0.04s; }
+.relic-card:nth-child(2) { animation-delay: 0.11s; }
+.relic-card:nth-child(3) { animation-delay: 0.18s; }
+.relic-card:nth-child(4) { animation-delay: 0.25s; }
+@media (prefers-reduced-motion: reduce) {
+  .relic-card { animation: none; }
 }
 .relic-card:hover {
   transform: translateY(-4px);
