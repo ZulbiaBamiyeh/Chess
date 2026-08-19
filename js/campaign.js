@@ -491,11 +491,11 @@ export function initCampaign(ctx) {
         && placements.filter((p) => p.uid !== 'king').length >= deployBudget(state.run, state.encounter);
       const activeItem = allPlaced ? g.items.find((it) => used.has(it.uid)) : freeItems[0];
       const btn = document.createElement('button');
-      btn.className = 'bag-tile'
+      btn.className = `bag-tile rarity-${def.rarity}`
         + (allPlaced ? ' used' : '')
         + (tooDear || atDeployCap ? ' dear' : '')
         + (g.items.some((it) => it.uid === selectedUid) ? ' on' : '');
-      btn.title = def.blurb || def.name;
+      btn.title = `${def.name} — ${def.blurb || ''}`.trim();
       const hue = pieceHue(g.type);
       const countBadge = g.items.length > 1
         ? (placedCount > 0 ? `${freeItems.length}/${g.items.length}` : `×${g.items.length}`)
@@ -504,6 +504,7 @@ export function initCampaign(ctx) {
         `<i style="background-image:url('${pieceImage(g.type, WHITE)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`
         + (countBadge ? `<span class="bag-tile-count">${countBadge}</span>` : '')
         + (g.trained ? '<span class="bag-trained" title="Trained: shielded every fight">⛨</span>' : '')
+        + `<span class="bag-tile-cost">${def.cost}</span>`
         + `<span class="bag-tile-name">${def.name}</span>`
         + `<span class="bag-tile-meta">${def.cost}${allPlaced ? ' · on board' : ''}</span>`;
       btn.addEventListener('click', () => {

@@ -1069,7 +1069,42 @@ kbd {
      bag list so it scrolls internally instead of pushing the board and the
      Fight button off the bottom of the screen. */
   #screen-loadout .board-wrap { --board: min(66vw, 25vh); }
-  #screen-loadout .bag-list { max-height: 17vh; }
+
+  /* On a phone the bag reads better as an actual inventory grid — square
+     slots, icon only, rarity-tinted border, count/cost as corner badges —
+     than as a card list with room for a name and a blurb line. Tapping a
+     slot still opens the full name/blurb/cost in the move-diagram panel
+     right below, so nothing gets lost, it just isn't printed under every
+     icon any more. */
+  #screen-loadout .bag-list {
+    max-height: 19vh;
+    grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+    gap: 0.4rem;
+  }
+  #screen-loadout .bag-tile {
+    grid-template-rows: none;
+    aspect-ratio: 1;
+    padding: 0.25rem;
+    border-radius: 9px;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  }
+  #screen-loadout .bag-tile-name,
+  #screen-loadout .bag-tile-meta { display: none; }
+  #screen-loadout .bag-tile-cost { display: block; }
+  #screen-loadout .bag-tile i { width: 78%; height: 78%; }
+  #screen-loadout .bag-tile-count { top: 3px; right: 3px; font-size: 0.56rem; padding: 0.02em 0.28em; }
+  #screen-loadout .bag-trained { top: 3px; left: 3px; font-size: 0.5rem; padding: 0.02em 0.22em; }
+  #screen-loadout .bag-tile.used::after {
+    content: '✓';
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 1.1rem;
+    color: var(--green);
+    background: rgba(3, 5, 14, 0.5);
+    border-radius: 7px;
+  }
   #screen-loadout .loadout-side { gap: 0.3rem; }
   #screen-loadout .move-diagram { padding: 0.4rem; max-width: 220px; margin: 0 auto 0.2rem; }
   #screen-loadout.screen, #screen-loadout { gap: 0.4rem; }
@@ -1584,6 +1619,9 @@ kbd {
 }
 .bag-tile.king-tile.idle { opacity: 0.62; filter: saturate(0.75); }
 .bag-tile.king-tile.idle:hover { opacity: 1; filter: none; }
+.bag-tile.rarity-rare { border-color: rgba(67, 217, 255, 0.4); background: linear-gradient(180deg, rgba(67, 217, 255, 0.08), rgba(13, 18, 36, 0.75)); }
+.bag-tile.rarity-epic { border-color: rgba(192, 140, 255, 0.48); background: linear-gradient(180deg, rgba(192, 140, 255, 0.1), rgba(13, 18, 36, 0.75)); }
+.bag-tile.rarity-legendary { border-color: rgba(255, 207, 63, 0.58); background: linear-gradient(180deg, rgba(255, 207, 63, 0.12), rgba(13, 18, 36, 0.75)); }
 .bag-tile i {
   width: 44px;
   height: 44px;
@@ -1606,6 +1644,19 @@ kbd {
   font-size: 0.64rem;
 }
 .bag-tile.king-tile i { filter: none; }
+.bag-tile-cost {
+  display: none;
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  font-family: var(--font-pixel);
+  font-size: 0.56rem;
+  color: var(--gold);
+  background: rgba(3, 5, 14, 0.72);
+  padding: 0.02em 0.32em;
+  border-radius: 5px;
+  line-height: 1.4;
+}
 .bag-trained {
   position: absolute;
   top: 6px;
