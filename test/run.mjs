@@ -13,7 +13,8 @@ import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS 
 import { chooseMove } from '../js/ai.js';
 import { Chess } from '../js/chess.js';
 import { RARITY, PIECES } from '../js/pieces.js';
-import { RELICS, RELIC_IDS } from '../js/relics.js';
+import { RELICS, RELIC_IDS, hasTag } from '../js/relics.js';
+import { readFileSync } from 'node:fs';
 import { ST_SHIELD as ST_SHIELD_BIT } from '../js/chess.js';
 
 let failures = 0;
@@ -484,6 +485,39 @@ function courtyardOrGate() {
   const game = buildFight(run, ENCOUNTERS.gate, autoPlace(ENCOUNTERS.gate, []));
   assert('relic tokens reach the engine modifier list',
     game.kingPassives.includes('deepfreeze') && game.kingPassives.includes('ashboots'),
+    JSON.stringify(game.kingPassives));
+}
+
+{
+  // Every relic that names a piece tag has to actually hit something in the
+  // registry — a discount or a shield keyed to a tag no piece carries is a
+  // relic that silently does nothing.
+  const ids = Object.keys(PIECES);
+  const dead = [];
+  for (const relic of Object.values(RELICS)) {
+    const tag = relic.discount?.tag || relic.shieldTag?.tag;
+    if (tag && !ids.some((id) => hasTag(id, tag))) dead.push(`${relic.id}:${tag}`);
+  }
+  assert('no relic keys off a tag nothing has', dead.length === 0, dead.join(', '));
+
+  // Likewise every engine token a relic pushes must be one the engine reads.
+  const source = readFileSync(new URL('../js/chess.js', import.meta.url), 'utf8');
+  const unread = [];
+  for (const relic of Object.values(RELICS)) {
+    for (const token of relic.tokens || []) {
+      if (!source.includes(`'${token}'`)) unread.push(`${relic.id}:${token}`);
+    }
+  }
+  assert('no relic pushes a token the engine ignores', unread.length === 0, unread.join(', '));
+}
+
+{
+  // The four newer rules, reached the way the run layer reaches them.
+  const run = createRun(1);
+  run.relics = ['gravecall', 'longshot', 'phalanx', 'postroad'];
+  const game = buildFight(run, ENCOUNTERS.gate, autoPlace(ENCOUNTERS.gate, []));
+  assert('the new archetype tokens reach the engine too',
+    ['gravecall', 'longshot', 'wideaura', 'kingswap'].every((t) => game.kingPassives.includes(t)),
     JSON.stringify(game.kingPassives));
 }
 

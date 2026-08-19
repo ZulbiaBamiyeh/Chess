@@ -228,6 +228,7 @@ function playMove(from, to, promotion) {
   const move = state.game.move({ from, to, promotion });
   if (!move) return false;
   state.view.applyMove(move);
+  state.view.reconcile(state.game);
   state.view.syncStatuses(state.game);
   reactTo(move);
   updateHud();
@@ -337,6 +338,7 @@ function scheduleOpponent() {
       });
       if (!move) { refreshStatus(); return; }
       state.view.applyMove(move);
+      state.view.reconcile(state.game);
       state.view.syncStatuses(state.game);
       reactTo(move);
       updateHud();

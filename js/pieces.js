@@ -26,6 +26,8 @@ const C = [[1, 3], [1, -3], [-1, 3], [-1, -3], [3, 1], [3, -1], [-3, 1], [-3, -1
 const ALFIL = [[2, 2], [2, -2], [-2, 2], [-2, -2]];
 const DABBABA = [[2, 0], [-2, 0], [0, 2], [0, -2]];
 const ZEBRA = [[2, 3], [2, -3], [-2, 3], [-2, -3], [3, 2], [3, -2], [-3, 2], [-3, -2]];
+/** Every square exactly two away — the alfil, dabbaba and knight rings. */
+const DIST2 = [...ALFIL, ...DABBABA, ...N];
 
 /** @typedef {'common'|'uncommon'|'rare'|'legendary'|'unique'} Rarity */
 
@@ -50,6 +52,10 @@ const ZEBRA = [[2, 3], [2, -3], [-2, 3], [-2, -3], [3, 2], [3, -2], [-3, 2], [-3
  * @property {boolean} [wisp]
  * @property {boolean} [sapper]   blast on being captured
  * @property {boolean} [shielded] enters the fight already shielded
+ * @property {number[][]} [shoots] captures at these offsets without moving
+ * @property {boolean} [raises]   what it kills rises again on its side
+ * @property {boolean} [aura]     lends adjacent friendlies a king step
+ * @property {boolean} [swaps]    trades places with friendly pieces
  * @property {boolean} [shop]
  */
 
@@ -148,6 +154,57 @@ export const PIECES = {
     id: 'v', name: 'Warden', blurb: 'One step any way, and it walks into the fight shielded.',
     cost: 4, rarity: RARITY.RARE, value: 370, sprite: 'rook', hue: 190, leaps: K, shielded: true,
   },
+
+  // ---- bodies -----------------------------------------------------------
+  // Cheap, honest pieces. The swarm archetype had nothing between a 1-supply
+  // pawn and a 3-supply knight worth filling a deploy slot with.
+  guard: {
+    id: 'guard', name: 'Guard', san: 'Gd', blurb: 'One step any way. No tricks, just a body that fights.',
+    cost: 2, rarity: RARITY.RARE, value: 270, sprite: 'wazir', hue: 300, leaps: K,
+  },
+
+  // ---- leapers ----------------------------------------------------------
+  gnu: {
+    id: 'gnu', name: 'Gnu', san: 'Gn', blurb: 'Knight and camel in one. Nothing on the board is safe from it.',
+    cost: 6, rarity: RARITY.RARE, value: 520, sprite: 'knight', hue: 40, leaps: [...N, ...C],
+  },
+  squirrel: {
+    id: 'squirrel', name: 'Squirrel', san: 'Sq',
+    blurb: 'Leaps to any square exactly two away. Sixteen of them.',
+    cost: 4, rarity: RARITY.RARE, value: 450, sprite: 'hopper', hue: 95, leaps: DIST2,
+  },
+
+  // ---- sliders ----------------------------------------------------------
+  horse: {
+    id: 'horse', name: 'Dragon Horse', san: 'Dh', blurb: 'A bishop that also steps sideways. It sees every square.',
+    cost: 5, rarity: RARITY.RARE, value: 520, sprite: 'bishop', hue: 35, leaps: R, slides: B,
+  },
+  dragon: {
+    id: 'dragon', name: 'Dragon King', san: 'Dk', blurb: 'A rook that also steps on the diagonals.',
+    cost: 9, rarity: RARITY.EPIC, value: 800, sprite: 'rook', hue: 330, leaps: B, slides: R,
+  },
+
+  // ---- new rules --------------------------------------------------------
+  banner: {
+    id: 'banner', name: 'Banner', san: 'Bn',
+    blurb: 'One orthogonal step. Every friend standing beside it also moves a king’s step.',
+    cost: 5, rarity: RARITY.RARE, value: 300, sprite: 'ferz', hue: 60, leaps: R, aura: true,
+  },
+  courier: {
+    id: 'courier', name: 'Courier', san: 'Co',
+    blurb: 'Slides on the diagonals, and trades places with a friend instead of stopping at one.',
+    cost: 4, rarity: RARITY.RARE, value: 360, sprite: 'ferz', hue: 195, slides: B, swaps: true,
+  },
+  crossbow: {
+    id: 'crossbow', name: 'Crossbow', san: 'Xb',
+    blurb: 'Steps one square diagonally. Kills at a knight’s leap without ever moving.',
+    cost: 7, rarity: RARITY.EPIC, value: 470, sprite: 'blaze', leaps: B, shoots: N,
+  },
+  reaper: {
+    id: 'reaper', name: 'Reanimator', san: 'Rn',
+    blurb: 'Steps one square any way. Whatever it kills gets up again on your side.',
+    cost: 8, rarity: RARITY.EPIC, value: 560, sprite: 'wisp', hue: 120, leaps: K, raises: true,
+  },
 };
 
 // `e` is reserved in some FENs; Empress uses `t` (for "tower-knight") so a
@@ -201,6 +258,7 @@ for (const def of Object.values(PIECES)) {
   if (def.leaps) def.leapOff = toOffsets(def.leaps);
   if (def.slides) def.slideOff = toOffsets(def.slides);
   if (def.hopper) def.hopperOff = toOffsets(def.hopper);
+  if (def.shoots) def.shootOff = toOffsets(def.shoots);
 }
 
 export const PROMOTE_TO = ['q', 'r', 'b', 'n'];

@@ -12,8 +12,8 @@ or run it locally (see below). Every push deploys through GitHub Actions.
 
 - **A run.** Three acts on a branching map, a boss at the end of each.
   Trash fights are small boards; elites are nastier; bosses play on 8×8.
-- **63 encounters**, at Slay the Spire's scale — an easy pool and a deep hard
-  pool per act, three elites and three bosses each. Fights draw without
+- **78 encounters**, past Slay the Spire's scale — an easy pool and a deep hard
+  pool per act, elites and bosses each. Fights draw without
   replacement, so an act never repeats itself, and every act opens on the easy
   pool so a run cannot die to its first room.
 - **King capture ends the fight.** Losing yours costs **HP** by tier, not the
@@ -26,15 +26,30 @@ or run it locally (see below). Every push deploys through GitHub Actions.
 - **Two budgets.** Supply caps what your army is *worth*; deploy caps how many
   *bodies* it has. Supply alone was not enough — a king-capture fight is won by
   bodies, so with points as the only limit the cheapest body always won.
-- **25 relics across nine archetypes** — Swarm, Few and Fine, Frost, Fire,
-  Cavalry, Martyr, Coin, Endure, Tempo. Relics change a rule and key off piece
+- **36 relics across thirteen archetypes** — Swarm, Few and Fine, Frost, Fire,
+  Cavalry, Martyr, Coin, Endure, Tempo, and four built on the newer rules:
+  Reanimation, Volley, Formation, Relay. Relics change a rule and key off piece
   tags, so owning one makes you want particular pieces and owning two makes you
   want a particular army. They drop from elites and bosses as a choice, and
   appear in shops.
-- **22 pieces**, classic six plus a fairy set: camel, zebra, wazir, ferz,
-  champion, princess, empress, amazon, hopper, nightrider, drake, rime, flame,
-  wisp, sapper, warden.
-- **12 ? rooms** in the shape of Slay the Spire's — a scene and two or three
+- **31 pieces**, classic six plus a fairy set: camel, zebra, wazir, ferz, guard,
+  champion, gnu, squirrel, princess, empress, amazon, hopper, nightrider,
+  dragon horse, dragon king, drake, rime, flame, wisp, sapper, warden — and four
+  that each bring a rule the engine did not have before:
+  - **Crossbow** kills at a knight's leap *without moving*. It can never be
+    traded off by the thing it kills, which makes it the clean answer to
+    wisps and sappers — but it only threatens the squares it can shoot, and
+    it walks into place one step at a time.
+  - **Reanimator** — whatever it kills gets up again on your side, on the
+    square the reanimator just left. Every trade it wins is worth double, so
+    the army grows out of the fight rather than out of the loadout.
+  - **Banner** lends every friend standing beside it a king's step. A rook
+    under a banner is a Dragon King; a wazir is a Guard. It is the one piece
+    that wants the army bunched together instead of spread out.
+  - **Courier** trades places with a friend instead of being blocked by one —
+    hauling a slow piece up the board, or (with Post Road) pulling the king
+    out of a mating net. It will not carry anyone into fire or onto ice.
+- **18 ? rooms** in the shape of Slay the Spire's — a scene and two or three
   choices, most of them a trade rather than a gift.
 - **Six kings**, each a single loud passive: Aegis, Pioneer, Court, Pyre,
   Hoarfrost, and the plain one that just gives supply.
@@ -65,9 +80,16 @@ Two methodology notes worth keeping, because both produced wrong answers first:
   quality build a bag worth 28 supply while swarm got 10, so it measured the
   pieces rather than the relics.
 
-Current state: the registry runs 29%–64% at a mid-game budget, and no archetype
-is unplayable. Bosses are a real wall — an unspecialised army wins about 20% of
-them, a committed one far more.
+Current state: eleven archetypes span 33%–74%, a spread of 46 points, with the
+no-relic baseline sitting at the floor (28%) and every build beating it. Bosses
+are a real wall — an unspecialised army wins about 20% of them, a committed one
+far more.
+
+Both harnesses are noisy at small sample counts — one piece measured 40% and
+then 13% at an unchanged price across two runs — so treat a single reading as a
+hint and only act on differences that survive a re-run. The archetype numbers
+above moved a build from 100% to 33% and back to a middle, which is what that
+looks like in practice.
 
 ## Testing
 

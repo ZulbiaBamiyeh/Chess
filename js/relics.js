@@ -31,6 +31,10 @@ export function tagsOf(id) {
   if (def.paintsFire) tags.push('fire');
   if (def.wisp || def.sapper) tags.push('martyr');
   if (def.royal) tags.push('royal');
+  if (def.shoots) tags.push('ranged');
+  if (def.raises) tags.push('reaper');
+  if (def.aura) tags.push('banner');
+  if (def.swaps) tags.push('courier');
   if (def.cost >= 6) tags.push('heavy');
   if (def.cost <= 2 && !def.royal) tags.push('cheap');
   return tags;
@@ -65,8 +69,8 @@ export const RELICS = {
   // ---------------------------------------------------------------- swarm
   muster: {
     id: 'muster', name: 'Muster Roll', rarity: RARITY.COMMON, archetype: 'Swarm',
-    blurb: 'Two more pieces in every fight. Two less supply to equip them.',
-    deploy: 2, supply: -2,
+    blurb: 'One more piece in every fight. One less supply to equip it.',
+    deploy: 1, supply: -1,
   },
   pressgang: {
     id: 'pressgang', name: 'Press Gang', rarity: RARITY.COMMON, archetype: 'Swarm',
@@ -87,8 +91,8 @@ export const RELICS = {
   // -------------------------------------------------------------- quality
   warrant: {
     id: 'warrant', name: "Champion's Warrant", rarity: RARITY.COMMON, archetype: 'Few and Fine',
-    blurb: 'Two more supply. Two fewer bodies to spend it on.',
-    supply: 2, deploy: -2,
+    blurb: 'Three more supply. One fewer body to spend it on.',
+    supply: 3, deploy: -1,
   },
   heavystandard: {
     id: 'heavystandard', name: 'Heavy Standard', rarity: RARITY.RARE, archetype: 'Few and Fine',
@@ -97,8 +101,8 @@ export const RELICS = {
   },
   commission: {
     id: 'commission', name: 'Gilded Commission', rarity: RARITY.EPIC, archetype: 'Few and Fine',
-    blurb: 'Five more supply. Three fewer pieces.',
-    supply: 5, deploy: -3,
+    blurb: 'Seven more supply. Two fewer pieces.',
+    supply: 7, deploy: -2,
   },
 
   // ---------------------------------------------------------------- frost
@@ -126,8 +130,8 @@ export const RELICS = {
   },
   ashboots: {
     id: 'ashboots', name: 'Ash Boots', rarity: RARITY.COMMON, archetype: 'Fire',
-    blurb: 'Your pieces walk through fire unharmed. Theirs do not — and bring one more.',
-    tokens: ['ashboots'], deploy: 1,
+    blurb: 'Your pieces walk through fire unharmed. Theirs do not.',
+    tokens: ['ashboots'],
   },
   pyroclast: {
     id: 'pyroclast', name: 'Pyroclast', rarity: RARITY.EPIC, archetype: 'Fire',
@@ -138,13 +142,13 @@ export const RELICS = {
   // --------------------------------------------------------------- leaper
   cavalry: {
     id: 'cavalry', name: 'Cavalry Standard', rarity: RARITY.RARE, archetype: 'Cavalry',
-    blurb: 'Everything that leaps costs one less supply.',
-    discount: { tag: 'leaper', amount: 1 },
+    blurb: 'Everything that leaps costs one less supply. The carts stay behind.',
+    discount: { tag: 'leaper', amount: 1 }, supply: -1,
   },
   farrier: {
     id: 'farrier', name: "Farrier's Charm", rarity: RARITY.COMMON, archetype: 'Cavalry',
-    blurb: 'Two of your leapers walk in shielded, at the cost of a body.',
-    shieldTag: { tag: 'leaper' }, deploy: -1,
+    blurb: 'Two of your leapers walk in shielded, at the cost of a body and a point of supply.',
+    shieldTag: { tag: 'leaper' }, deploy: -1, supply: -1,
   },
 
   // --------------------------------------------------------------- martyr
@@ -191,6 +195,76 @@ export const RELICS = {
     id: 'secondwind', name: 'Second Wind', rarity: RARITY.EPIC, archetype: 'Endure',
     blurb: 'The first time a run would end, you live on a single hit point instead.',
     secondWind: true,
+  },
+
+  // ---------------------------------------------------------- reanimation
+  // The army grows out of the fight instead of the loadout. Every trade the
+  // raiser wins is worth double, so the plan is to survive contact and then
+  // never stop trading.
+  charnel: {
+    id: 'charnel', name: 'Charnel Writ', rarity: RARITY.COMMON, archetype: 'Reanimation',
+    blurb: 'Reanimators cost three less supply.',
+    discount: { tag: 'reaper', amount: 3 },
+  },
+  gravecall: {
+    id: 'gravecall', name: 'Gravecall', rarity: RARITY.RARE, archetype: 'Reanimation',
+    blurb: 'Everything that rises for you rises shielded.',
+    tokens: ['gravecall'],
+  },
+  massgrave: {
+    id: 'massgrave', name: 'Mass Grave', rarity: RARITY.EPIC, archetype: 'Reanimation',
+    blurb: 'Your pawns raise the dead as well. Every trade they win adds a body.',
+    tokens: ['massgrave'], deploy: 1,
+  },
+
+  // --------------------------------------------------------------- volley
+  // A shooter can never be traded off by the thing it kills, so the whole
+  // plan is to build a firing line and make the enemy walk into it.
+  quiver: {
+    id: 'quiver', name: 'Deep Quiver', rarity: RARITY.COMMON, archetype: 'Volley',
+    blurb: 'Anything that shoots costs three less supply.',
+    discount: { tag: 'ranged', amount: 3 },
+  },
+  pavise: {
+    id: 'pavise', name: 'Pavise', rarity: RARITY.RARE, archetype: 'Volley',
+    blurb: 'Two of your shooters walk in shielded, at the cost of a body.',
+    shieldTag: { tag: 'ranged' }, deploy: -1,
+  },
+  longshot: {
+    id: 'longshot', name: 'Longshot', rarity: RARITY.EPIC, archetype: 'Volley',
+    blurb: 'Your shooters reach the long 3–1 leap as well as the knight’s.',
+    tokens: ['longshot'],
+  },
+
+  // ------------------------------------------------------------ formation
+  // Banners reward keeping the army together — the opposite instinct to the
+  // spread-out board most of these pieces want.
+  drillground: {
+    id: 'drillground', name: 'Drill Ground', rarity: RARITY.COMMON, archetype: 'Formation',
+    blurb: 'Banners cost two less, and you bring one more body to carry them.',
+    discount: { tag: 'banner', amount: 2 }, deploy: 1, supply: -1,
+  },
+  phalanx: {
+    id: 'phalanx', name: 'Phalanx Drill', rarity: RARITY.RARE, archetype: 'Formation',
+    blurb: 'Your banners carry two squares, not one. The whole block moves.',
+    tokens: ['wideaura'],
+  },
+  oathstone: {
+    id: 'oathstone', name: 'Oathstone', rarity: RARITY.EPIC, archetype: 'Formation',
+    blurb: 'Friends beside a banner also leap like knights.',
+    tokens: ['knightaura'],
+  },
+
+  // ---------------------------------------------------------------- relay
+  relay: {
+    id: 'relay', name: 'Relay Order', rarity: RARITY.COMMON, archetype: 'Relay',
+    blurb: 'Couriers cost two less, and you bring one more body for them to move.',
+    discount: { tag: 'courier', amount: 2 }, deploy: 1,
+  },
+  postroad: {
+    id: 'postroad', name: 'Post Road', rarity: RARITY.RARE, archetype: 'Relay',
+    blurb: 'Your couriers can trade places with the king itself. No net holds it.',
+    tokens: ['kingswap'],
   },
 
   // ---------------------------------------------------------------- tempo

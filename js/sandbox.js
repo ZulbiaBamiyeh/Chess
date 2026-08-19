@@ -17,7 +17,19 @@ const TERRAIN = [
   { id: 'fire', name: 'Fire', tile: TILE.FIRE, blurb: 'Lingering fire. A piece that steps here burns.' },
 ];
 
-const PIECE_ORDER = ['k', 'q', 'r', 'b', 'n', 'p', 'f', 'w', 'c', 'h', 's', 't', 'a', 'g', 'd', 'i', 'l', 'y'];
+// Derived, not hand-listed: the hardcoded version silently went stale every
+// time a piece was added, so the sandbox — the one screen whose whole job is
+// letting you try every piece — was missing several of them.
+// Classic six first, in the order a player thinks of them, then everything
+// else cheapest-first.
+const CLASSIC_ORDER = ['k', 'q', 'r', 'b', 'n', 'p'];
+const PIECE_ORDER = [
+  ...CLASSIC_ORDER,
+  ...Object.values(PIECES)
+    .filter((def) => !CLASSIC_ORDER.includes(def.id))
+    .sort((a, b) => a.cost - b.cost || a.name.localeCompare(b.name))
+    .map((def) => def.id),
+];
 
 export function initSandbox({ $, showScreen, audio }) {
   const box = {
@@ -291,6 +303,13 @@ export function initSandbox({ $, showScreen, audio }) {
     const dest = new Map();
     for (const m of g.moves({ square: mid, legal: false })) {
       dest.set(m.to, Boolean(m.captured));
+    }
+    // Firing squares need drawing from the definition — see campaign.js.
+    if (def?.shootOff) {
+      for (const off of def.shootOff) {
+        const sq = mid + off;
+        if (g.inBounds(sq) && sq !== mid) dest.set(sq, true);
+      }
     }
     const skin = type === 'k' ? kingSkin(box.king) : null;
     if ($('sb-md-name')) {

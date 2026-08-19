@@ -579,11 +579,22 @@ export function initCampaign(ctx) {
         if (g.inBounds(sq)) g.board[sq] = { type: 'p', color: 'b' };
       }
     }
+    // A hopper needs something to hop, or its diagram comes out blank.
+    if (def.hopper) g.board[mid - 16] = { type: 'p', color: 'b' };
     g.turn = WHITE;
     g.refreshMode();
     const dest = new Map();
     for (const m of g.moves({ square: mid, legal: false })) {
       dest.set(m.to, Boolean(m.captured));
+    }
+    // A shot only generates when something is standing there to be shot, so
+    // on an empty diagram board a Crossbow would look like a plain Ferz —
+    // its whole point invisible. Draw the firing squares from the definition.
+    if (def.shootOff) {
+      for (const off of def.shootOff) {
+        const sq = mid + off;
+        if (g.inBounds(sq) && sq !== mid) dest.set(sq, true);
+      }
     }
 
     if ($(ids.name)) $(ids.name).textContent = def.name;

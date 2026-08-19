@@ -664,6 +664,183 @@ export const ENCOUNTERS = {
       { type: 'p', at: 'e7' }, { type: 'p', at: 'f7' },
     ],
   },
+
+  // ===================================================================
+  // Rooms that teach the new rules. Each of the four — shooting, raising,
+  // the banner's aura, the courier's swap — gets a small, quiet room in
+  // act 1 where it is the only thing happening, then shows up mixed into
+  // the later acts once you know what it does.
+  // ===================================================================
+
+  // ---- act 1 --------------------------------------------------------
+  butts: {
+    id: 'butts', kind: 'fight', tier: 'trash', act: 1, pool: 'easy',
+    name: 'The Butts', blurb: 'It kills at a distance and never steps forward.',
+    files: 5, ranks: 4, supply: 7, ai: AI.easy, theme: 'volley',
+    enemy: [
+      { type: 'k', at: 'c4' }, { type: 'crossbow', at: 'b4' }, { type: 'p', at: 'd4' },
+    ],
+  },
+  paupers: {
+    id: 'paupers', kind: 'fight', tier: 'trash', act: 1, pool: 'easy',
+    name: "Pauper's Field", blurb: 'What it kills does not stay dead.',
+    files: 5, ranks: 4, supply: 7, ai: AI.easy, theme: 'grave',
+    enemy: [
+      { type: 'k', at: 'c4' }, { type: 'reaper', at: 'c3' }, { type: 'p', at: 'a4' },
+    ],
+  },
+  paradeground: {
+    id: 'paradeground', kind: 'fight', tier: 'trash', act: 1, pool: 'easy',
+    name: 'The Parade Ground', blurb: 'They march in a block. Break the block.',
+    files: 5, ranks: 5, supply: 8, ai: AI.easy, theme: 'banner',
+    enemy: [
+      { type: 'k', at: 'c5' }, { type: 'banner', at: 'c4' },
+      { type: 'w', at: 'b5' }, { type: 'w', at: 'd5' },
+    ],
+  },
+  towpath: {
+    id: 'towpath', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
+    name: 'The Towpath', blurb: 'Nothing there is where it started.',
+    files: 6, ranks: 5, supply: 9, ai: AI.easy, theme: 'court',
+    enemy: [
+      { type: 'k', at: 'd5' }, { type: 'courier', at: 'c5' },
+      { type: 'n', at: 'e5' }, { type: 'p', at: 'b5' }, { type: 'p', at: 'f5' },
+    ],
+  },
+  warren: {
+    id: 'warren', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
+    name: 'The Warren', blurb: 'They land where nothing should reach.',
+    files: 6, ranks: 5, supply: 10, ai: AI.easy, theme: 'beast',
+    enemy: [
+      { type: 'k', at: 'd5' }, { type: 'squirrel', at: 'b5' },
+      { type: 'squirrel', at: 'f5' }, { type: 'p', at: 'd4' },
+    ],
+  },
+  drillyard: {
+    id: 'drillyard', kind: 'fight', tier: 'elite', act: 1,
+    name: 'The Drill Yard', blurb: 'A standard, and everything under it moving as one.',
+    files: 6, ranks: 6, supply: 12, ai: AI.mid, theme: 'banner',
+    enemy: [
+      { type: 'k', at: 'd6' }, { type: 'banner', at: 'd5' },
+      { type: 'r', at: 'a6' }, { type: 'w', at: 'c6' }, { type: 'w', at: 'e6' },
+      { type: 'f', at: 'c5' },
+    ],
+  },
+
+  // ---- act 2 --------------------------------------------------------
+  palisade: {
+    id: 'palisade', kind: 'fight', tier: 'trash', act: 2, pool: 'easy',
+    name: 'The Palisade', blurb: 'A firing line behind a wall. Get around it.',
+    files: 7, ranks: 6, supply: 14, ai: AI.mid, theme: 'volley',
+    terrain: { c4: TILE.BLOCK, d4: TILE.BLOCK, e4: TILE.BLOCK },
+    enemy: [
+      { type: 'k', at: 'd6' }, { type: 'crossbow', at: 'c6' },
+      { type: 'crossbow', at: 'e6' }, { type: 'p', at: 'b6' }, { type: 'p', at: 'f6' },
+    ],
+  },
+  ossuary: {
+    id: 'ossuary', kind: 'fight', tier: 'trash', act: 2, pool: 'hard',
+    name: 'The Ossuary', blurb: 'Every piece you lose here changes sides.',
+    files: 7, ranks: 6, supply: 15, ai: AI.mid, theme: 'grave',
+    enemy: [
+      { type: 'k', at: 'd6' }, { type: 'reaper', at: 'c5' },
+      { type: 'reaper', at: 'e5' }, { type: 'g', at: 'a6' }, { type: 'p', at: 'g6' },
+    ],
+  },
+  stables: {
+    id: 'stables', kind: 'fight', tier: 'trash', act: 2, pool: 'hard',
+    name: 'The Stables', blurb: 'Knight and camel in the same body, twice over.',
+    files: 7, ranks: 6, supply: 15, ai: AI.mid, theme: 'beast',
+    enemy: [
+      { type: 'k', at: 'd6' }, { type: 'gnu', at: 'b6' }, { type: 'gnu', at: 'f6' },
+      { type: 'p', at: 'c5' }, { type: 'p', at: 'e5' },
+    ],
+  },
+  relaystation: {
+    id: 'relaystation', kind: 'fight', tier: 'trash', act: 2, pool: 'hard',
+    name: 'The Relay', blurb: 'The dangerous one is never where you left it.',
+    files: 7, ranks: 6, supply: 15, ai: AI.mid, theme: 'court',
+    enemy: [
+      { type: 'k', at: 'd6' }, { type: 'courier', at: 'c6' },
+      { type: 'courier', at: 'e6' }, { type: 't', at: 'g6' }, { type: 'p', at: 'd5' },
+    ],
+  },
+  longbarrow: {
+    id: 'longbarrow', kind: 'fight', tier: 'elite', act: 2,
+    name: 'The Long Barrow', blurb: 'It raises them shielded. Kill it first.',
+    files: 8, ranks: 7, supply: 18, ai: AI.hard, theme: 'grave',
+    enemy: [
+      { type: 'k', at: 'd7' }, { type: 'reaper', at: 'd6' },
+      { type: 'dragon', at: 'g7' }, { type: 'guard', at: 'c7' },
+      { type: 'guard', at: 'e7' }, { type: 'p', at: 'b7' },
+    ],
+  },
+  enfilade: {
+    id: 'enfilade', kind: 'fight', tier: 'elite', act: 2,
+    name: 'The Enfilade', blurb: 'Three shooters and a wall of fire between you.',
+    files: 8, ranks: 7, supply: 18, ai: AI.hard, theme: 'volley',
+    terrain: { c4: TILE.FIRE, e4: TILE.FIRE, g4: TILE.FIRE },
+    enemy: [
+      { type: 'k', at: 'd7' }, { type: 'crossbow', at: 'b7' },
+      { type: 'crossbow', at: 'd6' }, { type: 'crossbow', at: 'f7' },
+      { type: 'p', at: 'h7' },
+    ],
+  },
+
+  // ---- act 3 --------------------------------------------------------
+  charnelhouse: {
+    id: 'charnelhouse', kind: 'fight', tier: 'trash', act: 3, pool: 'easy',
+    name: 'The Charnel House', blurb: 'It has been raising them a long time.',
+    files: 8, ranks: 7, supply: 19, ai: AI.hard, theme: 'grave',
+    enemy: [
+      { type: 'k', at: 'd7' }, { type: 'reaper', at: 'c6' },
+      { type: 'horse', at: 'f7' }, { type: 'guard', at: 'b7' },
+      { type: 'guard', at: 'e6' }, { type: 'p', at: 'g7' },
+    ],
+  },
+  crestline: {
+    id: 'crestline', kind: 'fight', tier: 'trash', act: 3, pool: 'hard',
+    name: 'The Crest Line', blurb: 'Dragons on the high ground.',
+    files: 8, ranks: 8, supply: 21, ai: AI.hard, theme: 'court',
+    enemy: [
+      { type: 'k', at: 'd8' }, { type: 'dragon', at: 'b8' },
+      { type: 'horse', at: 'f8' }, { type: 'guard', at: 'c7' },
+      { type: 'guard', at: 'e7' }, { type: 'p', at: 'g8' },
+    ],
+  },
+  menagerie: {
+    id: 'menagerie', kind: 'fight', tier: 'trash', act: 3, pool: 'hard',
+    name: 'The Menagerie', blurb: 'Every leap there is, in one room.',
+    files: 8, ranks: 8, supply: 21, ai: AI.hard, theme: 'beast',
+    enemy: [
+      { type: 'k', at: 'd8' }, { type: 'gnu', at: 'b8' },
+      { type: 'squirrel', at: 'f8' }, { type: 'z', at: 'g8' },
+      { type: 'c', at: 'c8' }, { type: 'p', at: 'd7' },
+    ],
+  },
+  marshalcy: {
+    id: 'marshalcy', kind: 'fight', tier: 'elite', act: 3,
+    name: 'The Marshalcy', blurb: 'Two standards. Everything under them moves like a king.',
+    files: 8, ranks: 8, supply: 22, ai: AI.hard, theme: 'banner',
+    enemy: [
+      { type: 'k', at: 'd8' }, { type: 'banner', at: 'c7' },
+      { type: 'banner', at: 'f7' }, { type: 'r', at: 'a8' },
+      { type: 'r', at: 'h8' }, { type: 'guard', at: 'd7' },
+      { type: 'guard', at: 'e7' },
+    ],
+  },
+  gravetide: {
+    id: 'gravetide', kind: 'fight', tier: 'boss', act: 3, boss: true,
+    name: 'The Grave Tide', blurb: 'It does not need an army. It takes yours.',
+    files: 8, ranks: 8, supply: 24, ai: AI.boss, theme: 'grave',
+    terrain: { d5: TILE.FORT, e5: TILE.FORT },
+    enemy: [
+      { type: 'k', at: 'd8' }, { type: 'reaper', at: 'c8' },
+      { type: 'reaper', at: 'e8' }, { type: 'dragon', at: 'g8' },
+      { type: 'banner', at: 'd7' }, { type: 'guard', at: 'b8' },
+      { type: 'guard', at: 'f8' },
+    ],
+  },
 };
 
 /**
@@ -809,6 +986,82 @@ export const EVENTS = {
         effects: [{ gold: 30 }, { hp: -3 }] },
     ],
   },
+
+  // Rooms built around the newer pieces — each one is a chance to be handed
+  // the seed of a build you were not already committed to.
+  gravedigger: {
+    id: 'gravedigger', name: 'The Gravedigger',
+    text: 'He is filling a hole in, not digging one out. He does not look up. '
+      + '"There is always more work," he says. "You could take some of it off me."',
+    choices: [
+      { label: 'Take the shovel', detail: 'A Reanimator joins you. It costs you something to carry (−3 HP).',
+        effects: [{ gain: 'reaper' }, { hp: -3 }] },
+      { label: 'Pay him to stop', detail: '−25 gold. He gives you back what he found (+6 HP).',
+        effects: [{ gold: -25 }, { heal: 6 }] },
+      { label: 'Walk on', detail: 'It is not your hole.', effects: [] },
+    ],
+  },
+  archer: {
+    id: 'archer', name: 'The Long Shot',
+    text: 'A crossbow leans against a tree with nobody near it, still spanned. '
+      + 'Whoever left it there did not come back for it.',
+    choices: [
+      { label: 'Take the bow', detail: 'A Crossbow joins the bag.',
+        effects: [{ gain: 'crossbow' }] },
+      { label: 'Sell the mechanism', detail: '+28 gold for the parts.',
+        effects: [{ gold: 28 }] },
+      { label: 'Leave it spanned', detail: 'Something is coming back for it.', effects: [] },
+    ],
+  },
+  standardbearer: {
+    id: 'standardbearer', name: 'The Standard Bearer',
+    text: 'A colour party of one, still holding the pole upright, still marching '
+      + 'in a formation that has nobody left in it.',
+    choices: [
+      { label: 'Fall in behind', detail: 'A Banner joins you, and one more body every fight.',
+        effects: [{ gain: 'banner' }, { deploy: 1 }] },
+      { label: 'Take the pole', detail: 'A Banner joins the bag. Nothing else.',
+        effects: [{ gain: 'banner' }] },
+      { label: 'Let them march', detail: 'Some things should be allowed to finish.', effects: [] },
+    ],
+  },
+  postmaster: {
+    id: 'postmaster', name: 'The Post Road',
+    text: 'A relay station with the horses long gone and the ledgers still open. '
+      + 'Someone has written, in a very steady hand, every route out of here.',
+    choices: [
+      { label: 'Learn the routes', detail: 'A Courier joins the bag, and two more supply.',
+        effects: [{ gain: 'courier' }, { supply: 2 }] },
+      { label: 'Burn the ledgers', detail: '+30 gold from whoever wanted them gone.',
+        effects: [{ gold: 30 }] },
+      { label: 'Close the door', detail: 'Leave the routes for the next one through.', effects: [] },
+    ],
+  },
+  menagerist: {
+    id: 'menagerist', name: 'The Menagerist',
+    text: 'Cages, mostly empty, and a keeper who is very keen to be rid of what '
+      + 'is still in them. "It jumps," she says, unhelpfully.',
+    choices: [
+      { label: 'Take the big one', detail: 'A Gnu joins the bag (−2 HP getting it out).',
+        effects: [{ gain: 'gnu' }, { hp: -2 }] },
+      { label: 'Take the quick one', detail: 'A Squirrel joins the bag.',
+        effects: [{ gain: 'squirrel' }] },
+      { label: 'Open every cage', detail: '+20 gold from the keeper, who runs.',
+        effects: [{ gold: 20 }] },
+    ],
+  },
+  drillsergeant: {
+    id: 'drillsergeant', name: 'The Old Sergeant',
+    text: 'He watches your army walk past and says nothing for a long time. '
+      + 'Then: "They move like a crowd. I could make them move like a line."',
+    choices: [
+      { label: 'Let him drill them', detail: '−20 gold. One more body in every fight, for good.',
+        effects: [{ gold: -20 }, { deploy: 1 }] },
+      { label: 'Ask for his own kit', detail: 'A Guard joins the bag, free.',
+        effects: [{ gain: 'guard' }] },
+      { label: 'March past', detail: 'You have somewhere to be.', effects: [] },
+    ],
+  },
 };
 
 export const EVENT_IDS = Object.keys(EVENTS);
@@ -820,6 +1073,10 @@ export const THEME_DROPS = {
   flame: ['l'],
   duck: ['d'],
   wisp: ['y', 'i'],
+  grave: ['reaper', 'guard'],
+  volley: ['crossbow', 'f'],
+  banner: ['banner', 'guard'],
+  beast: ['gnu', 'squirrel', 'z'],
 };
 
 export const SHOP_WEIGHTS = {

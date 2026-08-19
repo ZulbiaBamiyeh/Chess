@@ -207,7 +207,41 @@ export class BoardView {
       ? move.to + (move.color === WHITE ? 16 : -16)
       : move.to;
 
+    // A swap moves two friendly pieces and takes nothing; a shot takes
+    // something without the shooter ever leaving its square. Both break the
+    // one-piece-travels-from-to assumption the rest of this method makes.
+    if (move.flags & FLAG.SWAP) {
+      const partner = this.pieceEls.get(move.to);
+      this.pieceEls.set(move.to, el);
+      this.placeSquare(el, move.to);
+      this.thud(el);
+      if (partner) {
+        this.pieceEls.set(move.from, partner);
+        this.placeSquare(partner, move.from);
+        this.thud(partner, 90);
+      } else {
+        this.pieceEls.delete(move.from);
+      }
+      return { swap: true };
+    }
+
     const victim = this.pieceEls.get(capturedSquare);
+    if (move.flags & FLAG.SHOOT) {
+      if (victim && (move.flags & FLAG.SHIELD_BREAK) && move.rebound >= 0) {
+        this.pieceEls.delete(capturedSquare);
+        this.pieceEls.set(move.rebound, victim);
+        this.placeSquare(victim, move.rebound);
+        victim.classList.remove('shielded');
+        victim.classList.add('rebounds');
+        setTimeout(() => victim.classList.remove('rebounds'), 360);
+      } else if (victim) {
+        this.pieceEls.delete(capturedSquare);
+        this.explode(capturedSquare, victim);
+      }
+      this.recoil(el, move.from, move.to);
+      return { shot: true, captured: move.captured };
+    }
+
     if (victim && (move.flags & FLAG.SHIELD_BREAK) && move.rebound >= 0) {
       this.pieceEls.delete(capturedSquare);
       this.pieceEls.set(move.rebound, victim);
@@ -253,7 +287,49 @@ export class BoardView {
     this.clearSelection();
   }
 
-  /** Squash-and-settle when a piece lands. */
+  /**
+   * Bring the sprites back in line with the board after effects that create
+   * or destroy pieces away from the move's own two squares — a reanimator
+   * raising the dead, a sapper's blast clearing a ring. applyMove animates
+   * the move itself; this catches whatever else the engine did.
+   */
+  reconcile(game) {
+    for (let sq = 0; sq <= 119; sq++) {
+      if (sq & 0x88) { sq += 7; continue; }
+      const piece = game.board[sq];
+      const el = this.pieceEls.get(sq);
+      if (!piece) {
+        if (el) { this.pieceEls.delete(sq); this.explode(sq, el); }
+        continue;
+      }
+      const colorClass = piece.color === WHITE ? 'white' : 'black';
+      if (!el) {
+        const born = this.addPiece(sq, piece.type, piece.color, game.status?.[sq] ?? 0);
+        born.classList.add('rising');
+        setTimeout(() => born.classList.remove('rising'), 460);
+        continue;
+      }
+      if (el.dataset.type !== piece.type || !el.classList.contains(colorClass)) {
+        this.pieceEls.delete(sq);
+        el.remove();
+        this.addPiece(sq, piece.type, piece.color, game.status?.[sq] ?? 0);
+      }
+    }
+  }
+
+  /** A shooter kicks back along its firing line instead of travelling. */
+  recoil(el, from, to) {
+    const dr = (to >> 4) - (from >> 4);
+    const df = (to & 15) - (from & 15);
+    const len = Math.hypot(dr, df) || 1;
+    el.style.setProperty('--kx', `${(-df / len) * 26}%`);
+    el.style.setProperty('--ky', `${(-dr / len) * 26}%`);
+    el.classList.remove('recoiling');
+    void el.offsetWidth;
+    el.classList.add('recoiling');
+    setTimeout(() => el.classList.remove('recoiling'), 340);
+  }
+
   thud(el, delay = 0) {
     setTimeout(() => {
       el.classList.remove('landing');

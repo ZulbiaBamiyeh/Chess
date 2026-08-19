@@ -539,5 +539,163 @@ const KC = { kingCapture: true, checks: false, castling: false };
   assert('can park the duck on an empty square', g.placeDuck('b2') === true && g.duck === g.sqOf('b2') && !g.awaitingDuck);
 }
 
+// ---- ranged capture, reanimation, banner aura, courier swap --------------
+// Four rules that break the "one piece travels from A to B, maybe taking what
+// it finds" assumption the rest of the engine is built on, so each one needs
+// its make/undo round trip pinned as much as its move generation.
+
+const snap = (g) => JSON.stringify(g.pieces());
+
+{
+  const g = Chess.fromDiagram(`
+    . . {b:pawn} . .
+    . . . . .
+    . . . {w:crossbow} .
+    . . . . .
+    . . . . .
+  `, { files: 5, ranks: 5, rules: KC });
+  const shots = g.moves({ legal: false }).filter((m) => m.flags & FLAG.SHOOT);
+  assert('a crossbow shoots at a knight’s leap', shots.length === 1, String(shots.length));
+  const before = snap(g);
+  g.makeMove(shots[0]);
+  const after = g.pieces();
+  assert('the shot kills without moving the shooter',
+    !after.some((p) => p.color === BLACK)
+    && after.some((p) => p.type === 'crossbow' && p.square === shots[0].from));
+  g.undo();
+  assert('undo restores a shot', snap(g) === before, snap(g));
+}
+
+{
+  // A martyr is the shooter's whole reason to exist: taking a wisp by hand
+  // kills the taker, but a shot is fired from out of reach.
+  const g = Chess.fromDiagram(`
+    . . {b:wisp} . .
+    . . . . .
+    . . . {w:crossbow} .
+    . . . . .
+    . . . . .
+  `, { files: 5, ranks: 5, rules: KC });
+  const shot = g.moves({ legal: false }).find((m) => m.flags & FLAG.SHOOT);
+  g.makeMove(shot);
+  assert('shooting a wisp costs the shooter nothing',
+    g.pieces().some((p) => p.type === 'crossbow'), snap(g));
+}
+
+{
+  const g = Chess.fromDiagram(`
+    . . . .
+    . {b:knight} . .
+    {w:reaper} . . .
+    . . . .
+  `, { files: 4, ranks: 4, rules: KC });
+  const cap = g.moves({ legal: false }).find((m) => m.captured);
+  const before = snap(g);
+  g.makeMove(cap);
+  const risen = g.pieces().find((p) => p.type === 'n');
+  assert('what a reanimator kills rises on its side',
+    Boolean(risen) && risen.color === WHITE && risen.square === cap.from, snap(g));
+  g.undo();
+  assert('undo restores a raise', snap(g) === before, snap(g));
+}
+
+{
+  const g = Chess.fromDiagram(`
+    . . . . .
+    . . . . .
+    {w:banner} {w:rook} . . .
+    . . . . .
+    . . . . .
+  `, { files: 5, ranks: 5, rules: KC });
+  const sq = g.pieces().find((p) => p.type === 'r').square;
+  const diagonal = (game, from) => game.moves({ square: from, legal: false }).filter((m) => (
+    Math.abs((m.to >> 4) - (from >> 4)) === 1 && Math.abs((m.to & 15) - (from & 15)) === 1
+  )).length;
+  assert('a banner lends its neighbour a diagonal step', diagonal(g, sq) > 0);
+
+  const lone = Chess.fromDiagram(`
+    . . . . .
+    . . . . .
+    . {w:rook} . . .
+    . . . . .
+    . . . . .
+  `, { files: 5, ranks: 5, rules: KC });
+  const loneSq = lone.pieces().find((p) => p.type === 'r').square;
+  assert('a rook with no banner has no diagonal step', diagonal(lone, loneSq) === 0);
+}
+
+{
+  const g = Chess.fromDiagram(`
+    . . . .
+    . . {w:rook} .
+    . . . .
+    {w:courier} . . .
+  `, { files: 4, ranks: 4, rules: KC });
+  const swaps = g.moves({ legal: false }).filter((m) => m.flags & FLAG.SWAP);
+  assert('a courier offers a swap with a friend', swaps.length === 1, String(swaps.length));
+  assert('a swap takes nothing', swaps.every((m) => !m.captured));
+  const before = snap(g);
+  g.makeMove(swaps[0]);
+  const after = g.pieces();
+  assert('the two trade squares',
+    after.some((p) => p.type === 'courier' && p.square === swaps[0].to)
+    && after.some((p) => p.type === 'r' && p.square === swaps[0].from), snap(g));
+  g.undo();
+  assert('undo restores a swap', snap(g) === before, snap(g));
+}
+
+{
+  // The courier must not be a free ride out of terrain it would otherwise
+  // have to walk through.
+  const g = Chess.fromDiagram(`
+    . . . .
+    . . {w:rook} .
+    . . . .
+    {w:courier} . . .
+  `, { files: 4, ranks: 4, rules: KC });
+  // fromDiagram reads terrain out of the diagram itself, and a square cannot
+  // hold both a tile glyph and a piece — so ice the rook's square directly.
+  g.terrain[1 * 16 + 2] = TILE.FROST;
+  assert('a courier will not swap onto ice',
+    g.moves({ legal: false }).every((m) => !(m.flags & FLAG.SWAP)));
+}
+
+// ---- fire that an encounter declares, not fire a Flame paints ------------
+// isFire only ever consulted the painted kind, so every TILE.FIRE square in
+// the encounter book was drawn as fire and behaved as bare floor.
+
+{
+  const burn = (passives) => {
+    const g = Chess.fromDiagram(`
+      . . . .
+      . . . .
+      . {w:rook} . .
+      . . . .
+    `, { files: 4, ranks: 4, rules: KC, kingPassives: passives });
+    g.terrain[1 * 16 + 1] = TILE.FIRE;
+    const from = g.pieces().find((p) => p.type === 'r').square;
+    const step = g.moves({ square: from, legal: false }).find((m) => m.to === 1 * 16 + 1);
+    g.makeMove(step);
+    return !g.pieces().some((p) => p.type === 'r');
+  };
+  assert('a declared fire tile actually burns what steps on it', burn([]));
+  assert('Ash Boots walks your own pieces through fire', !burn(['ashboots']));
+}
+
+{
+  // Multi-letter piece ids have to survive a FEN round trip. The single-letter
+  // upper/lower-case convention silently mangles them — `crossbow` came back
+  // as c, r, o, s, s, b, o, w — so they serialise in the brace form instead.
+  const g = Chess.fromDiagram(`
+    . {b:crossbow} .
+    . {w:reaper} .
+    . {w:king} .
+  `, { files: 3, ranks: 3, rules: KC });
+  const fen = g.fen();
+  const back = new Chess({ fen, files: 3, ranks: 3, rules: KC });
+  assert('a multi-letter piece survives a FEN round trip',
+    JSON.stringify(back.pieces()) === JSON.stringify(g.pieces()), fen);
+}
+
 console.log(failures ? `\n${failures} variant failure(s)` : '\nAll variant tests passed.');
 process.exit(failures ? 1 : 0);

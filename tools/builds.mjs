@@ -36,6 +36,13 @@ const BUILDS = {
   fire: { relics: ['pyroclast', 'ashboots'], bag: ['l', 'l', 'b', 'n', 'p', 'p'] },
   cavalry: { relics: ['cavalry', 'farrier'], bag: ['n', 'n', 'c', 'z', 'h', 'p', 'p'] },
   martyr: { relics: ['vengefulash', 'bonetithe'], bag: ['y', 'x', 'v', 'b', 'p'] },
+  reanimation: { relics: ['charnel', 'gravecall'], bag: ['reaper', 'reaper', 'n', 'p', 'p', 'p'] },
+  volley: { relics: ['quiver', 'pavise'], bag: ['crossbow', 'crossbow', 'b', 'n', 'p', 'p'] },
+  // Banners pay off on pieces that LACK a king step — a rook under a banner
+  // is a Dragon King, a wazir is a Guard. Pairing them with pieces that
+  // already step every way would measure nothing.
+  formation: { relics: ['drillground', 'phalanx'], bag: ['banner', 'banner', 'r', 'r', 'w', 'w', 'p'] },
+  relay: { relics: ['relay', 'postroad'], bag: ['courier', 'courier', 'r', 'n', 'p', 'p'] },
 };
 
 /** The yardstick. `--act 3` asks the harder question: does late content still

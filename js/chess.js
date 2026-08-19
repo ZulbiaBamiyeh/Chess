@@ -37,6 +37,10 @@ export const FLAG = {
   QSIDE_CASTLE: 64,
   SHIELD_BREAK: 128,
   WISP_BOOM: 256,
+  /** Ranged capture: the victim dies where it stands, the shooter never moves. */
+  SHOOT: 512,
+  /** Two friendly pieces trade squares. No capture. */
+  SWAP: 1024,
 };
 
 export const TILE = {
@@ -57,6 +61,12 @@ const KNIGHT_OFFSETS = [-18, -33, -31, -14, 18, 33, 31, 14];
 const KING_OFFSETS = [-17, -16, -15, -1, 1, 15, 16, 17];
 const BISHOP_DIRS = [-17, -15, 15, 17];
 const ROOK_DIRS = [-16, -1, 1, 16];
+/** The 3–1 leap, for Longshot's extended firing range. */
+const CAMEL_OFFSETS = [-49, -47, -19, -13, 13, 19, 47, 49];
+/** Every square within two, for a banner's widened reach. */
+const RING2_OFFSETS = [
+  -34, -33, -32, -31, -30, -18, -14, -2, 2, 14, 18, 30, 31, 32, 33, 34,
+];
 
 const SLIDERS = { b: BISHOP_DIRS, r: ROOK_DIRS, q: KING_OFFSETS };
 
@@ -297,7 +307,12 @@ export class Chess {
   }
 
   isFire(sq) {
-    return this.fireUntil[sq] > this.history.length;
+    // Fire comes from two places: a Flame painting it as it slides (which
+    // expires), and an encounter declaring the tile outright (which does not).
+    // Only the painted kind was ever checked here, so every fire tile placed
+    // by the encounter book — including the act-3 boss's — was scenery the
+    // board drew but nothing ever walked into.
+    return this.terrain[sq] === TILE.FIRE || this.fireUntil[sq] > this.history.length;
   }
 
   paintFire(sq, until, extra) {
@@ -485,9 +500,55 @@ export class Chess {
     return false;
   }
 
+  /** True when a friendly banner stands next to `sq`, lending it a king step. */
+  auraAt(sq, color) {
+    // Phalanx widens the banner's reach to everything within two squares,
+    // which is what turns a bodyguard into an actual formation.
+    const reach = (color === WHITE && this.kingPassives.includes('wideaura'))
+      ? RING2_OFFSETS.concat(KING_OFFSETS)
+      : KING_OFFSETS;
+    for (const off of reach) {
+      const n = sq + off;
+      if (!this.inBounds(n)) continue;
+      const p = this.board[n];
+      if (p && p.color === color && PIECES[p.type]?.aura) return true;
+    }
+    return false;
+  }
+
+  /** The offsets a piece may shoot along, after relics widen them. */
+  shootOffsets(def, color) {
+    if (!def.shootOff) return null;
+    if (color === WHITE && this.kingPassives.includes('longshot')) {
+      return def.shootOff.concat(CAMEL_OFFSETS);
+    }
+    return def.shootOff;
+  }
+
+  /** The extra leaps a banner lends its neighbours. */
+  auraOffsets(color) {
+    return (color === WHITE && this.kingPassives.includes('knightaura'))
+      ? KING_OFFSETS.concat(KNIGHT_OFFSETS)
+      : KING_OFFSETS;
+  }
+
   attacksFrom(from, piece, target, extraRoyal) {
     const def = PIECES[piece.type];
     if (!def || def.cannotCapture) return false;
+
+    // Shots and banner steps are real threats; check detection has to see them
+    // or a king would happily walk into one.
+    const shootOff = this.shootOffsets(def, piece.color);
+    if (shootOff) {
+      for (const off of shootOff) {
+        if (from + off === target && this.inBounds(target)) return true;
+      }
+    }
+    if (this.auraAt(from, piece.color)) {
+      for (const off of this.auraOffsets(piece.color)) {
+        if (from + off === target && this.inBounds(target)) return true;
+      }
+    }
 
     if (def.pawn) {
       const forward = piece.color === WHITE ? -16 : 16;
@@ -741,7 +802,25 @@ export class Chess {
       }
       if (PIECES[mover.type]?.cannotCapture) return false;
       if (PIECES[target.type]?.uncapturable) return false;
-      if (target.color === us) return false;
+      if (target.color === us) {
+        // A courier is not blocked by its own side — it trades places with it.
+        // That turns a friendly body from an obstacle into a tool: haul a slow
+        // piece up the board, or pull the king out of a mating net.
+        // It will not carry anyone into fire or onto ice, which keeps the
+        // swap from being a free way to dodge terrain.
+        const hazard = (sq) => this.isFire(sq) || this.terrain[sq] === TILE.FROST;
+        // Post Road lets the courier haul the king itself out of trouble.
+        const canTakeKing = us === WHITE && this.kingPassives.includes('kingswap');
+        if (!capturesOnly && PIECES[mover.type]?.swaps
+          && (target.type !== KING || canTakeKing)
+          && !hazard(to) && !hazard(from)) {
+          out.push({
+            from, to, color: us, piece: mover.type,
+            captured: null, promotion: null, flags: FLAG.SWAP, rebound: -1,
+          });
+        }
+        return false;
+      }
       if (this.status[to] & ST_SHIELD) {
         const rebound = this.findRebound(to, from);
         add(from, to, flags | FLAG.CAPTURE | FLAG.SHIELD_BREAK, target.type, { rebound });
@@ -797,6 +876,40 @@ export class Chess {
       if (def.leapOff) {
         for (const off of def.leapOff) land(from + off, FLAG.NORMAL);
       }
+      // A banner lends its neighbours a king's step. Slow, short-range pieces
+      // suddenly manoeuvre, so the army wants to travel as a block instead of
+      // spreading out — a formation, not a scatter.
+      if (this.auraAt(from, us)) {
+        for (const off of this.auraOffsets(us)) land(from + off, FLAG.NORMAL);
+      }
+      // A shot kills at range and the shooter never leaves its square, so it
+      // can never be traded off by the piece it kills. The counterplay is that
+      // it only threatens the squares it can shoot, and it has to be walked
+      // into place a step at a time.
+      const shootOff = this.shootOffsets(def, us);
+      if (shootOff) {
+        for (const off of shootOff) {
+          const to = from + off;
+          if (!this.inBounds(to) || this.isBlocked(to)) continue;
+          const target = board[to];
+          if (!target || target.color === us) continue;
+          if (PIECES[target.type]?.uncapturable) continue;
+          if (this.status[to] & ST_SHIELD) {
+            const rebound = this.findRebound(to, from);
+            out.push({
+              from, to, color: us, piece: piece.type,
+              captured: target.type, promotion: null,
+              flags: FLAG.SHOOT | FLAG.CAPTURE | FLAG.SHIELD_BREAK, rebound,
+            });
+            continue;
+          }
+          out.push({
+            from, to, color: us, piece: piece.type,
+            captured: target.type, promotion: null,
+            flags: FLAG.SHOOT | FLAG.CAPTURE, rebound: -1,
+          });
+        }
+      }
       if (piece.type === KING && extraRoyal) {
         for (const off of extraRoyal) land(from + off, FLAG.NORMAL);
       }
@@ -811,7 +924,10 @@ export class Chess {
             if (!target) {
               if (!capturesOnly) add(from, to, FLAG.NORMAL);
             } else {
-              if (target.color === them) land(to, FLAG.CAPTURE);
+              // Hand friendly blockers to tryLand as well — it returns false
+              // for them either way, but a courier needs to see one to offer
+              // the swap.
+              land(to, FLAG.CAPTURE);
               break;
             }
             to += dir;
@@ -947,12 +1063,35 @@ export class Chess {
       extra.thawed = thawed;
     }
 
+    const shooting = Boolean(move.flags & FLAG.SHOOT);
+    const swapping = Boolean(move.flags & FLAG.SWAP);
     const moving = board[move.from];
-    board[move.to] = moving;
-    board[move.from] = null;
-    if (extra) {
-      this.status[move.to] = this.status[move.from] & ~ST_FROZEN;
-      this.status[move.from] = 0;
+    if (shooting) {
+      // The shooter never leaves its square: the victim simply stops existing.
+      // Everything below that keys off "the mover is now on `to`" has to be
+      // skipped, which is why the dest-effect block is guarded too.
+      board[move.to] = null;
+      if (extra) this.status[move.to] = 0;
+    } else if (swapping) {
+      const partner = board[move.to];
+      board[move.to] = moving;
+      board[move.from] = partner;
+      // Post Road can put the king on the other end of a swap; the block
+      // below only ever looks at `to`, so track it here.
+      if (partner && partner.type === KING) this.kings[partner.color] = move.from;
+      if (extra) {
+        const fromStatus = this.status[move.from];
+        const toStatus = this.status[move.to];
+        this.status[move.to] = fromStatus & ~ST_FROZEN;
+        this.status[move.from] = toStatus & ~ST_FROZEN;
+      }
+    } else {
+      board[move.to] = moving;
+      board[move.from] = null;
+      if (extra) {
+        this.status[move.to] = this.status[move.from] & ~ST_FROZEN;
+        this.status[move.from] = 0;
+      }
     }
 
     if (move.flags & FLAG.EP_CAPTURE) {
@@ -1010,7 +1149,7 @@ export class Chess {
       ? move.from + (us === WHITE ? -16 : 16)
       : -1;
 
-    if (extra) {
+    if (extra && !shooting) {
       const dest = move.to;
       if (this.terrain[dest] === TILE.FROST && !this.freezeImmune(board[dest])) {
         this.status[dest] |= ST_FROZEN;
@@ -1037,7 +1176,10 @@ export class Chess {
         }
       }
 
-      if (this.isFire(dest) && board[dest]) {
+      // Ash Boots: your side walks through its own fire. Theirs still burns,
+      // which is the whole point of laying it.
+      const fireproof = us === WHITE && this.kingPassives.includes('ashboots');
+      if (this.isFire(dest) && board[dest] && !fireproof) {
         extra.burned = { type: board[dest].type, color: us };
         if (board[dest].type === KING) this.kings[us] = -1;
         board[dest] = null;
@@ -1118,6 +1260,32 @@ export class Chess {
         this.status[dest] = 0;
         move.flags |= FLAG.WISP_BOOM;
       }
+
+      // Reanimation. What the raiser kills gets up again on the square the
+      // raiser just left, fighting for the killer. Every trade it wins is
+      // worth double, so the army grows out of the fight itself rather than
+      // out of the loadout — but only while the raiser lives, which is why
+      // this sits after the blast and wisp blocks that can kill it.
+      //
+      // Undo needs nothing extra: it restores board[move.from] from the
+      // mover unconditionally, which overwrites whatever rose there.
+      // Mass Grave lets your pawns drag the dead up too, which is what makes
+      // reanimation a swarm plan rather than a one-piece plan.
+      const raiser = board[dest] && (
+        PIECES[board[dest].type]?.raises
+        || (us === WHITE && board[dest].type === PAWN
+          && this.kingPassives.includes('massgrave'))
+      );
+      if (move.captured && move.captured !== KING && raiser
+        && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved)
+        && !board[move.from]) {
+        board[move.from] = { type: move.captured, color: us };
+        // Gravecall stands them back up behind a shield.
+        this.status[move.from] = (us === WHITE && this.kingPassives.includes('gravecall'))
+          ? ST_SHIELD
+          : 0;
+        extra.raised = move.from;
+      }
     }
 
     this.halfMoves = (move.piece === PAWN || (move.flags & (FLAG.CAPTURE | FLAG.EP_CAPTURE)))
@@ -1162,7 +1330,15 @@ export class Chess {
         if (piece.type === KING) this.kings[piece.color] = sq;
       }
     }
-    if (extra?.wispCapturer) {
+    if (move.flags & FLAG.SHOOT) {
+      // The shooter never left `from`, so there is nothing to walk back —
+      // only the victim below needs putting back on its square.
+    } else if (move.flags & FLAG.SWAP) {
+      const mover = board[move.to];
+      const partner = board[move.from];
+      board[move.from] = mover;
+      board[move.to] = partner;
+    } else if (extra?.wispCapturer) {
       board[move.from] = extra.wispCapturer;
       board[move.to] = { type: move.captured, color: swap(us) };
     } else if (extra?.burned && !board[move.to]) {
@@ -1175,7 +1351,7 @@ export class Chess {
       board[move.to] = null;
     }
 
-    if (!(extra?.wispCapturer || extra?.burned)) {
+    if (!(extra?.wispCapturer || extra?.burned) && !(move.flags & FLAG.SWAP)) {
       if (move.flags & FLAG.EP_CAPTURE) {
         board[move.to + (us === WHITE ? 16 : -16)] = { type: PAWN, color: swap(us) };
       } else if (move.captured && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved)) {
@@ -1283,7 +1459,9 @@ export class Chess {
         san += String.fromCharCode(97 + file(move.from)) + 'x';
       }
     } else {
-      san += move.piece.toUpperCase();
+      // Multi-letter ids would shout "CROSSBOW" down the move list, so each
+      // carries a short tag instead.
+      san += PIECES[move.piece]?.san || move.piece.toUpperCase();
       const rivals = this.moves().filter(
         (m) => m.piece === move.piece && m.to === move.to && m.from !== move.from,
       );
@@ -1294,7 +1472,11 @@ export class Chess {
         else if (!sameRank) san += this.ranks - rank(move.from);
         else san += squareName(move.from, this.ranks);
       }
-      if (move.flags & (FLAG.CAPTURE | FLAG.SHIELD_BREAK)) san += 'x';
+      // A shot is written `@` — it takes without going anywhere. A swap is
+      // written `<>`, because neither square is being won or lost.
+      if (move.flags & FLAG.SHOOT) san += '@';
+      else if (move.flags & FLAG.SWAP) san += '<>';
+      else if (move.flags & (FLAG.CAPTURE | FLAG.SHIELD_BREAK)) san += 'x';
     }
 
     san += squareName(move.to, this.ranks);
@@ -1529,6 +1711,12 @@ export class Chess {
 }
 
 function encodePiece(piece) {
+  // Single-letter ids use the classic upper/lower-case convention. Anything
+  // longer has to use the explicit brace form the placement parser already
+  // understands, or `crossbow` would read back as c, r, o, s, s, b, o, w.
+  if (piece.type.length > 1) {
+    return `{${piece.color === WHITE ? 'w' : 'b'}:${piece.type}}`;
+  }
   const letter = piece.type;
   return piece.color === WHITE ? letter.toUpperCase() : letter;
 }
