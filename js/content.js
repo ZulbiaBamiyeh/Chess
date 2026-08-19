@@ -8,6 +8,8 @@ export const START_HP = 18;
 export const START_GOLD = 4;
 export const REST_HEAL = 7;
 export const REST_GOLD = 3;
+export const FORAGE_GOLD = 9;
+export const TRAIN_COST = 6;
 export const TURN_CLOCK = { trash: 10, elite: 14, boss: 18 };
 
 export const STARTING_BAG = ['p', 'p', 'p', 'n', 'f', 'w'];

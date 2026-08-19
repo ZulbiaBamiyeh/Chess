@@ -7,6 +7,7 @@ import { relicTotals, discountedCost, hasTag, relicById, relicPool } from './rel
 import {
   LOSS_HP, FORFEIT_HP, REST_HEAL,
   START_HP, START_GOLD, STARTING_BAG, KING_PASSIVES, REST_GOLD,
+  FORAGE_GOLD, TRAIN_COST,
   TURN_CLOCK, THEME_DROPS, DROP_CHANCE,
   generateMap, findNode, encounterFor, firstRooms, freeHomeSquares, homeSquares,
   weightedPiece, supplyUpgradeCost, slotUpgradeCost,
@@ -115,8 +116,9 @@ const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, unique: 4 };
 export function bagSummary(run) {
   const tallies = new Map();
   for (const item of run.bag) {
-    const row = tallies.get(item.type) || { type: item.type, count: 0 };
+    const row = tallies.get(item.type) || { type: item.type, count: 0, trained: 0 };
     row.count += 1;
+    if (item.trained) row.trained += 1;
     tallies.set(item.type, row);
   }
   const pieces = [...tallies.values()].sort((a, b) => {
@@ -257,6 +259,9 @@ export function buildFight(run, encounter, placements) {
     const sq = typeof place.sq === 'string' ? parseSquare(place.sq, encounter.ranks) : place.sq;
     game.board[sq] = { type: item.type, color: WHITE };
     if (item.type === 'k') game.kings.w = sq;
+    // Trained pieces carry their own permanent shield into every fight, earned
+    // once at camp rather than granted per-run like a relic.
+    if (item.trained) game.status[sq] |= ST_SHIELD;
     deployed.push(item.uid);
   }
 
@@ -496,6 +501,28 @@ export function rest(run) {
   run.hp = Math.min(run.hpMax, run.hp + REST_HEAL);
   run.gold += REST_GOLD;
   return { healed: run.hp - before, gold: REST_GOLD };
+}
+
+/** Skip the healing and walk off with more coin instead. */
+export function forage(run) {
+  run.gold += FORAGE_GOLD;
+  return { gold: FORAGE_GOLD };
+}
+
+/**
+ * Spend gold at camp so one piece in the bag holds a permanent shield —
+ * every fight from here on, not just this run's next one. The other two camp
+ * choices (rest, forage) are one-shot; this is the only one that compounds,
+ * so it costs more than either and only works once per piece.
+ */
+export function trainPiece(run, itemUid) {
+  const item = run.bag.find((p) => p.uid === itemUid);
+  if (!item || item.type === 'k') return { ok: false, reason: 'Can’t train that.' };
+  if (item.trained) return { ok: false, reason: 'Already trained.' };
+  if (run.gold < TRAIN_COST) return { ok: false, reason: `Needs ${TRAIN_COST} gold.` };
+  run.gold -= TRAIN_COST;
+  item.trained = true;
+  return { ok: true };
 }
 
 /** You may take a room again for as long as you are still standing. */
@@ -740,7 +767,7 @@ export function autoPlace(encounter, selectedItems) {
   return placements;
 }
 
-export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL };
+export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST };
 
 // ---- events ---------------------------------------------------------------
 
@@ -794,13 +821,18 @@ export function applyChoice(run, choice, pickedUid = null) {
       if (run.hp <= 0) run.over = true;
     }
     if (effect.maxHp != null) {
-      run.maxHp = Math.max(1, run.maxHp + effect.maxHp);
-      run.hp = Math.min(run.hp, run.maxHp);
+      // createRun names this hpMax, not maxHp — the mismatch meant this branch
+      // wrote to a field nothing else read, and Math.min(hp, undefined+n) left
+      // run.hp as NaN for the rest of the run.
+      run.hpMax = Math.max(1, run.hpMax + effect.maxHp);
+      run.hp = Math.min(run.hp, run.hpMax);
       lines.push(`${effect.maxHp >= 0 ? '+' : '−'}${Math.abs(effect.maxHp)} max HP`);
     }
     if (effect.heal != null) {
+      // Same run.maxHp/hpMax mismatch as the branch above — this also
+      // produced NaN for every event that heals (several do).
       const before = run.hp;
-      run.hp = Math.min(run.maxHp, run.hp + effect.heal);
+      run.hp = Math.min(run.hpMax, run.hp + effect.heal);
       lines.push(`+${run.hp - before} HP`);
     }
     if (effect.supply != null) {

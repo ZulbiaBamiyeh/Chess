@@ -5,9 +5,9 @@ import { WHITE } from '../js/chess.js';
 import {
   createRun, validateLoadout, buildFight, settleFight, addToBag, hasSlot,
   occupiedSlots, supplyBudget, deployBudget, openShop, buyOffer, autoPlace, currentNode,
-  completeNode, pickNode, rest, currentEncounter,
+  completeNode, pickNode, rest, forage, trainPiece, currentEncounter,
   bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
-  costFor, claimRelic, RELIC_SHIELD_CAP,
+  costFor, claimRelic, RELIC_SHIELD_CAP, TRAIN_COST, FORAGE_GOLD, freeHomeSquares,
 } from '../js/run.js';
 import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
@@ -531,6 +531,49 @@ function courtyardOrGate() {
   run.hp = 2;
   const gained = rest(run);
   assert('camping heals and pays', run.hp > 2 && run.gold > 0, JSON.stringify(gained));
+}
+
+{
+  // Camp's other two choices: forage trades the heal for more gold, and
+  // training spends gold to make one piece hold a permanent shield.
+  const run = createRun(2);
+  run.hp = 2;
+  const before = run.hp;
+  const result = forage(run);
+  assert('foraging pays but does not heal', run.hp === before && result.gold === FORAGE_GOLD);
+
+  run.gold = TRAIN_COST;
+  const target = run.bag.find((p) => p.type !== 'k');
+  const trained = trainPiece(run, target.uid);
+  assert('training spends gold and marks the piece', trained.ok && run.gold === 0 && target.trained === true);
+
+  const short = createRun(3);
+  short.gold = 0;
+  const denied = trainPiece(short, short.bag[0].uid);
+  assert('training is gated on gold', !denied.ok);
+
+  const encounter = ENCOUNTERS.gate;
+  const homes = freeHomeSquares(encounter);
+  const game = buildFight(run, encounter, [
+    { uid: 'king', sq: homes[0] },
+    { uid: target.uid, sq: homes[1] },
+  ]);
+  const sq = game.pieces().find((p) => p.type === target.type && p.color === WHITE)?.square;
+  assert('a trained piece enters the fight already shielded',
+    sq != null && (game.status[sq] & ST_SHIELD_BIT) !== 0);
+}
+
+{
+  // applyChoice's maxHp branch used to write to run.maxHp, a field createRun
+  // never sets (it's called hpMax) — Math.min(hp, undefined + n) left hp as
+  // NaN for the rest of the run, invisible to every naive comparison.
+  const run = createRun(4);
+  const beforeMax = run.hpMax;
+  const result = applyChoice(run, { effects: [{ maxHp: 3 }, { heal: 99 }] });
+  assert('a maxHp effect raises hpMax, not a stray field',
+    result.ok && run.hpMax === beforeMax + 3 && run.maxHp === undefined);
+  assert('hp after a maxHp+heal effect is a real number, not NaN',
+    Number.isFinite(run.hp) && run.hp === run.hpMax);
 }
 
 console.log(failures ? `\n${failures} run failure(s)` : '\nAll run tests passed.');

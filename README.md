@@ -18,8 +18,11 @@ or run it locally (see below). Every push deploys through GitHub Actions.
   pool so a run cannot die to its first room.
 - **King capture ends the fight.** Losing yours costs **HP** by tier, not the
   run — you can take the room again for as long as you are still standing, and
-  the run ends only when the HP does. Camping heals, the shop heals, pieces
-  always come home.
+  the run ends only when the HP does. The shop heals, pieces always come home.
+- **Camp is a real choice, not a button.** Rest heals and pays a little gold;
+  Forage skips the heal for more gold; Train spends gold to give one piece in
+  the bag a permanent shield, every fight from then on — the only camp choice
+  that compounds, so it's gated on gold and one-time per piece.
 - **Two budgets.** Supply caps what your army is *worth*; deploy caps how many
   *bodies* it has. Supply alone was not enough — a king-capture fight is won by
   bodies, so with points as the only limit the cheapest body always won.

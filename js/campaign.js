@@ -7,7 +7,8 @@ import {
   createRun, currentNode, validateLoadout, buildFight, settleFight,
   openShop, buyOffer, rerollShop, closeShop, retryAllowed,
   autoPlace, supplyBudget, deployBudget, occupiedSlots, freeHomeSquares,
-  completeNode, pickNode, rest, REST_GOLD, REST_HEAL, turnClock,
+  completeNode, pickNode, rest, forage, trainPiece,
+  REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, turnClock,
   bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
   suggestLoadout,
 } from './run.js';
@@ -24,14 +25,48 @@ export function initCampaign(ctx) {
   let selectedUid = null;
   let placements = []; // { uid, type, sq }
 
+  /**
+   * Gold and HP used to be a bare number in the pixel font, same weight as
+   * every other chip on the bar — easy to miss, easy to misread, and the
+   * event screen's gold chip was not even in the update list, so it sat on
+   * "0g" the whole time. Now both get an icon, HP gets a fill bar that drains
+   * toward red, and either flashes green/red on the frame it actually changes
+   * so a heal or a hit registers without having to read the digits.
+   */
+  function flashChip(el, positive) {
+    el.classList.remove('flash-pos', 'flash-neg');
+    void el.offsetWidth; // restart the animation even on back-to-back changes
+    el.classList.add(positive ? 'flash-pos' : 'flash-neg');
+  }
+
   function paintRunHud() {
     paintRelics();
     const run = state.run;
     if (!run) return;
-    for (const id of ['hud-gold', 'map-gold', 'load-gold', 'shop-gold', 'rest-gold']) {
+    const prev = state._hudPrev || { gold: run.gold, hp: run.hp };
+    const goldChanged = run.gold !== prev.gold;
+    const hpChanged = run.hp !== prev.hp;
+
+    for (const id of ['hud-gold', 'map-gold', 'load-gold', 'shop-gold', 'rest-gold', 'event-gold']) {
       const el = $(id);
-      if (el) el.textContent = `${run.gold}g`;
+      if (!el) continue;
+      const num = el.querySelector('.chip-num');
+      if (num) num.textContent = `${run.gold}g`; else el.textContent = `${run.gold}g`;
+      if (goldChanged) flashChip(el, run.gold > prev.gold);
     }
+
+    for (const id of ['hud-hp', 'map-hp', 'load-hp', 'shop-hp', 'rest-hp', 'event-hp']) {
+      const el = $(id);
+      if (!el) continue;
+      const pct = run.hpMax > 0 ? Math.max(0, Math.min(1, run.hp / run.hpMax)) : 0;
+      el.style.setProperty('--hp-pct', `${Math.round(pct * 100)}%`);
+      const num = el.querySelector('.chip-num');
+      if (num) num.textContent = `${run.hp}/${run.hpMax}`; else el.textContent = `${run.hp}/${run.hpMax}`;
+      el.classList.toggle('low', pct <= 0.34);
+      if (hpChanged) flashChip(el, run.hp > prev.hp);
+    }
+    state._hudPrev = { gold: run.gold, hp: run.hp };
+
     if ($('map-supply')) {
       $('map-supply').textContent = `Supply +${run.supplyBonus}`;
     }
@@ -56,6 +91,7 @@ export function initCampaign(ctx) {
     state.mode = 'run';
     state.run = createRun();
     state.playerColor = WHITE;
+    state._hudPrev = null;
     showMap();
   }
 
@@ -229,11 +265,96 @@ export function initCampaign(ctx) {
     enterNode();
   }
 
+  const REST_CHOICES = [
+    { id: 'rest', label: 'Rest',
+      detail: `Heal ${REST_HEAL} HP, pocket ${REST_GOLD} gold.` },
+    { id: 'forage', label: 'Forage',
+      detail: `Skip the healing — take ${FORAGE_GOLD} gold instead.` },
+    { id: 'train', label: 'Train',
+      detail: `Spend ${TRAIN_COST} gold to permanently shield one piece, every fight from now on.` },
+  ];
+
   function openRest() {
     paintRunHud();
-    $('rest-detail').textContent =
-      `Sit a moment. Recover ${REST_HEAL} HP and take ${REST_GOLD} gold from the camp.`;
+    $('rest-detail').textContent = 'Choose how to spend the moment.';
+    $('rest-outcome').classList.add('hidden');
+    $('btn-rest-move-on').classList.add('hidden');
+    $('rest-choices').classList.remove('hidden');
+    paintRestChoices();
     showScreen('screen-rest');
+  }
+
+  function trainGate() {
+    if (state.run.gold < TRAIN_COST) return { ok: false, reason: `Needs ${TRAIN_COST}g` };
+    if (!state.run.bag.some((p) => p.type !== 'k' && !p.trained)) {
+      return { ok: false, reason: 'Nothing left to train' };
+    }
+    return { ok: true };
+  }
+
+  function paintRestChoices() {
+    const host = $('rest-choices');
+    host.innerHTML = '';
+    for (const choice of REST_CHOICES) {
+      const gate = choice.id === 'train' ? trainGate() : { ok: true };
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'event-choice';
+      btn.disabled = !gate.ok;
+      btn.innerHTML = `<span class="ec-label">${choice.label}</span>`
+        + `<span class="ec-detail">${choice.detail}</span>`
+        + (gate.ok ? '' : `<span class="ec-block">${gate.reason}</span>`);
+      btn.addEventListener('click', () => takeRestChoice(choice.id));
+      btn.addEventListener('pointerenter', () => audio.hover());
+      host.appendChild(btn);
+    }
+  }
+
+  function takeRestChoice(id) {
+    if (id === 'train') { askWhichPieceToTrain(); return; }
+    audio.click();
+    if (id === 'forage') {
+      const result = forage(state.run);
+      finishRest([`+${result.gold} gold`]);
+    } else {
+      const result = rest(state.run);
+      finishRest([`+${result.healed} HP`, `+${result.gold} gold`]);
+    }
+  }
+
+  function askWhichPieceToTrain() {
+    const host = $('rest-choices');
+    host.innerHTML = '<div class="ec-detail" style="padding:0 0 .4rem">Which piece learns to hold?</div>';
+    for (const item of state.run.bag.filter((p) => p.type !== 'k' && !p.trained)) {
+      const def = pieceById(item.type);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'event-choice';
+      btn.innerHTML = `<span class="ec-label">${def.name}</span>`
+        + `<span class="ec-detail">${def.cost} supply · ${def.rarity}</span>`;
+      btn.addEventListener('click', () => {
+        const result = trainPiece(state.run, item.uid);
+        if (!result.ok) { audio.illegal(); toast(result.reason, 'danger'); return; }
+        audio.click();
+        finishRest([`${def.name} is shielded, every fight from now on`]);
+      });
+      btn.addEventListener('pointerenter', () => audio.hover());
+      host.appendChild(btn);
+    }
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'event-choice';
+    back.innerHTML = '<span class="ec-label">Actually, no</span>';
+    back.addEventListener('click', () => paintRestChoices());
+    host.appendChild(back);
+  }
+
+  function finishRest(lines) {
+    $('rest-choices').classList.add('hidden');
+    $('rest-outcome').innerHTML = lines.map((l) => `<div>${l}</div>`).join('');
+    $('rest-outcome').classList.remove('hidden');
+    $('btn-rest-move-on').classList.remove('hidden');
+    paintRunHud();
   }
 
   function openLoadout(encounter) {
@@ -355,6 +476,7 @@ export function initCampaign(ctx) {
       const hue = pieceHue(item.type);
       btn.innerHTML =
         `<i style="background-image:url('${pieceImage(item.type, WHITE)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`
+        + (item.trained ? '<span class="bag-trained" title="Trained: shielded every fight">⛨</span>' : '')
         + `<span class="bag-name">${def.name}</span>`
         + `<span class="bag-meta">${def.cost} · ${def.rarity}${placed ? ' · on board' : ''}</span>`;
       btn.addEventListener('click', () => {
@@ -539,6 +661,7 @@ export function initCampaign(ctx) {
         btn.innerHTML =
           `<i style="background-image:url('${pieceImage(row.type, WHITE)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`
           + (row.count > 1 ? `<span class="bag-tile-count">×${row.count}</span>` : '')
+          + (row.trained ? `<span class="bag-trained" title="${row.trained} trained: shielded every fight">⛨${row.trained > 1 ? `×${row.trained}` : ''}</span>` : '')
           + `<span class="bag-tile-name">${def?.name || row.type}</span>`
           + `<span class="bag-tile-meta">${def?.cost ?? 0} · ${def?.rarity || ''}</span>`;
         btn.addEventListener('click', () => {
@@ -1082,9 +1205,7 @@ export function initCampaign(ctx) {
   $('btn-continue').addEventListener('click', continueAfterFight);
   $('btn-retry').addEventListener('click', retryFight);
   $('btn-forfeit').addEventListener('click', forfeitFight);
-  $('btn-rest').addEventListener('click', () => {
-    rest(state.run);
-    audio.click();
+  $('btn-rest-move-on').addEventListener('click', () => {
     completeNode(state.run);
     showMap();
   });

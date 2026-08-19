@@ -9,7 +9,8 @@
 
 import {
   createRun, currentNode, buildFight, settleFight, autoPlace, supplyBudget,
-  deployBudget, costFor, suggestLoadout, completeNode, pickNode, rest, currentEncounter,
+  deployBudget, costFor, suggestLoadout, completeNode, pickNode, rest, forage, trainPiece,
+  currentEncounter,
   openShop, buyOffer, closeShop, claimRelic, applyChoice, addToBag,
 } from '../js/run.js';
 import { EVENTS, ENCOUNTERS } from '../js/content.js';
@@ -109,7 +110,17 @@ try {
       applyChoice(run, ev.choices[0], run.bag[0]?.uid);
       events++;
     } else if (node.kind === 'rest') {
-      rest(run);
+      // Cycle through all three camp choices so the walk exercises each one,
+      // not just the default — this is how the training-shield bug and the
+      // uid-mismatch in an earlier draft would have surfaced.
+      const pick = rests % 3;
+      if (pick === 0) rest(run);
+      else if (pick === 1) forage(run);
+      else {
+        const target = run.bag.find((p) => p.type !== 'k' && !p.trained);
+        if (target) trainPiece(run, target.uid);
+        else rest(run);
+      }
       rests++;
     }
 
@@ -198,7 +209,8 @@ assert('the run reached a terminal state or ran its course',
       fresh.gold = 300;
       try {
         applyChoice(fresh, choice, fresh.bag[0]?.uid);
-        if (fresh.hp > fresh.hpMax || fresh.hp < 0 || fresh.gold < 0) broke++;
+        if (!Number.isFinite(fresh.hp) || !Number.isFinite(fresh.hpMax) || !Number.isFinite(fresh.gold)
+          || fresh.hp > fresh.hpMax || fresh.hp < 0 || fresh.gold < 0) broke++;
       } catch { broke++; }
     }
   }
