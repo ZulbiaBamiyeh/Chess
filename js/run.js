@@ -220,7 +220,13 @@ export function rulesFor(run) {
     kingCapture: true,
     castling: false,
     royalLeaps: null,
-    royalGuard: true,
+    // BLACK only — the enemy king needs an escort or a rook on an open line
+    // wins the fight on the first ply (the bug this rule exists to fix).
+    // The player's own king does not: a free guard made it as safe to push
+    // forward as to keep it home, and left the Aegis king's shield with
+    // nothing to do (the guard always spent itself first). Now Aegis is the
+    // only thing standing between a pushed king and a lost run.
+    royalGuard: BLACK,
   };
   return rules;
 }
@@ -358,7 +364,15 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
   let martyrGold = 0;
 
   if (won) {
-    gold = 2 + army + (tier === 'elite' ? 3 : 0) + (tier === 'boss' ? 6 : 0) + Math.max(0, clockLeft);
+    // Paying full army value in gold, plus an uncapped turns-remaining speed
+    // bonus, meant a player who actually plays well earned far more than any
+    // shop asked for — simulating a fast clean act 1 (win every room in ~40%
+    // of the clock) banked 165 gold against a 63 gold shop, twice over,
+    // before the SECOND shop of the run even opened. Both terms are cut:
+    // half of army instead of all of it, and the speed bonus capped low
+    // enough to reward a fast win without being the whole economy.
+    gold = 2 + Math.round(army * 0.5) + (tier === 'elite' ? 3 : 0) + (tier === 'boss' ? 6 : 0)
+      + Math.min(4, Math.max(0, clockLeft));
     gold += relics.goldPerFight;
     martyrGold = lost * relics.goldPerLoss;
     gold += martyrGold;
@@ -547,7 +561,12 @@ export function openShop(run) {
     offers.push(pieceOffer(common, 0, act));
   }
 
-  for (let i = 1; i < 3; i++) {
+  // One more, not two. A shop that shows every piece you might want doesn't
+  // ask you to want anything in particular — three piece offers plus a king
+  // and a relic meant a decent run could just buy the whole board and never
+  // commit to a build. One real alternative to the common is enough to be a
+  // choice.
+  for (let i = 1; i < 2; i++) {
     let pick = null;
     for (let tries = 0; tries < 16; tries++) {
       const p = weightedPiece(run.rng, allowed, act);
@@ -576,7 +595,9 @@ export function openShop(run) {
 
   const ownedKings = new Set(ownedKingIds(run));
   const kingPool = Object.values(KING_PASSIVES).filter((pas) => !ownedKings.has(pas.id));
-  const kingSlots = act >= 3 ? 2 : 1;
+  // One king offer regardless of act. Two in act 3 was one more thing on an
+  // already crowded board that a flush run just bought without thinking.
+  const kingSlots = 1;
   for (let i = 0; i < kingSlots && kingPool.length; i++) {
     const pick = kingPool.splice(Math.floor(run.rng() * kingPool.length), 1)[0];
     offers.push({
@@ -610,8 +631,10 @@ export function openShop(run) {
     });
   }
 
-  // Relics for sale — one per shop, two in act 3, drawn from what you lack.
-  const relicSlots = act >= 3 ? 2 : 1;
+  // Relics for sale — one per shop, always. A second in act 3 was the
+  // clearest case of the shop selling you a whole extra build on top of
+  // whatever you had already committed to.
+  const relicSlots = 1;
   const pool = relicPool(run.relics);
   for (let i = 0; i < relicSlots && pool.length; i++) {
     const pick = pool.splice(Math.floor(run.rng() * pool.length), 1)[0];

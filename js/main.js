@@ -4,10 +4,10 @@
 
 import { Chess, WHITE, BLACK, FLAG } from './chess.js';
 import { LEVELS, levelById, chooseDuck } from './ai.js';
-import { pieceCost } from './pieces.js';
+import { pieceCost, pieceById } from './pieces.js';
 import { ShaderBackground } from './bg.js';
 import { audio } from './audio.js';
-import { BoardView, pieceImage, shake, confetti, toast } from './ui.js';
+import { BoardView, pieceImage, pieceHue, shake, confetti, toast } from './ui.js';
 import { initCampaign } from './campaign.js';
 import { initSandbox } from './sandbox.js';
 
@@ -415,6 +415,91 @@ function onAttemptMove(from, to) {
   playMove(from, to);
 }
 
+// Opponent pieces are the hard ones to read at a glance — the reason this
+// exists at all. Any click, own piece or theirs, paints the same reference
+// diagram so there's one place to check rather than guessing from memory.
+function onInspect(sq) {
+  const piece = state.game.get(sq);
+  paintFightDiagram(piece ? piece.type : null, piece ? piece.color : null);
+}
+
+function resetInspect() {
+  paintFightDiagram(null, null);
+}
+
+function paintFightDiagram(type, color) {
+  const box = $('fight-diagram');
+  const host = $('fight-md-board');
+  if (!box || !host) return;
+  if (!type) {
+    box.classList.add('empty');
+    $('fight-md-name').textContent = 'How it moves';
+    $('fight-md-blurb').textContent = 'Click any piece on the board.';
+    $('fight-md-cost').textContent = '';
+    $('fight-md-art').style.backgroundImage = '';
+    host.innerHTML = '';
+    return;
+  }
+  box.classList.remove('empty');
+  const def = pieceById(type);
+  const enemy = color === WHITE ? BLACK : WHITE;
+  const files = 7;
+  const ranks = 7;
+  // The real ruleset, not a generic one — king movement varies with the
+  // encounter (a dash king leaps, royal guard changes what a capture does),
+  // and a diagram that ignores that would just teach the wrong thing.
+  const g = new Chess({ files, ranks, rules: state.game.rules });
+  const mid = 3 * 16 + 3;
+  g.board[mid] = { type, color };
+  if (type === 'k') g.kings[color] = mid;
+  if (def.pawn) {
+    const offs = color === WHITE ? [-17, -15] : [17, 15];
+    for (const off of offs) {
+      const sq2 = mid + off;
+      if (g.inBounds(sq2)) g.board[sq2] = { type: 'p', color: enemy };
+    }
+  }
+  // A hopper needs something to hop, or its diagram comes out blank.
+  if (def.hopper) g.board[mid + (color === WHITE ? -16 : 16)] = { type: 'p', color: enemy };
+  g.turn = color;
+  g.refreshMode();
+  const dest = new Map();
+  for (const m of g.moves({ square: mid, legal: false })) dest.set(m.to, Boolean(m.captured));
+  // A shot only generates when something is standing there to be shot, so on
+  // an empty diagram board a Crossbow would look like a plain Ferz — its
+  // whole point invisible. Draw the firing squares from the definition.
+  if (def.shootOff) {
+    for (const off of def.shootOff) {
+      const sq2 = mid + off;
+      if (g.inBounds(sq2) && sq2 !== mid) dest.set(sq2, true);
+    }
+  }
+
+  $('fight-md-name').textContent = def.name;
+  $('fight-md-blurb').textContent = def.blurb || '';
+  $('fight-md-cost').textContent = `${def.cost} supply · ${def.rarity}`;
+  $('fight-md-art').style.backgroundImage = `url('${pieceImage(type, color)}')`;
+  $('fight-md-art').style.filter = pieceHue(type) ? `hue-rotate(${pieceHue(type)}deg)` : '';
+
+  host.innerHTML = '';
+  for (let r = 0; r < ranks; r++) {
+    for (let f = 0; f < files; f++) {
+      const sq2 = r * 16 + f;
+      const cell = document.createElement('i');
+      cell.className = 'md-sq' + ((r + f) % 2 ? ' dark' : ' light');
+      if (sq2 === mid) {
+        const fig = document.createElement('b');
+        fig.style.backgroundImage = `url('${pieceImage(type, color)}')`;
+        if (pieceHue(type)) fig.style.filter = `hue-rotate(${pieceHue(type)}deg)`;
+        cell.appendChild(fig);
+      } else if (dest.has(sq2)) {
+        cell.classList.add(dest.get(sq2) ? 'cap' : 'go');
+      }
+      host.appendChild(cell);
+    }
+  }
+}
+
 // ---- game lifecycle --------------------------------------------------------
 
 /**
@@ -447,6 +532,7 @@ function newGame() {
   state.view.markLastMove(null, null);
   state.view.markCheck(null);
   state.view.setInteractive(true);
+  resetInspect();
   renderCoordinates();
   updateHud();
   refreshStatus();
@@ -525,6 +611,7 @@ function init() {
   state.view = new BoardView($('board'), {
     onAttemptMove, canPickUp, legalTargets,
     onPickUp: () => audio.lift(),
+    onInspect,
     isPlacingDuck: () => Boolean(state.game?.awaitingDuck && state.game.turn !== state.playerColor),
     onPlaceDuck,
   });
@@ -547,7 +634,7 @@ function init() {
 
   state.campaign = initCampaign({
     state, $, showScreen, audio, requestMove, setStatus, refreshStatus,
-    updateHud, renderCoordinates, Chess,
+    updateHud, renderCoordinates, Chess, resetInspect,
   });
 
   const sandbox = initSandbox({ $, showScreen, audio });

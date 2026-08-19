@@ -39,6 +39,7 @@ export class BoardView {
    * @param {object} handlers
    * @param {(from:number,to:number)=>void} handlers.onAttemptMove
    * @param {(sq:number)=>void} [handlers.onPickUp]
+   * @param {(sq:number)=>void} [handlers.onInspect] called with whatever square was clicked
    * @param {(sq:number)=>boolean} [handlers.canPickUp]
    * @param {(sq:number)=>Array} handlers.legalTargets moves from a square
    */
@@ -422,6 +423,7 @@ export class BoardView {
     if (!this.interactive || event.button === 2) return;
     const sq = this.squareFromEvent(event);
     if (sq == null) return;
+    this.handlers.onInspect?.(sq);
     if (this.handlers.isPlacingDuck?.()) {
       this.handlers.onPlaceDuck?.(sq);
       return;

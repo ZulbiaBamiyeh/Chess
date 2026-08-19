@@ -312,7 +312,14 @@ class Search {
     const stand = sign * evaluate(game);
     const threatened = isThreatened(game);
 
-    if (qdepth <= 0) return threatened ? -MATE : stand;
+    // negamax bails out on the clock; this recursion never did. A threatened
+    // side searches every legal reply, not just captures, and a king driven
+    // into the open — no guard left to fall back on — can stay "threatened"
+    // move after move, so that full-width branching compounds qdepth levels
+    // deep instead of pruning down to captures. One real position ran this
+    // past a minute of wall clock with the deadline blown 1000x over before
+    // it ever unwound. Sampling the clock here, same as negamax, caps it.
+    if (qdepth <= 0 || this.outOfTime()) return threatened ? -MATE : stand;
 
     // A hanging king is not something you can stand pat on — take it, flee,
     // or lose. In king-capture that also means searching quiet escapes.

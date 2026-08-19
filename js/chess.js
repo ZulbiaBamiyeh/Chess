@@ -526,11 +526,20 @@ export class Chess {
    *  - anything uncapturable, or a Drake parked next to a king would soak
    *    every blow forever and we are back to a fight that cannot end;
    *  - anything frozen, which is what gives frost its answer to a dug-in king.
+   *
+   * `rules.royalGuard` names which side it protects — `true` for both,
+   * `WHITE`/`BLACK` for one. The run only ever guards BLACK: guarding both
+   * meant the player's own king was just as safe as the enemy's for free,
+   * which made pushing it forward costless and made the Aegis king's own
+   * shield redundant (it never got the chance to matter — the free guard
+   * absorbed the blow first). The enemy still needs it, or the original bug
+   * this rule exists for — a king taken on the first ply — comes right back.
    */
   guardFor(sq) {
-    if (!this.rules.royalGuard) return -1;
     const king = this.board[sq];
     if (!king) return -1;
+    const rule = this.rules.royalGuard;
+    if (!rule || (rule !== true && rule !== king.color)) return -1;
     for (const off of KING_OFFSETS) {
       const n = sq + off;
       if (!this.inBounds(n)) continue;

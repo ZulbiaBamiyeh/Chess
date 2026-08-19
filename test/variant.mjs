@@ -9,6 +9,7 @@ import {
 } from '../js/chess.js';
 import { ENCOUNTERS } from '../js/content.js';
 import { PIECES } from '../js/pieces.js';
+import { rulesFor, createRun } from '../js/run.js';
 
 let failures = 0;
 
@@ -809,6 +810,50 @@ const GUARD = { ...KC, royalGuard: true };
     if (!guarded) unguarded.push(enc.id);
   }
   assert('every encounter king starts with a guard', unguarded.length === 0, unguarded.join(', '));
+}
+
+{
+  // The run only ever guards one side. Guarding both made the player's own
+  // king as safe to push forward as to keep home, and left the Aegis king's
+  // shield with nothing to do — the free guard always spent itself first.
+  // One attacker per test, aimed at a king with a guard beside it, so there
+  // is no ambiguity about which king a given move threatens.
+  const blackGuarded = `
+    . {b:pawn} {b:king} .
+    . . . .
+    . . . .
+    . . {w:rook} .
+  `;
+  const onlyBlack = { ...KC, royalGuard: BLACK };
+  const g = Chess.fromDiagram(blackGuarded, { files: 4, ranks: 4, rules: onlyBlack });
+  const blow = g.moves({ legal: false }).find((m) => m.to === g.kings.b);
+  assert('royalGuard: BLACK guards the black king',
+    Boolean(blow) && Boolean(blow.flags & FLAG.GUARD_FALLS), JSON.stringify(blow));
+
+  const whiteGuarded = `
+    . . {b:rook} .
+    . . . .
+    . . . .
+    . {w:pawn} {w:king} .
+  `;
+  const g2 = Chess.fromDiagram(whiteGuarded, { files: 4, ranks: 4, rules: onlyBlack, turn: BLACK });
+  const blow2 = g2.moves({ legal: false }).find((m) => m.to === g2.kings.w);
+  assert('royalGuard: BLACK does not guard the white king',
+    Boolean(blow2) && !(blow2.flags & FLAG.GUARD_FALLS), JSON.stringify(blow2));
+
+  const onlyWhite = { ...KC, royalGuard: WHITE };
+  const g3 = Chess.fromDiagram(whiteGuarded, { files: 4, ranks: 4, rules: onlyWhite, turn: BLACK });
+  const blow3 = g3.moves({ legal: false }).find((m) => m.to === g3.kings.w);
+  assert('royalGuard: WHITE guards the white king',
+    Boolean(blow3) && Boolean(blow3.flags & FLAG.GUARD_FALLS), JSON.stringify(blow3));
+}
+
+{
+  // The run itself must actually be wired to the asymmetric version, not just
+  // the engine supporting it in the abstract.
+  const run = createRun(1);
+  const rules = rulesFor(run);
+  assert('the run guards only the enemy king', rules.royalGuard === BLACK, String(rules.royalGuard));
 }
 
 console.log(failures ? `\n${failures} variant failure(s)` : '\nAll variant tests passed.');

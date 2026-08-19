@@ -1075,7 +1075,10 @@ kbd {
 
 @media (max-width: 560px) {
   .screen { padding: 0.5rem; gap: 0.5rem; }
-  .rail-moves { max-height: 16vh; }
+  /* 16vh fit the move list alone; the diagram panel added above it needs
+     room too, or the list gets squeezed to a sliver inside its own scroll
+     box no one can use. */
+  .rail-moves { max-height: 26vh; }
   .move-list { max-height: 11vh; }
   .rail:not(.rail-moves) .player-panel { padding: 0.4rem 0.5rem; }
   .board-wrap {
@@ -1155,6 +1158,25 @@ kbd {
   }
   #screen-loadout #btn-loadout-fight { grid-column: 1 / -1; order: -1; }
   #screen-loadout .btn-wide { padding: 0.5em; font-size: 0.74rem; }
+
+  /* The fight rail is capped at 16vh here (below) — plenty for the move list
+     alone, not enough to also fit a full-width diagram board without
+     squeezing the list to nothing. Same compact treatment as loadout's copy:
+     a small fixed board off to the side of the blurb instead of a big one
+     stacked above it. */
+  #screen-game .move-diagram {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.4rem;
+    margin-bottom: 0.3rem;
+  }
+  #screen-game .md-head { flex: 1; margin-bottom: 0; grid-template-columns: 30px 1fr; gap: 0.35rem; }
+  #screen-game .md-head b { font-size: 0.62rem; }
+  #screen-game .md-head span { font-size: 0.62rem; }
+  #screen-game .md-board { width: 64px; flex: none; }
+  #screen-game .move-diagram.empty .md-head { grid-template-columns: 1fr; }
+  #screen-game .move-diagram.empty .md-head i { display: none; }
 
   /* Shop offers and camp/event choice lists are both "browse several cards"
      screens — unlike the rest of the game there's no shrinking these down
@@ -1305,6 +1327,26 @@ kbd {
   background: #1a120c;
   box-shadow: 0 22px 56px rgba(0, 0, 0, 0.55);
 }
+.map-guard-note {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: min(100%, 560px);
+  margin: 0.5rem 0 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: 6px;
+  background: rgba(20, 12, 8, 0.9);
+  border: 1px solid var(--gold);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+}
+.map-guard-note p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #e8dcc0;
+}
+.map-guard-note .btn { flex: none; }
 .map-scroll {
   position: relative;
   width: 100%;

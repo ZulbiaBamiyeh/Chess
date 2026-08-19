@@ -98,6 +98,7 @@
       <p>This is a chess <strong>roguelike</strong>.</p>
       <p>You climb a branching map through three acts and try to take the last king. Early fights are small boards with a few pieces. Bosses play on a full chessboard.</p>
       <p>Capture their king to win a fight. Lose yours — or find no way to take theirs — and the run is over. Fast wins still pay more.</p>
+      <p>Their king keeps a guard: a blow aimed at it falls on the nearest escort instead, once. Yours doesn't — push it forward and it's exposed like any other piece. An Aegis king carries its own shield to make up for that.</p>
       <p>Pieces always come home. Gold and the occasional drop go in the bag. Shops get stranger as you go. One legendary slot until you upgrade it. One king leads the run; others wait in the bag.</p>
       <p>The rest is on the road.</p>
       <p class="howto-keys">Drag or click to move. <kbd>F</kbd> flip · <kbd>Esc</kbd> put a piece down.</p>
@@ -212,6 +213,17 @@
       </div>
 
       <aside class="rail rail-moves">
+        <div id="fight-diagram" class="move-diagram empty">
+          <div class="md-head">
+            <i id="fight-md-art" class="howto-art"></i>
+            <div>
+              <b id="fight-md-name">How it moves</b>
+              <span id="fight-md-blurb">Click any piece on the board.</span>
+              <span id="fight-md-cost"></span>
+            </div>
+          </div>
+          <div id="fight-md-board" class="md-board"></div>
+        </div>
         <h3 class="rail-title">Moves</h3>
         <div id="move-list" class="move-list"></div>
       </aside>
@@ -253,6 +265,10 @@
         <div id="map-climb" class="map-climb"></div>
       </div>
       <p id="map-blurb" class="map-blurb"></p>
+    </div>
+    <div id="map-guard-note" class="map-guard-note hidden">
+      <p>Their king keeps a guard — a blow meant for it falls on the nearest escort instead, once. Yours doesn't: push it forward and it's exposed. An Aegis king carries its own shield to make up for that.</p>
+      <button id="btn-map-guard-note-close" class="btn btn-ghost">Got It</button>
     </div>
   </section>
 

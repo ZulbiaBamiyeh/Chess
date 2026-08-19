@@ -18,7 +18,7 @@ import { relicById } from './relics.js';
 export function initCampaign(ctx) {
   const {
     state, $, showScreen, audio, requestMove, setStatus, refreshStatus,
-    updateHud, renderCoordinates,
+    updateHud, renderCoordinates, resetInspect,
   } = ctx;
 
   let deployView = null;
@@ -93,6 +93,10 @@ export function initCampaign(ctx) {
     state.playerColor = WHITE;
     state._hudPrev = null;
     showMap();
+    // Stated once, up front, rather than left for the how-to screen a player
+    // might never open: the guard rule is asymmetric and worth knowing before
+    // the first fight, not after losing a king to it.
+    if ($('map-guard-note')) $('map-guard-note').classList.remove('hidden');
   }
 
   function showMap() {
@@ -856,6 +860,7 @@ export function initCampaign(ctx) {
     state.view.markLastMove(null, null);
     state.view.markCheck(null);
     state.view.setInteractive(true);
+    resetInspect?.();
     $('run-hud').classList.remove('hidden');
     $('btn-undo').classList.add('hidden');
     $('btn-new').classList.add('hidden');
@@ -1212,6 +1217,9 @@ export function initCampaign(ctx) {
   });
   if ($('btn-map-go')) $('btn-map-go').addEventListener('click', goFromMap);
   $('btn-map-quit').addEventListener('click', abandon);
+  if ($('btn-map-guard-note-close')) {
+    $('btn-map-guard-note-close').addEventListener('click', () => $('map-guard-note').classList.add('hidden'));
+  }
   $('btn-loadout-back').addEventListener('click', showMap);
   if ($('btn-event-leave')) $('btn-event-leave').addEventListener('click', leaveEvent);
   if ($('btn-event-bag')) $('btn-event-bag').addEventListener('click', openBag);
