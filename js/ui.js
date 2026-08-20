@@ -569,15 +569,63 @@ export function confetti(count = 90) {
   }
 }
 
-/** Big centred text that punches in and fades — check, checkmate, promotion. */
+/**
+ * Big centred text that punches in and fades — check, checkmate, promotion,
+ * but also every overworld line (a room's name, a quest, what a cache held).
+ * Those run to full sentences, so a flat 1.5s that was tuned for "CHECK!"
+ * left them unreadable. Longer text gets more time on screen, not just a
+ * faster read — up to a real cap so nobody is stuck waiting on a wall of text.
+ */
 export function toast(text, kind = '') {
   const layer = document.getElementById('particles');
   if (!layer) return;
   const el = document.createElement('div');
   el.className = `board-toast ${kind}`;
   el.textContent = text;
+  const duration = Math.max(1.5, Math.min(5, 1.5 + Math.max(0, text.length - 14) * 0.045));
+  el.style.animationDuration = `${duration}s`;
   layer.appendChild(el);
-  setTimeout(() => el.remove(), 1500);
+  setTimeout(() => el.remove(), duration * 1000);
+}
+
+// ---- first-run tips ---------------------------------------------------
+
+const TIP_KEY = 'gambit-tips-seen';
+
+function seenTips() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(TIP_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function markTipSeen(id) {
+  try {
+    const seen = seenTips();
+    seen.add(id);
+    localStorage.setItem(TIP_KEY, JSON.stringify([...seen]));
+  } catch {
+    // Storage unavailable (private mode, quota) — tips just replay next
+    // time, which is harmless.
+  }
+}
+
+/**
+ * A quick, once-ever hint for what to actually do next — shown the first
+ * time a player hits each new kind of screen, never again after. Small and
+ * out of the way on purpose: it's a nudge, not a tutorial that stops play.
+ */
+export function tip(id, text) {
+  if (seenTips().has(id)) return;
+  markTipSeen(id);
+  const layer = document.getElementById('particles');
+  if (!layer) return;
+  const el = document.createElement('div');
+  el.className = 'tip-toast';
+  el.textContent = text;
+  layer.appendChild(el);
+  setTimeout(() => el.remove(), 4200);
 }
 
 // ---- game text -------------------------------------------------------------

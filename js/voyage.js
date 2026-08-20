@@ -3,10 +3,10 @@
 
 import { WHITE } from './chess.js';
 import { pieceById } from './pieces.js';
-import { pieceImage, kingSkin, toast } from './ui.js';
-import { createVoyageRun, addToBag, removeFromBag } from './run.js';
+import { pieceImage, kingSkin, kingHue, pieceHue, toast, tip } from './ui.js';
+import { createVoyageRun, addToBag, removeFromBag, bagSummary } from './run.js';
 import { RELICS } from './relics.js';
-import { EVENTS } from './content.js';
+import { EVENTS, kingDef } from './content.js';
 import {
   generateWorld, generateTown, playerMoves, movePlayer, clashEncounter, bagMaterial,
   armyMaterial, threatTint, keyPieceType,
@@ -24,6 +24,34 @@ function pickEvent(run) {
   run.seenEvents.add(ev.id);
   return ev.id;
 }
+
+// Hand-built vector marks for the map's non-piece points of interest — no
+// bitmap art ships for these, so a real icon means drawing one, not just
+// styling a bigger Unicode glyph. Same badge shape throughout (a hexagon
+// puck) so the set reads as one family; only the emblem and its colour
+// change per kind.
+function owBadge(stroke, fill, glyph) {
+  return `<svg viewBox="0 0 32 32" class="ow-icon-svg">`
+    + `<polygon points="16,2 28,9 28,23 16,30 4,23 4,9" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`
+    + glyph
+    + `</svg>`;
+}
+const OW_ICON = {
+  event: owBadge('#c08cff', 'rgba(42,32,68,0.92)',
+    '<text x="16" y="23" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="17" fill="#c08cff">?</text>'),
+  shrine: owBadge('#ffcf3f', 'rgba(42,28,14,0.92)',
+    '<path d="M16 8v16M9 14h14" stroke="#ffcf3f" stroke-width="2.6" stroke-linecap="round"/>'),
+  sign: owBadge('#43d9ff', 'rgba(18,26,42,0.92)',
+    '<path d="M11 11h8l3 3.5-3 3.5h-8z" fill="none" stroke="#43d9ff" stroke-width="2" stroke-linejoin="round"/>'
+    + '<path d="M13.5 18v6" stroke="#43d9ff" stroke-width="2.2" stroke-linecap="round"/>'),
+  loot: owBadge('#ffcf3f', 'rgba(42,28,14,0.92)',
+    '<path d="M8 14a8 6 0 0 1 16 0" fill="none" stroke="#ffcf3f" stroke-width="2"/>'
+    + '<rect x="8" y="14" width="16" height="9" rx="1.5" fill="rgba(255,207,63,0.14)" stroke="#ffcf3f" stroke-width="2"/>'
+    + '<circle cx="16" cy="18.3" r="1.7" fill="#ffcf3f"/>'),
+  skull: owBadge('#ff5470', 'rgba(42,16,20,0.92)',
+    '<path d="M16 8c-4.4 0-7.5 3.2-7.5 7.3 0 2.9 1.5 4.9 3 6.1v2.4h2.2v-2h4.6v2h2.2v-2.4c1.5-1.2 3-3.2 3-6.1C23.5 11.2 20.4 8 16 8z" fill="none" stroke="#ff5470" stroke-width="2" stroke-linejoin="round"/>'
+    + '<circle cx="12.6" cy="15.2" r="1.6" fill="#ff5470"/><circle cx="19.4" cy="15.2" r="1.6" fill="#ff5470"/>'),
+};
 
 // Town NPCs stand in for roles with no bespoke art of their own yet, borrowing
 // a combat piece's silhouette. A hue shift — the same reskin trick every
@@ -63,6 +91,9 @@ export function initVoyage(ctx) {
     state._hudPrev = null;
     state.run.voyage = generateWorld(state.run.rng, 1);
     showWithBossReveal();
+    // After the boss-reveal pan has settled on the leader, not competing
+    // with its own toast.
+    setTimeout(() => tip('move', 'Click a lit square to walk there, one step at a time.'), 2000);
   }
 
   function show() {
@@ -170,6 +201,64 @@ export function initVoyage(ctx) {
     }
   }
 
+  /** The left dock: every quest actually taken, with live progress. */
+  function paintQuestLog() {
+    const host = $('ow-quest-list');
+    if (!host) return;
+    const quests = (state.run.quests || []).filter((q) => q.status !== 'done');
+    if (!quests.length) {
+      host.innerHTML = '<p class="ow-dock-empty">Talk to someone in a town.</p>';
+      return;
+    }
+    host.innerHTML = quests.map((q) => {
+      const prog = questProgress(state.run, q);
+      let line = q.detail;
+      if (q.kind === 'scout' && prog.need != null) line = `${Math.min(prog.have, prog.need)} / ${prog.need} ranks north`;
+      else if (q.kind === 'bounty' && prog.need != null) line = `${Math.min(prog.have, prog.need)} / ${prog.need} scattered`;
+      return `<div class="ow-quest-card${prog.ready ? ' ready' : ''}">`
+        + `<span class="ow-quest-name">${q.title}</span>`
+        + `<span class="ow-quest-detail">${prog.ready ? 'Ready — find them again.' : line}</span>`
+        + `</div>`;
+    }).join('');
+  }
+
+  /** The right dock: a glance at the bag. Click anything to open it in full. */
+  function paintInventoryDock() {
+    const kingsHost = $('ow-inv-kings');
+    const piecesHost = $('ow-inv-pieces');
+    const slotsHost = $('ow-inv-slots');
+    if (!kingsHost || !piecesHost) return;
+    const run = state.run;
+    const summary = bagSummary(run);
+    if (slotsHost) {
+      slotsHost.textContent = Object.entries(run.slots)
+        .filter(([r]) => r !== 'common')
+        .map(([r, n]) => `${r} ${summary.slots[r] || 0}/${n === Infinity ? '∞' : n}`)
+        .join('  ·  ');
+    }
+    kingsHost.innerHTML = summary.kings.map((id) => {
+      const def = kingDef(id);
+      const on = summary.equipped === id;
+      const hue = kingHue(id) ? ` filter:hue-rotate(${kingHue(id)}deg);` : '';
+      return `<button type="button" class="bag-tile king-tile${on ? ' on' : ' idle'}" title="${def.name} King">`
+        + `<i style="background-image:url('${pieceImage('k', WHITE, kingSkin(id))}');${hue}"></i>`
+        + `<span class="bag-tile-name">${def.name}${on ? ' (active)' : ''}</span>`
+        + `</button>`;
+    }).join('');
+    piecesHost.innerHTML = summary.pieces.map((row) => {
+      const def = pieceById(row.type);
+      const hue = pieceHue(row.type) ? ` filter:hue-rotate(${pieceHue(row.type)}deg);` : '';
+      return `<button type="button" class="bag-tile" title="${def?.name || row.type}">`
+        + `<i style="background-image:url('${pieceImage(row.type, WHITE)}');${hue}"></i>`
+        + (row.count > 1 ? `<span class="bag-tile-count">×${row.count}</span>` : '')
+        + `<span class="bag-tile-name">${def?.name || row.type}</span>`
+        + `</button>`;
+    }).join('');
+    const openFull = () => campaign.openBag();
+    kingsHost.onclick = openFull;
+    piecesHost.onclick = openFull;
+  }
+
   function terrainClass(cell, file, rank) {
     const w = world();
     const bits = ['ow-sq'];
@@ -226,16 +315,16 @@ export function initVoyage(ctx) {
           } else if (cell.poi === 'ramp') {
             sq.insertAdjacentHTML('beforeend', `<i class="ow-poi" style="background-image:url('assets/ow-ramp.png')"></i>`);
           } else if (cell.poi === 'shrine') {
-            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">✝</i>`);
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">${OW_ICON.shrine}</i>`);
           } else if (cell.poi === 'sign') {
-            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">☰</i>`);
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">${OW_ICON.sign}</i>`);
           } else if (cell.poi === 'event') {
-            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot ow-event">?</i>`);
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot ow-event">${OW_ICON.event}</i>`);
           } else if (cell.poi === 'exit') {
             sq.classList.add('ow-exit');
           } else if (cell.poi === 'loot') {
             const skull = cell.loot?.skull;
-            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot${skull ? ' skull' : ''}">${skull ? '☠' : '✦'}</i>`);
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot${skull ? ' skull' : ''}">${skull ? OW_ICON.skull : OW_ICON.loot}</i>`);
           }
         }
 
@@ -291,6 +380,8 @@ export function initVoyage(ctx) {
     }
     updateFogGrid();
     sizeFogCanvas();
+    paintQuestLog();
+    paintInventoryDock();
   }
 
   function centerOnEl(el, behavior = 'smooth') {
@@ -315,7 +406,9 @@ export function initVoyage(ctx) {
     const vis = w.visible.has(key(file, rank));
     const npc = vis && (w.npcs || []).find((n) => n.file === file && n.rank === rank);
     if (npc) {
-      const canTalk = chebyshev(w.player, npc) === 1;
+      // A town is small and safe — clicking a stall or a quest-giver opens
+      // them straight away instead of making you walk over first.
+      const canTalk = w.scene === 'town' || chebyshev(w.player, npc) === 1;
       openNpcSheet(npc, canTalk);
       return;
     }
@@ -542,6 +635,7 @@ export function initVoyage(ctx) {
     toast(`${state.run.town.name}.`, 'good');
     audio.place();
     show();
+    setTimeout(() => tip('town', 'Click anyone here to talk, trade, or take work.'), 900);
   }
 
   function leaveTown() {
@@ -650,6 +744,7 @@ export function initVoyage(ctx) {
         toast('The work is yours.', 'good');
         audio.click();
         closePackSheet();
+        paintQuestLog();
         return;
       }
       if (act === 'turnin') {
@@ -665,7 +760,7 @@ export function initVoyage(ctx) {
         grantQuestReward(q.reward);
         audio.victory();
         closePackSheet();
-        paintLeaders();
+        paintQuestLog();
       }
     };
   }
@@ -892,9 +987,8 @@ export function initVoyage(ctx) {
   }
 
   $('btn-ow-quit')?.addEventListener('click', () => campaign.abandon());
-  const openBag = () => document.getElementById('btn-map-bag')?.click();
-  $('btn-ow-bag')?.addEventListener('click', openBag);
-  $('ow-king')?.addEventListener('click', openBag);
+  $('btn-ow-bag')?.addEventListener('click', () => campaign.openBag());
+  $('ow-king')?.addEventListener('click', () => campaign.openBag());
   initDragPan();
 
   return { start, show, resumeFromWorld, onFightSettled };

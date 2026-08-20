@@ -5,7 +5,7 @@
 import { WHITE, BLACK, FLAG, parseSquare, squareName, TILE } from './chess.js';
 import { pieceById, pieceCost, rarityOf } from './pieces.js';
 import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, toast,
-  gameText, setGameText, setTitleText } from './ui.js';
+  gameText, setGameText, setTitleText, tip } from './ui.js';
 import {
   validateLoadout, buildFight, settleFight,
   openShop, buyOffer, rerollShop, closeShop, retryAllowed,
@@ -230,6 +230,7 @@ export function initCampaign(ctx) {
     paintMoveDiagram(null);
     paintRunHud();
     showScreen('screen-loadout');
+    tip('loadout', 'Click pieces in your bag to place them, then fight.');
   }
 
   function rebuildDeploy() {
@@ -717,6 +718,7 @@ export function initCampaign(ctx) {
     refreshStatus();
     audio.setMusicStyle('fight');
     showScreen('screen-game');
+    tip('goal', 'Take their king to win. Keep yours out of reach.');
     if (game.outcome().over) onFightOver(game.outcome());
     else if (game.turn !== state.playerColor && scheduleOpponent) scheduleOpponent();
   }
@@ -1186,6 +1188,7 @@ export function initCampaign(ctx) {
     openWorldShop,
     openWorldRest,
     openEvent,
+    openBag,
     goWorld,
     finishRun: endRun,
     tickClock() {

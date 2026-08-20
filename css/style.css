@@ -1106,6 +1106,39 @@ kbd {
   100% { scale: 1.05; opacity: 0; }
 }
 
+.tip-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 5.2rem;
+  translate: -50% 0;
+  z-index: 55;
+  max-width: min(90vw, 420px);
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  background: rgba(13, 18, 36, 0.95);
+  border: 1px solid rgba(255, 207, 63, 0.4);
+  color: var(--ink);
+  font-size: 0.84rem;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  animation: tip-toast 4.2s ease-out forwards;
+}
+@keyframes tip-toast {
+  0% { opacity: 0; translate: -50% 10px; }
+  8% { opacity: 1; translate: -50% 0; }
+  88% { opacity: 1; translate: -50% 0; }
+  100% { opacity: 0; translate: -50% -8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip-toast { animation: tip-toast-fade 4.2s ease-out forwards; }
+}
+@keyframes tip-toast-fade {
+  0%, 85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 980px) {
@@ -1328,7 +1361,14 @@ kbd {
   text-align: center;
 }
 .hud-clock.low { color: var(--red); border-color: rgba(255, 84, 112, 0.45); text-shadow: 0 0 12px rgba(255, 84, 112, 0.55); }
-.hud-gold { color: var(--gold); border-color: rgba(255, 207, 63, 0.28); font-size: 0.82rem; }
+.hud-gold {
+  color: var(--gold);
+  border-color: rgba(255, 207, 63, 0.35);
+  font-size: 1.05rem;
+  padding: 0.22em 0.7em;
+}
+.hud-gold .chip-num { text-shadow: 0 0 12px rgba(255, 207, 63, 0.55); }
+.hud-gold .chip-ico { width: 16px; height: 16px; }
 .hud-army { color: var(--blue); border-color: rgba(67, 217, 255, 0.22); }
 
 /* HP reads as a small fill bar behind the number — full-strength green,
@@ -2514,9 +2554,69 @@ kbd {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
+  gap: 0.7rem;
   min-height: 0;
   padding: 0 0.8rem;
 }
+.ow-dock { display: none; }
+/* PC gets the docks pinned either side of the board — there is room for
+   them; a narrower window keeps the old bag button and quest-in-town flow
+   instead of squeezing three columns into a phone-width screen. */
+@media (min-width: 1080px) {
+  .ow-wrap { grid-template-columns: 216px minmax(0, 1fr) 236px; }
+  .ow-dock {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    padding: 0.75rem 0.7rem;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(18, 24, 46, 0.55), rgba(7, 10, 22, 0.6));
+    border: 1px solid var(--panel-border);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  }
+}
+.ow-dock-title {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-pixel);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  flex: none;
+}
+.ow-dock-empty { font-size: 0.8rem; color: var(--ink-faint); margin: 0; }
+.ow-quest-list { display: flex; flex-direction: column; gap: 0.5rem; overflow-y: auto; min-height: 0; }
+.ow-quest-card {
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(30, 39, 73, 0.55);
+  border: 1px solid rgba(169, 179, 208, 0.2);
+}
+.ow-quest-card.ready {
+  border-color: rgba(78, 240, 142, 0.5);
+  background: rgba(78, 240, 142, 0.1);
+}
+.ow-quest-name { display: block; font-weight: 700; font-size: 0.86rem; margin-bottom: 0.15rem; }
+.ow-quest-detail { display: block; font-size: 0.76rem; color: var(--ink-faint); line-height: 1.3; }
+.ow-quest-card.ready .ow-quest-detail { color: var(--green); }
+.ow-quest-progress {
+  display: block;
+  margin-top: 0.3rem;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+.ow-dock-slots { font-size: 0.72rem; color: var(--ink-faint); margin: 0 0 0.55rem; flex: none; }
+.ow-inv-grid {
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  margin-bottom: 0.6rem;
+}
+.ow-inv-grid .bag-tile { grid-template-rows: 36px auto; padding: 0.3rem 0.2rem 0.35rem; cursor: pointer; }
+.ow-inv-grid .bag-tile-meta { display: none; }
+.ow-inv-dock { overflow-y: auto; }
 .ow-port {
   position: relative;
   overflow: auto;
@@ -2667,11 +2767,12 @@ kbd {
   text-shadow: 0 0 12px rgba(255, 84, 70, 0.95);
 }
 .ow-loot.ow-event {
-  color: var(--violet);
-  font-size: 1.3rem;
-  font-weight: 700;
-  text-shadow: 0 0 12px rgba(192, 140, 255, 0.9);
   animation: ow-event-pulse 2.2s ease-in-out infinite;
+}
+.ow-icon-svg {
+  width: 78%;
+  height: 78%;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.65));
 }
 @keyframes ow-event-pulse {
   0%, 100% { transform: scale(1); }
