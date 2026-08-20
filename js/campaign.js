@@ -1143,7 +1143,7 @@ export function initCampaign(ctx) {
       detail = 'Neither of you could finish it — they break and run rather than sit there. No loot from this one.';
     } else if (youWon) {
       title = 'THE KING FALLS';
-      detail = `+${reward.gold} gold` + (reward.clockLeft ? ` (${reward.clockLeft} for speed)` : '') + '.';
+      detail = `They dropped ${reward.gold} gold.`;
       if (reward.drop) {
         const def = pieceById(reward.drop);
         // Rare and better get their own reveal after this modal closes, so

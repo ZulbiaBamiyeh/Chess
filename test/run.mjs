@@ -9,7 +9,7 @@ import {
   completeNode, pickNode, rest, forage, trainPiece, currentEncounter,
   bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
   costFor, claimRelic, RELIC_SHIELD_CAP, TRAIN_COST, FORAGE_GOLD, freeHomeSquares,
-  restHeal, forageGold, trainCost, payUndo, UNDO_HP,
+  restHeal, forageGold, trainCost, payUndo, UNDO_HP, FIGHT_GOLD,
 } from '../js/run.js';
 import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
@@ -107,7 +107,19 @@ const alley = ENCOUNTERS.alley;
   game.kings.b = -1;
   const reward = settleFight(run, game, gate);
   assert('winning pays gold', reward.won && reward.gold >= 1, JSON.stringify(reward));
+  assert('a trash fight drops a set purse', reward.gold === FIGHT_GOLD.trash, JSON.stringify(reward));
   assert('captured pieces return to the bag', run.bag.length >= before);
+}
+
+{
+  const pay = (clockLeft) => {
+    const run = createRun(1);
+    const game = buildFight(run, gate, autoPlace(gate, []));
+    game.board[game.kings.b] = null;
+    game.kings.b = -1;
+    return settleFight(run, game, gate, { clockLeft }).gold;
+  };
+  assert('speed does not pay extra gold', pay(20) === pay(0) && pay(0) === FIGHT_GOLD.trash);
 }
 
 {
