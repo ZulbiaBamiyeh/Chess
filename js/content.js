@@ -229,7 +229,7 @@ export const ENCOUNTERS = {
   courtyard: {
     id: 'courtyard', kind: 'fight', tier: 'trash', act: 1,
     pool: 'hard',
-    name: 'The Courtyard', blurb: 'Frost across the middle.',
+    name: 'The Courtyard', blurb: 'A knight in a small yard.',
     files: 6, ranks: 6, supply: 12, ai: AI.mid, theme: 'ice',
     enemy: [
       { type: 'k', at: 'c6' },
@@ -254,7 +254,7 @@ export const ENCOUNTERS = {
     id: 'crossing', kind: 'fight', tier: 'trash', act: 1,
     pool: 'hard',
     name: 'The Frozen Lake',
-    blurb: 'The ice is thin down the middle. Whoever steps on it closes that lane behind them.',
+    blurb: 'A knight and a pawn on a short field.',
     files: 6, ranks: 6, supply: 12, ai: AI.mid, theme: 'ice',
     enemy: [
       { type: 'k', at: 'd6' },
@@ -284,7 +284,7 @@ export const ENCOUNTERS = {
   },
   outpost: {
     id: 'outpost', kind: 'fight', tier: 'elite', act: 1,
-    name: 'Camel Outpost', blurb: 'Blocked corners and a long-striding camel.',
+    name: 'Camel Outpost', blurb: 'A long-striding camel in a small yard.',
     files: 6, ranks: 6, supply: 13, ai: AI.mid, theme: 'camel',
     enemy: [
       { type: 'k', at: 'c6' },
@@ -371,7 +371,7 @@ export const ENCOUNTERS = {
   },
   warden: {
     id: 'warden', kind: 'fight', tier: 'boss', act: 2, boss: true,
-    name: 'The Warden', blurb: 'An 8×8 keep. A duck on the gate and fire in the yard.',
+    name: 'The Warden', blurb: 'An 8×8 keep. A duck on the gate, and a flame piece that paints its own fire.',
     files: 8, ranks: 8, supply: 20, ai: AI.boss, theme: 'flame',
     enemy: [
       { type: 'k', at: 'e8' },
@@ -453,14 +453,14 @@ export const ENCOUNTERS = {
   },
   scree: {
     id: 'scree', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
-    name: 'The Scree', blurb: 'Broken ground, and a zebra that ignores it.',
+    name: 'The Scree', blurb: 'A zebra that lands where nothing else can reach.',
     files: 6, ranks: 6, supply: 12, ai: AI.mid, theme: 'camel',
     terrain: { b4: TILE.BLOCK, d4: TILE.BLOCK },
     enemy: [{ type: 'k', at: 'c6' }, { type: 'z', at: 'e6' }, { type: 'p', at: 'b6' }],
   },
   sinkhole: {
     id: 'sinkhole', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
-    name: 'The Sinkhole', blurb: 'The middle of the board simply is not there any more.',
+    name: 'The Sinkhole', blurb: 'A bishop holding a short field.',
     files: 6, ranks: 6, supply: 13, ai: AI.mid, theme: 'grave',
     // Most rooms with terrain drop one or two lone walls as an obstacle to
     // route around. This is the other kind — an actually dramatic hole, a
@@ -654,7 +654,7 @@ export const ENCOUNTERS = {
   rimeguard: {
     id: 'rimeguard', kind: 'fight', tier: 'boss', act: 2, boss: true,
     name: 'The Rime Guard',
-    blurb: 'Two rimes and a field of ice — and the cold keeps spreading. Bring something that leaps.',
+    blurb: 'Two rimes. The ice they make is the only ice on the field.',
     files: 8, ranks: 8, supply: 20, ai: AI.boss, theme: 'ice',
     terrain: { c5: TILE.FROST, d5: TILE.FROST, e5: TILE.FROST, f5: TILE.FROST },
     // A fresh row freezes over every six plies — three full rounds — and
@@ -716,7 +716,7 @@ export const ENCOUNTERS = {
   },
   frostgate: {
     id: 'frostgate', kind: 'fight', tier: 'trash', act: 3, pool: 'hard',
-    name: 'The Frost Gate', blurb: 'Ice across the whole approach.',
+    name: 'The Frost Gate', blurb: 'A rime piece waiting on the approach.',
     files: 7, ranks: 7, supply: 17, ai: AI.hard, theme: 'ice',
     terrain: { b4: TILE.FROST, c4: TILE.FROST, d4: TILE.FROST, e4: TILE.FROST, f4: TILE.FROST },
     enemy: [{ type: 'k', at: 'd7' }, { type: 'i', at: 'c6' }, { type: 'r', at: 'a7' }, { type: 'b', at: 'g7' }],
@@ -806,8 +806,7 @@ export const ENCOUNTERS = {
   conflagration: {
     id: 'conflagration', kind: 'fight', tier: 'boss', act: 3, boss: true,
     name: 'The Conflagration',
-    blurb: 'It sets the board alight and walks through it — and calls down fire of its own '
-      + 'on marked ground. Watch for the warning, and be somewhere else.',
+    blurb: 'It walks through fire of its own making. Flame pieces, and the path they burn.',
     files: 8, ranks: 8, supply: 24, ai: AI.boss, theme: 'flame',
     terrain: { c5: TILE.FIRE, d5: TILE.FIRE, e5: TILE.FIRE, f5: TILE.FIRE },
     // Marks a cross around your king every eight plies, burns it two plies
@@ -1000,8 +999,7 @@ export const ENCOUNTERS = {
   gravetide: {
     id: 'gravetide', kind: 'fight', tier: 'boss', act: 3, boss: true,
     name: 'The Grave Tide',
-    blurb: 'It does not need an army. It takes yours — and the ground along with it, '
-      + 'the edges of the board swallowed a ring at a time.',
+    blurb: 'It does not need an army. It takes yours.',
     files: 8, ranks: 8, supply: 24, ai: AI.boss, theme: 'grave',
     terrain: { d5: TILE.FORT, e5: TILE.FORT },
     // The outer ring gives way every eight plies, then the next ring in —
@@ -1016,6 +1014,34 @@ export const ENCOUNTERS = {
     ],
   },
 };
+
+const BAKED_HAZARDS = new Set([TILE.BLOCK, TILE.FROST, TILE.FIRE, TILE.GLASS]);
+
+/**
+ * Holes, pre-painted ice and pre-painted flame are off the book. Forts stay.
+ * Ice and fire that pieces create during a fight (a rime, a flame bishop)
+ * are unchanged. Environmental scripts that laid those tiles for you —
+ * blizzard, meteor, shrinking the board — go with them.
+ */
+function scrubEncounterBoard(enc) {
+  if (enc.terrain) {
+    const kept = {};
+    for (const [sq, tile] of Object.entries(enc.terrain)) {
+      if (!BAKED_HAZARDS.has(tile)) kept[sq] = tile;
+    }
+    if (Object.keys(kept).length) enc.terrain = kept;
+    else delete enc.terrain;
+  }
+  if (enc.bossScript) {
+    const next = { ...enc.bossScript };
+    delete next.blizzard;
+    delete next.shrink;
+    delete next.meteor;
+    enc.bossScript = Object.keys(next).length ? next : null;
+  }
+}
+
+for (const enc of Object.values(ENCOUNTERS)) scrubEncounterBoard(enc);
 
 /**
  * Random rooms — the `?` nodes, lifted in shape from Slay the Spire: a short

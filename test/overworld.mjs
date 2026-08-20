@@ -236,33 +236,7 @@ function pawnLaneOpen(enc) {
 }
 
 {
-  // Missing squares are a biome trait, not the default shape of a fight — a
-  // clean board should be the norm. The exact same wall-heavy terrain should
-  // yield holes in a biome that fits them and none in one that doesn't —
-  // and only for a boss fight, where hazards are allowed to appear at all.
-  const w = world(1, 2);
-  for (let r = 0; r < 8; r++) {
-    for (let f = 0; f < w.files; f++) {
-      w.cells[r][f].terrain = (f === 5) ? TERRAIN.FLOOR : TERRAIN.WALL;
-    }
-  }
-  w.player.file = 5;
-  w.player.rank = 2;
-  const bag = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
-  const woodPack = { id: 'wood-pack', file: 5, rank: 3, army: [{ type: 'k' }], name: 'Levy', biome: 'wood', tier: 'boss' };
-  const peakPack = { id: 'peak-pack', file: 5, rank: 3, army: [{ type: 'k' }], name: 'Cinder Host', biome: 'peak', tier: 'boss' };
-  const cleanEnc = clashEncounter(w, woodPack, bag, 'player');
-  const holeEnc = clashEncounter(w, peakPack, bag, 'player');
-  const blocks = (enc) => Object.values(enc.terrain).filter((t) => t === 'block').length;
-  assert(blocks(cleanEnc) === 0, `wood board should have no holes, got ${blocks(cleanEnc)}`);
-  assert(blocks(holeEnc) > 0, 'peak board should still have holes');
-  console.log('PASS  fight-board holes are a biome trait, not the default');
-}
-
-{
-  // Holes, frost and fire are reserved for boss fights — the exact same
-  // hazard-heavy terrain should come back completely clean for a trash or
-  // elite pack, in any act, in any biome.
+  // Holes, frost and fire stay off the fight board. Forts can still copy.
   const w = world(1, 2);
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < w.files; f++) {
@@ -273,14 +247,14 @@ function pawnLaneOpen(enc) {
   w.player.rank = 2;
   const bag = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
   for (const biome of ['wood', 'frost', 'peak', 'gate']) {
-    for (const tier of ['trash', 'elite']) {
+    for (const tier of ['trash', 'elite', 'boss']) {
       const pack = { id: `${biome}-${tier}-pack`, file: 5, rank: 3, army: [{ type: 'k' }], name: 'Test', biome, tier };
       const enc = clashEncounter(w, pack, bag, 'player');
-      const hazards = Object.values(enc.terrain).filter((t) => t === 'block' || t === 'frost' || t === 'fire').length;
-      assert(hazards === 0, `non-boss ${biome}/${tier} board had ${hazards} hazard tile(s)`);
+      const hazards = Object.values(enc.terrain || {}).filter((t) => t === 'block' || t === 'frost' || t === 'fire').length;
+      assert(hazards === 0, `${biome}/${tier} board had ${hazards} hazard tile(s)`);
     }
   }
-  console.log('PASS  non-boss fights never carry holes, frost or fire');
+  console.log('PASS  fights never copy holes, frost or fire onto the board');
 }
 
 {

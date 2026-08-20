@@ -1,7 +1,7 @@
 // Run layer: bag, slots, supply, loadout, settlement, shop, map.
 // Run with: node test/run.mjs
 
-import { WHITE } from '../js/chess.js';
+import { WHITE, TILE } from '../js/chess.js';
 import {
   createRun, validateLoadout, buildFight, settleFight, addToBag, hasSlot, runStats,
   ensureFormation, placementsFromFormation, CREW_BOARD,
@@ -651,6 +651,20 @@ function courtyardOrGate() {
     if (!(e.enemy || []).some((x) => x.type === 'k')) bad++;
   }
   assert('every encounter is structurally sound', bad === 0, `${bad} problems`);
+}
+
+{
+  const baked = new Set([TILE.BLOCK, TILE.FROST, TILE.FIRE, TILE.GLASS]);
+  const rooms = [];
+  for (const e of Object.values(ENCOUNTERS)) {
+    for (const tile of Object.values(e.terrain || {})) {
+      if (baked.has(tile)) rooms.push(`${e.id}:${tile}`);
+    }
+    const script = e.bossScript || {};
+    if (script.blizzard || script.shrink || script.meteor) rooms.push(`${e.id}:script`);
+  }
+  assert('no fight starts with holes, ice or flame already on the board',
+    rooms.length === 0, rooms.join(', '));
 }
 
 {

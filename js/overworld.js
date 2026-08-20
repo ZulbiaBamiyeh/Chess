@@ -1265,21 +1265,16 @@ function ensureSquareReachable(terrain, files, ranks, target) {
 // clean board (with a fort tile here or there) is the norm, the way a 6×6
 // board with nothing missing reads best. Mountains and the ruined approach
 // to a gate are jagged enough that holes belong there; woods and ice are not.
-const HOLE_BIOMES = new Set(['peak', 'gate']);
-
 /**
  * Build a fight encounter from the overworld tile the clash happened on.
- * Holes, frost and fire are reserved for boss fights — they can strand a
- * king or block a promotion in ways the player didn't cause, which is only
- * fair when the fight is already a set-piece the player knows is a boss.
+ * Holes, frost and fire stay off the board — those only appear when a piece
+ * makes them. Forts still copy through.
  */
 export function clashEncounter(world, pack, run, aggressor) {
   const files = Math.min(8, 6 + Math.min(2, world.act - 1));
   const ranks = Math.min(8, 6 + Math.min(2, world.act - 1));
   const originFile = world.player.file - Math.floor(files / 2);
   const originRank = world.player.rank - Math.floor(ranks / 2);
-  const hazardsOn = pack.tier === 'boss';
-  const holes = hazardsOn && HOLE_BIOMES.has(pack.biome);
   const terrain = {};
   for (let r = 0; r < ranks; r++) {
     for (let f = 0; f < files; f++) {
@@ -1287,16 +1282,7 @@ export function clashEncounter(world, pack, run, aggressor) {
       const owR = originRank + r;
       const cell = cellAt(world, owF, owR);
       const combatName = `${String.fromCharCode(97 + f)}${r + 1}`;
-      if (!cell || owR <= world.decayRank
-        || (holes && (cell.terrain === TERRAIN.WALL || cell.terrain === TERRAIN.CHASM))) {
-        terrain[combatName] = 'block';
-      } else if (hazardsOn && cell.terrain === TERRAIN.FROST) {
-        terrain[combatName] = 'frost';
-      } else if (hazardsOn && cell.terrain === TERRAIN.EMBER) {
-        terrain[combatName] = 'fire';
-      } else if (cell.terrain === TERRAIN.FORT) {
-        terrain[combatName] = 'fort';
-      }
+      if (cell?.terrain === TERRAIN.FORT) terrain[combatName] = 'fort';
     }
   }
 
