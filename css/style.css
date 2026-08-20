@@ -1291,7 +1291,7 @@ kbd {
   #screen-game .move-diagram.empty .md-head { grid-template-columns: 1fr; }
   #screen-game .move-diagram.empty .md-head i { display: none; }
 
-  #screen-shop .shop-scene { max-height: 38vh; min-height: 180px; }
+  #screen-shop .shop-scene { width: min(100%, calc(38vh * 1408 / 768)); }
   #screen-shop .shop-layout { overflow: auto; }
 
   .event-choices { max-height: 42vh; overflow-y: auto; padding-right: 0.15rem; }
