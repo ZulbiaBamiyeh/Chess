@@ -19,9 +19,42 @@ import {
   bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
   suggestLoadout, runStats, ensureFormation, placementsFromFormation, CREW_BOARD,
   pruneFormation, payUndo, UNDO_HP, claimSpoils,
+  climbMark, climbScore, formatClimbMark,
 } from './run.js';
 import { kingDef, EVENTS, encounterFor, CLOCK_WARN, CLOCK_PANIC } from './content.js';
 import { relicById } from './relics.js';
+
+const BEST_CLIMB_KEY = 'gambit-best-climb';
+const TITLE_FLAVOR = 'Capture the king. Keep your army. Spend your supply.';
+
+function readBestClimb() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(BEST_CLIMB_KEY) || 'null');
+    if (!raw || !Number.isFinite(raw.act) || !Number.isFinite(raw.floor)) return null;
+    return { act: raw.act, floor: raw.floor, won: Boolean(raw.won) };
+  } catch {
+    return null;
+  }
+}
+
+function noteBestClimb(run) {
+  const mark = climbMark(run);
+  if (!mark) return readBestClimb();
+  const prev = readBestClimb();
+  if (!prev || climbScore(mark) > climbScore(prev)) {
+    try { localStorage.setItem(BEST_CLIMB_KEY, JSON.stringify(mark)); } catch { /* private mode */ }
+    return mark;
+  }
+  return prev;
+}
+
+function paintTitleRecord() {
+  const el = document.getElementById('title-record');
+  if (!el) return;
+  const rec = readBestClimb();
+  el.textContent = rec ? formatClimbMark(rec) : TITLE_FLAVOR;
+  el.classList.toggle('record', Boolean(rec));
+}
 
 export function initCampaign(ctx) {
   const {
@@ -165,6 +198,8 @@ export function initCampaign(ctx) {
     closeBag();
     audio.setMusicStyle('ambient');
     const run = state.run;
+    noteBestClimb(run);
+    paintTitleRecord();
     if (run.over) { endRun(); return; }
     const act = run.map.acts[run.act];
     const here = currentNode(run);
@@ -1860,6 +1895,8 @@ export function initCampaign(ctx) {
   function showGameOver() {
     const run = state.run;
     if (!run) { showScreen('screen-start'); return; }
+    noteBestClimb(run);
+    paintTitleRecord();
     const stats = runStats(run);
     const romans = ['I', 'II', 'III'];
     const actLabel = `Act ${romans[stats.act - 1] || stats.act}`;
@@ -1929,6 +1966,8 @@ export function initCampaign(ctx) {
     closeBag();
     $('modal-result').classList.add('hidden');
     hideSpoils();
+    if (state.mode === 'run') noteBestClimb(state.run);
+    paintTitleRecord();
     resetClassicButtons();
     state.mode = 'classic';
     state.generation++;
@@ -1993,6 +2032,8 @@ export function initCampaign(ctx) {
     shopSelectedId = null;
     paintShop();
   });
+  paintTitleRecord();
+
   $('btn-continue').addEventListener('click', continueAfterFight);
   if ($('btn-spoils-take')) {
     $('btn-spoils-take').addEventListener('click', (e) => {

@@ -12,6 +12,7 @@ import {
   restHeal, forageGold, trainCost, payUndo, UNDO_HP, FIGHT_GOLD,
   buildSpoils, rollSpoils, claimSpoils, SPOIL_PIECE_WEIGHT,
   turnClock, TURN_CLOCK, CLOCK_WARN, CLOCK_PANIC,
+  climbMark, climbScore, formatClimbMark,
 } from '../js/run.js';
 import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
@@ -40,6 +41,13 @@ const alley = ENCOUNTERS.alley;
   assert('map has three acts', run.map.acts.length === 3);
   assert('start offers a fork', run.choices.length >= 2, String(run.choices.length));
   assert('start rooms are fights', run.choices.every((n) => n.kind === 'fight'));
+  const mark = climbMark(run);
+  assert('a new climb is act 1 level 1', mark.act === 1 && mark.floor === 1 && !mark.won, JSON.stringify(mark));
+  assert('the title line names the floor', formatClimbMark(mark) === 'Act 1 · level 1');
+  assert('a later act outranks a deep early floor',
+    climbScore({ act: 2, floor: 1, won: false }) > climbScore({ act: 1, floor: 8, won: false }));
+  assert('clearing the run is the top mark',
+    formatClimbMark({ act: 3, floor: 8, won: true }) === 'Act 3 cleared');
   const form = ensureFormation(run);
   assert('a new run has a line of march', form.some((p) => p.uid === 'king') && form.filter((p) => p.type === 'p').length === 3);
   const king = form.find((p) => p.uid === 'king');

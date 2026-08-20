@@ -1098,6 +1098,28 @@ export function autoPlace(encounter, selectedItems) {
   return placements;
 }
 
+/** How far this run has climbed: 1-based act and floor, matching the map banner. */
+export function climbMark(run) {
+  if (!run || run.world === 'voyage') return null;
+  const node = currentNode(run);
+  const act = node?.act || run.act + 1;
+  const floor = run.choices?.length
+    ? (run.choices[0].col ?? 0) + 1
+    : (node?.col ?? 0) + 1;
+  return { act, floor, won: Boolean(run.won) };
+}
+
+export function climbScore(mark) {
+  if (!mark) return -1;
+  return mark.act * 1000 + mark.floor * 10 + (mark.won ? 1 : 0);
+}
+
+export function formatClimbMark(mark) {
+  if (!mark) return '';
+  if (mark.won) return `Act ${mark.act} cleared`;
+  return `Act ${mark.act} · level ${mark.floor}`;
+}
+
 export function runStats(run) {
   const captured = tallyTypes(run.captured || []);
   const bag = bagSummary(run);
