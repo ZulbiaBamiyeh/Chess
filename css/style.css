@@ -1508,26 +1508,6 @@ kbd {
   }
   .crew-pieces { max-height: 18vh; }
 }
-.map-guard-note {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  width: min(100%, 560px);
-  margin: 0.5rem 0 0;
-  padding: 0.6rem 0.9rem;
-  border-radius: 6px;
-  background: rgba(20, 12, 8, 0.9);
-  border: 1px solid var(--gold);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
-}
-.map-guard-note p {
-  flex: 1;
-  margin: 0;
-  font-size: 0.82rem;
-  line-height: 1.4;
-  color: #e8dcc0;
-}
-.map-guard-note .btn { flex: none; }
 .map-scroll {
   position: relative;
   width: 100%;
@@ -1559,9 +1539,14 @@ kbd {
   opacity: 1;
 }
 .map-act-label {
-  position: relative;
+  /* Out of the scroll column's flow — it floats over the art rather than
+     scrolling with it, so it stays put regardless of how far the climb
+     is scrolled. */
+  position: absolute;
+  top: 1.05rem;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 2;
-  margin: 1.05rem 0 0.1rem;
   font-family: var(--font-pixel);
   font-size: 1.05rem;
   letter-spacing: 0.32em;
@@ -1570,6 +1555,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 0.7rem;
+  white-space: nowrap;
 }
 .map-act-label::before,
 .map-act-label::after {
