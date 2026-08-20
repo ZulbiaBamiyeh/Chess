@@ -520,6 +520,7 @@ export function initCampaign(ctx) {
     $('rest-detail').textContent = 'Choose how to spend the moment.';
     $('rest-outcome').classList.add('hidden');
     $('btn-rest-move-on').classList.add('hidden');
+    $('btn-rest-back')?.classList.remove('hidden');
     $('rest-choices').classList.remove('hidden');
     paintRestChoices();
     showScreen('screen-rest');
@@ -560,14 +561,14 @@ export function initCampaign(ctx) {
       finishRest([`+${result.gold} gold`]);
     } else {
       const result = rest(state.run);
-      finishRest([`+${result.healed} HP`]);
+      finishRest([result.healed ? `+${result.healed} HP` : 'Already at full HP.']);
     }
   }
 
   function askWhichPieceToTrain() {
     const host = $('rest-choices');
     host.innerHTML = '<div class="ec-detail" style="padding:0 0 .4rem">Which piece learns to hold?</div>';
-    for (const item of state.run.bag.filter((p) => p.type !== 'k' && !p.trained && rarityOf(item.type) === 'common')) {
+    for (const item of state.run.bag.filter((p) => p.type !== 'k' && !p.trained && rarityOf(p.type) === 'common')) {
       const def = pieceById(item.type);
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -599,6 +600,7 @@ export function initCampaign(ctx) {
     $('rest-outcome').innerHTML = lines.map((l) => `<div>${l}</div>`).join('');
     $('rest-outcome').classList.remove('hidden');
     $('btn-rest-move-on').classList.remove('hidden');
+    $('btn-rest-back')?.classList.add('hidden');
     paintRunHud();
     if (restDoneCb) { restDoneCb(); restDoneCb = null; }
   }

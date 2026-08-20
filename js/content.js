@@ -9,7 +9,7 @@ export const START_GOLD = 3;
 export const REST_HEAL = 12;
 export const REST_GOLD = 1;
 export const FORAGE_GOLD = 3;
-export const TRAIN_COST = 6;
+export const TRAIN_COST = 15;
 
 // A camp isn't one fixed room, so it shouldn't read like one — same choices
 // every time, but the map tooltip and the room's own name vary per visit.
