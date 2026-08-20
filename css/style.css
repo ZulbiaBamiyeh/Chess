@@ -1585,8 +1585,8 @@ kbd {
   z-index: 2;
   margin: 1.05rem 0 0.1rem;
   font-family: var(--font-pixel);
-  font-size: 1.05rem;
-  letter-spacing: 0.32em;
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
   color: #f3e2b8;
   text-shadow: 0 2px 0 #2a1a0c, 0 0 18px rgba(0, 0, 0, 0.7);
   display: flex;

@@ -118,6 +118,23 @@ export function initCampaign(ctx) {
     showMap();
   }
 
+  function ordinal(n) {
+    const v = n % 100;
+    if (v >= 11 && v <= 13) return `${n}th`;
+    const ones = n % 10;
+    const suf = ones === 1 ? 'st' : ones === 2 ? 'nd' : ones === 3 ? 'rd' : 'th';
+    return `${n}${suf}`;
+  }
+
+  function climbProgressLabel(run) {
+    const romans = ['I', 'II', 'III'];
+    const act = romans[run.act] || String(run.act + 1);
+    const floor = run.choices?.length
+      ? (run.choices[0].col ?? 0) + 1
+      : (currentNode(run)?.col ?? 0) + 1;
+    return `Act ${act} · ${ordinal(floor)} level`;
+  }
+
   function hash01(str) {
     let h = 2166136261;
     for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
@@ -152,8 +169,7 @@ export function initCampaign(ctx) {
     const trail = new Set(run.trail || []);
     paintRunHud();
 
-    const romans = ['I', 'II', 'III'];
-    if ($('map-act-label')) $('map-act-label').textContent = `ACT ${romans[run.act] || run.act + 1}`;
+    if ($('map-act-label')) $('map-act-label').textContent = climbProgressLabel(run);
     if ($('map-art')) {
       $('map-art').classList.remove('act-0', 'act-1', 'act-2');
       $('map-art').classList.add(`act-${run.act}`);
