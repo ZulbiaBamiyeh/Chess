@@ -103,7 +103,8 @@ const alley = ENCOUNTERS.alley;
   run.gold = 40;
   const shop = openShop(run);
   assert('shop has a common', shop.offers.some((o) => o.rarity === 'common'));
-  assert('shop offers supply', shop.offers.some((o) => o.kind === 'supply'));
+  assert('shop does not offer the removed Deeper Reserve', !shop.offers.some((o) => o.kind === 'supply'));
+  assert('shop does not offer the removed Epic Slot', !shop.offers.some((o) => o.id === 'slot-epic'));
   assert('shop offers a king', shop.offers.some((o) => o.kind === 'king'));
   assert('shop lists at most two kings', shop.offers.filter((o) => o.kind === 'king').length <= 2);
 }

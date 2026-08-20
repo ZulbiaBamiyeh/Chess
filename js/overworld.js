@@ -953,7 +953,11 @@ function chaseOrWander(world, pack) {
   if (sees) pack.hunting = 4;
   else if (pack.hunting > 0) pack.hunting -= 1;
 
-  const moves = movesFor(world, pack.file, pack.rank, pack.roam, {
+  // Every pack moves one square at a time, same as the leader — a knight-
+  // or rook-shaped roam pattern let some archetypes close distance in a
+  // single tick a player never could, which read as unfair rather than
+  // characterful.
+  const moves = movesFor(world, pack.file, pack.rank, 'k', {
     capturePlayer: !docile,
     selfPack: pack,
   });
@@ -1223,21 +1227,48 @@ export function generateTown(rng, biome, act, name, leader = 'k') {
 }
 
 /** Paint a handful of unexplored floors onto the overworld as "seen". */
+/**
+ * A map fragment shows one connected patch of ground around a random spot,
+ * not a scatter of unrelated tiles across the whole act — flood outward
+ * from a single anchor (through walls too, as stepping stones, so the
+ * patch grows as a compact block instead of snaking down whatever floor
+ * happens to be there) and reveal candidate tiles as the flood reaches them.
+ */
 export function revealMapFragment(world, rng, count = 18) {
+  const isCandidate = (f, r) => {
+    if (world.explored.has(key(f, r))) return false;
+    const cell = world.cells[r]?.[f];
+    if (!cell) return false;
+    return WALKABLE.has(cell.terrain) || cell.poi != null;
+  };
   const candidates = [];
   for (let r = 0; r < world.ranks; r++) {
     for (let f = 0; f < world.files; f++) {
-      if (world.explored.has(key(f, r))) continue;
-      if (!WALKABLE.has(world.cells[r][f].terrain) && world.cells[r][f].poi == null) continue;
-      candidates.push({ f, r });
+      if (isCandidate(f, r)) candidates.push({ f, r });
     }
   }
+  if (!candidates.length) return 0;
+  const anchor = candidates[Math.floor(rng() * candidates.length)];
+
+  const seen = new Set([key(anchor.f, anchor.r)]);
+  const queue = [anchor];
+  let qi = 0;
   let n = 0;
-  while (candidates.length && n < count) {
-    const i = Math.floor(rng() * candidates.length);
-    const [c] = candidates.splice(i, 1);
-    world.explored.add(key(c.f, c.r));
-    n++;
+  while (qi < queue.length && n < count) {
+    const { f, r } = queue[qi++];
+    if (isCandidate(f, r)) {
+      world.explored.add(key(f, r));
+      n++;
+    }
+    const neighbors = [[f + 1, r], [f - 1, r], [f, r + 1], [f, r - 1]];
+    if (rng() < 0.5) neighbors.reverse();
+    for (const [nf, nr] of neighbors) {
+      if (nf < 0 || nr < 0 || nf >= world.files || nr >= world.ranks) continue;
+      const k = key(nf, nr);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      queue.push({ f: nf, r: nr });
+    }
   }
   return n;
 }
@@ -1291,6 +1322,57 @@ function openPawnCrossing(terrain, files, ranks) {
   }
 }
 
+/**
+ * BFS from the player's whole home rank across every non-blocked square; if
+ * `target` isn't reached, cut a straight orthogonal path in from whichever
+ * reached square sits nearest it, clearing blocks along the way. Guarantees
+ * some piece can always walk to `target` before a single move is made.
+ */
+function ensureSquareReachable(terrain, files, ranks, target) {
+  const passable = (name) => terrain[name] !== 'block';
+  const seen = new Set();
+  const queue = [];
+  for (let f = 0; f < files; f++) {
+    const name = squareNameOn(f, 1);
+    if (passable(name)) { seen.add(name); queue.push({ f, r: 1 }); }
+  }
+  let qi = 0;
+  while (qi < queue.length) {
+    const { f, r } = queue[qi++];
+    for (const [df, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nf = f + df;
+      const nr = r + dr;
+      if (nf < 0 || nf >= files || nr < 1 || nr > ranks) continue;
+      const name = squareNameOn(nf, nr);
+      if (seen.has(name) || !passable(name)) continue;
+      seen.add(name);
+      queue.push({ f: nf, r: nr });
+    }
+  }
+  if (seen.has(target)) return;
+
+  const kf = target.charCodeAt(0) - 97;
+  const kr = parseInt(target.slice(1), 10);
+  let best = null;
+  let bestDist = Infinity;
+  for (const name of seen) {
+    const f = name.charCodeAt(0) - 97;
+    const r = parseInt(name.slice(1), 10);
+    const d = Math.abs(f - kf) + Math.abs(r - kr);
+    if (d < bestDist) { bestDist = d; best = { f, r }; }
+  }
+  if (!best) return;
+  let { f, r } = best;
+  while (f !== kf) {
+    f += f < kf ? 1 : -1;
+    delete terrain[squareNameOn(f, r)];
+  }
+  while (r !== kr) {
+    r += r < kr ? 1 : -1;
+    delete terrain[squareNameOn(f, r)];
+  }
+}
+
 // Missing squares are a biome trait, not the default shape of a fight — a
 // clean board (with a fort tile here or there) is the norm, the way a 6×6
 // board with nothing missing reads best. Mountains and the ruined approach
@@ -1300,14 +1382,17 @@ const HOLE_BIOMES = new Set(['peak', 'gate']);
 /**
  * Build a fight encounter from the overworld tile the clash happened on.
  * Mountains/chasms become holes only in a biome that fits them; frost and
- * ember always come with their biome regardless.
+ * ember come with their biome too — but none of that shows up before act 2.
+ * Act 1 is meant to teach the base game; a hole or a frozen square you did
+ * not cause yourself has no business being the thing that beats you there.
  */
 export function clashEncounter(world, pack, run, aggressor) {
   const files = Math.min(8, 6 + Math.min(2, world.act - 1));
   const ranks = Math.min(8, 6 + Math.min(2, world.act - 1));
   const originFile = world.player.file - Math.floor(files / 2);
   const originRank = world.player.rank - Math.floor(ranks / 2);
-  const holes = HOLE_BIOMES.has(pack.biome);
+  const hazardsOn = world.act >= 2;
+  const holes = hazardsOn && HOLE_BIOMES.has(pack.biome);
   const terrain = {};
   for (let r = 0; r < ranks; r++) {
     for (let f = 0; f < files; f++) {
@@ -1318,9 +1403,9 @@ export function clashEncounter(world, pack, run, aggressor) {
       if (!cell || owR <= world.decayRank
         || (holes && (cell.terrain === TERRAIN.WALL || cell.terrain === TERRAIN.CHASM))) {
         terrain[combatName] = 'block';
-      } else if (cell.terrain === TERRAIN.FROST) {
+      } else if (hazardsOn && cell.terrain === TERRAIN.FROST) {
         terrain[combatName] = 'frost';
-      } else if (cell.terrain === TERRAIN.EMBER) {
+      } else if (hazardsOn && cell.terrain === TERRAIN.EMBER) {
         terrain[combatName] = 'fire';
       } else if (cell.terrain === TERRAIN.FORT) {
         terrain[combatName] = 'fort';
@@ -1360,6 +1445,11 @@ export function clashEncounter(world, pack, run, aggressor) {
   for (let i = 0; i < pieces.length && i < enemySquares.length; i++) {
     enemy.push({ type: pieces[i].type, at: enemySquares[i] });
   }
+  // The pawn lane above guarantees a route up the board somewhere — not
+  // necessarily to wherever the king in particular landed. A king boxed in
+  // by holes with no piece able to reach it is a fight that was lost before
+  // the first move; carve it a way in rather than let that happen.
+  if (enemy[0]?.type === 'k') ensureSquareReachable(terrain, files, ranks, enemy[0].at);
 
   const mat = armyMaterial(pack.army);
   const supply = Math.max(4, bagMaterial(run) + 4);

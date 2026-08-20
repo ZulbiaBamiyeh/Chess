@@ -514,6 +514,16 @@ export function initVoyage(ctx) {
       return;
     }
     if (event.type === 'combat') {
+      if (event.aggressor === 'enemy') {
+        // Let the board actually show the pack stepping onto the leader
+        // before the ambush overlay takes over, instead of cutting straight
+        // to "AMBUSH" with no visible reason why.
+        paintBoard();
+        paintBlurb();
+        centerOnPlayer();
+        setTimeout(() => beginClash(event.pack, event.aggressor), 550);
+        return;
+      }
       beginClash(event.pack, event.aggressor);
       return;
     }

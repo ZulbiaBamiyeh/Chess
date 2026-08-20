@@ -1,7 +1,7 @@
 import {
   generateWorld, generateTown, mulberry32, playerMoves, movePlayer, materialOf, armyMaterial,
   clashEncounter, OW, TERRAIN, revealAround, packRoster, packCard, stepEnemies,
-  revealMapFragment, combinedDanger, chebyshev, key,
+  revealMapFragment, combinedDanger, chebyshev, key, parseKey,
 } from '../js/overworld.js';
 import { buildFight, createVoyageRun } from '../js/run.js';
 import { BLACK } from '../js/chess.js';
@@ -149,6 +149,27 @@ function world(seed = 1, act = 1) {
 }
 
 {
+  // Every pack moves one square at a time, same as the leader — a knight-
+  // or rook-shaped roam archetype used to close distance in a single tick
+  // no player move ever could.
+  const w = world(3);
+  let checked = 0;
+  for (let step = 0; step < 15; step++) {
+    const before = w.packs.filter((p) => !p.dead).map((p) => ({ id: p.id, file: p.file, rank: p.rank }));
+    stepEnemies(w);
+    for (const prior of before) {
+      const now = w.packs.find((p) => p.id === prior.id);
+      if (!now || now.dead) continue;
+      const d = chebyshev(prior, now);
+      assert(d <= 1, `${prior.id} moved ${d} squares in one step (roam ${now.arch})`);
+      checked++;
+    }
+  }
+  assert(checked > 0, 'no pack ever moved to check');
+  console.log('PASS  packs move one square at a time, whatever their archetype');
+}
+
+{
   const w = world(9);
   const pack = w.packs[0];
   const run = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
@@ -214,8 +235,9 @@ function pawnLaneOpen(enc) {
 {
   // Missing squares are a biome trait, not the default shape of a fight — a
   // clean board should be the norm. The exact same wall-heavy terrain should
-  // yield holes in a biome that fits them and none in one that doesn't.
-  const w = world(1);
+  // yield holes in a biome that fits them and none in one that doesn't —
+  // from act 2 on, where hazards are allowed to appear at all.
+  const w = world(1, 2);
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < w.files; f++) {
       w.cells[r][f].terrain = (f === 5) ? TERRAIN.FLOOR : TERRAIN.WALL;
@@ -232,6 +254,79 @@ function pawnLaneOpen(enc) {
   assert(blocks(cleanEnc) === 0, `wood board should have no holes, got ${blocks(cleanEnc)}`);
   assert(blocks(holeEnc) > 0, 'peak board should still have holes');
   console.log('PASS  fight-board holes are a biome trait, not the default');
+}
+
+{
+  // Act 1 teaches the base game: no holes, no frost, no fire, no matter the
+  // biome — the exact same terrain that produces hazards from act 2 on
+  // should come back completely clean in act 1.
+  const w = world(1, 1);
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < w.files; f++) {
+      w.cells[r][f].terrain = f === 5 ? TERRAIN.FROST : (f === 4 ? TERRAIN.EMBER : TERRAIN.WALL);
+    }
+  }
+  w.player.file = 5;
+  w.player.rank = 2;
+  const bag = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
+  for (const biome of ['wood', 'frost', 'peak', 'gate']) {
+    const pack = { id: `${biome}-pack`, file: 5, rank: 3, army: [{ type: 'k' }], name: 'Test', biome, tier: 'trash' };
+    const enc = clashEncounter(w, pack, bag, 'player');
+    const hazards = Object.values(enc.terrain).filter((t) => t === 'block' || t === 'frost' || t === 'fire').length;
+    assert(hazards === 0, `act 1 ${biome} board had ${hazards} hazard tile(s)`);
+  }
+  console.log('PASS  act 1 fights never carry holes, frost or fire');
+}
+
+{
+  // A king should never generate walled off behind holes with no piece able
+  // to reach it before a single move is made.
+  const w = world(2, 2);
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < w.files; f++) {
+      // A checkerboard of walls, dense enough that a king could plausibly
+      // land somewhere the pawn lane never touches.
+      w.cells[r][f].terrain = (f + r) % 2 === 0 ? TERRAIN.WALL : TERRAIN.FLOOR;
+    }
+  }
+  w.player.file = 5;
+  w.player.rank = 2;
+  const bag = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
+  let checked = 0;
+  for (let trial = 0; trial < 20; trial++) {
+    const pack = {
+      id: `gate-${trial}`, file: 5, rank: 3, biome: 'gate', tier: 'boss',
+      army: [{ type: 'k' }, { type: 'p' }, { type: 'p' }], name: 'Test Boss',
+    };
+    const enc = clashEncounter(w, pack, bag, 'player');
+    const kingSq = enc.enemy.find((e) => e.type === 'k')?.at;
+    if (!kingSq) continue;
+    checked++;
+    // BFS from the whole south rank across everything but 'block'.
+    const passable = (name) => enc.terrain[name] !== 'block';
+    const seen = new Set();
+    const queue = [];
+    for (let f = 0; f < enc.files; f++) {
+      const name = `${String.fromCharCode(97 + f)}1`;
+      if (passable(name)) { seen.add(name); queue.push({ f, r: 1 }); }
+    }
+    let qi = 0;
+    while (qi < queue.length) {
+      const { f, r } = queue[qi++];
+      for (const [df, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nf = f + df;
+        const nr = r + dr;
+        if (nf < 0 || nr < 1 || nf >= enc.files || nr > enc.ranks) continue;
+        const name = `${String.fromCharCode(97 + nf)}${nr}`;
+        if (seen.has(name) || !passable(name)) continue;
+        seen.add(name);
+        queue.push({ f: nf, r: nr });
+      }
+    }
+    assert(seen.has(kingSq), `enemy king at ${kingSq} is unreachable, trial ${trial}`);
+  }
+  assert(checked >= 15, `too few trials produced a king to check: ${checked}`);
+  console.log('PASS  the enemy king is never walled off behind holes');
 }
 
 {
@@ -346,6 +441,32 @@ function pawnLaneOpen(enc) {
     assert(firstHostile.rank >= 8, `first fight at rank ${firstHostile.rank}`);
   }
   console.log('PASS  towns have a merchant, a courier, and work');
+}
+
+{
+  // A map fragment reveals one connected patch of ground, not a scatter of
+  // unrelated tiles spread across the whole act.
+  let maxSpan = 0;
+  let trials = 0;
+  for (let seed = 0; seed < 25; seed++) {
+    const w = world(seed);
+    const before = new Set(w.explored);
+    const n = revealMapFragment(w, w.rng, 16);
+    if (n < 6) continue;
+    let minF = Infinity, maxF = -Infinity, minR = Infinity, maxR = -Infinity;
+    for (const k of w.explored) {
+      if (before.has(k)) continue;
+      const { file, rank } = parseKey(k);
+      minF = Math.min(minF, file); maxF = Math.max(maxF, file);
+      minR = Math.min(minR, rank); maxR = Math.max(maxR, rank);
+    }
+    const span = Math.max(maxF - minF, maxR - minR);
+    maxSpan = Math.max(maxSpan, span);
+    trials++;
+  }
+  assert(trials >= 15, `too few trials revealed enough to judge: ${trials}`);
+  assert(maxSpan <= 12, `a fragment sprawled ${maxSpan} squares across — not a block`);
+  console.log('PASS  a found map fragment is one block of ground, not scattered tiles');
 }
 
 {

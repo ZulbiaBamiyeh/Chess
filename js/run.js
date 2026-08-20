@@ -10,7 +10,7 @@ import {
   FORAGE_GOLD, TRAIN_COST,
   TURN_CLOCK, THEME_DROPS, DROP_CHANCE,
   generateMap, findNode, encounterFor, firstRooms, freeHomeSquares, homeSquares,
-  weightedPiece, supplyUpgradeCost, slotUpgradeCost,
+  weightedPiece, slotUpgradeCost,
 } from './content.js';
 
 let nextUid = 1;
@@ -655,14 +655,6 @@ export function openShop(run) {
     offers.push(pieceOffer(pick, i, act));
   }
 
-  offers.push({
-    kind: 'supply',
-    id: 'supply',
-    name: 'Deeper Reserve',
-    blurb: `+1 supply on every fight. (now +${run.supplyBonus})`,
-    cost: supplyUpgradeCost(run.supplyBought),
-  });
-
   const ownedKings = new Set(ownedKingIds(run));
   const kingPool = Object.values(KING_PASSIVES).filter((pas) => !ownedKings.has(pas.id));
   // One king offer regardless of act. Two in act 3 was one more thing on an
@@ -681,16 +673,7 @@ export function openShop(run) {
     });
   }
 
-  if (run.slots.epic < 3) {
-    offers.push({
-      kind: 'slot',
-      id: 'slot-epic',
-      rarity: RARITY.EPIC,
-      name: 'Epic Slot',
-      blurb: 'One more epic piece in the bag.',
-      cost: slotUpgradeCost(RARITY.EPIC),
-    });
-  } else if (run.slots.legendary < 2) {
+  if (run.slots.legendary < 2) {
     offers.push({
       kind: 'slot',
       id: 'slot-legendary',
