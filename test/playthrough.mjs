@@ -57,10 +57,10 @@ const loadoutFor = (run, enc) => suggestLoadout(run, enc);
 
 function fight(run, enc) {
   const game = buildFight(run, enc, autoPlace(enc, loadoutFor(run, enc)));
-  // Bound by the encounter's own turn clock, the way the real game does it.
-  // A flat 80-ply cap meant every unresolved fight burned the full budget at
-  // up to 2.4s a move once fights stopped ending on the first ply.
-  const plyCap = turnClock(enc, run) * 2;
+  // Bound by the encounter clock, but the live timer is generous so a human
+  // can think. The walk still needs a stall cap or an unresolved act-3 fight
+  // burns the full player-facing timer at 60ms a ply.
+  const plyCap = Math.min(turnClock(enc, run), 30) * 2;
   for (let ply = 0; ply < plyCap; ply++) {
     if (game.outcome().over) break;
     const move = chooseMove(game, game.turn === WHITE ? PROFILE : opponent(enc));

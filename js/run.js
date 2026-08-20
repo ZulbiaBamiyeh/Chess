@@ -8,7 +8,7 @@ import {
   LOSS_HP, FORFEIT_HP, UNDO_HP, FIGHT_GOLD, REST_HEAL,
   START_HP, START_GOLD, STARTING_BAG, KING_PASSIVES, REST_GOLD,
   FORAGE_GOLD, TRAIN_COST,
-  TURN_CLOCK, THEME_DROPS, SPOIL_GOLD, SPOIL_PIECE_WEIGHT,
+  TURN_CLOCK, CLOCK_WARN, CLOCK_PANIC, THEME_DROPS, SPOIL_GOLD, SPOIL_PIECE_WEIGHT,
   generateMap, findNode, encounterFor, firstRooms, freeHomeSquares, homeSquares,
   weightedPiece,
 } from './content.js';
@@ -394,7 +394,8 @@ export function remainingArmy(game, color) {
 
 export function turnClock(encounter, run = null) {
   const base = encounter.clock
-    || TURN_CLOCK[encounter.tier || (encounter.boss ? 'boss' : 'trash')] || 10;
+    || TURN_CLOCK[encounter.tier || (encounter.boss ? 'boss' : 'trash')]
+    || TURN_CLOCK.trash;
   return base + (run ? relicTotals(run.relics).clock : 0);
 }
 
@@ -1121,6 +1122,7 @@ function tallyTypes(types) {
 export {
   KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORAGE_GOLD,
   TRAIN_COST, UNDO_HP, FIGHT_GOLD, SPOIL_GOLD, SPOIL_PIECE_WEIGHT,
+  TURN_CLOCK, CLOCK_WARN, CLOCK_PANIC,
 };
 
 // ---- events ---------------------------------------------------------------

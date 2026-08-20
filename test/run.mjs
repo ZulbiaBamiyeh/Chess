@@ -11,6 +11,7 @@ import {
   costFor, claimRelic, RELIC_SHIELD_CAP, TRAIN_COST, FORAGE_GOLD, freeHomeSquares,
   restHeal, forageGold, trainCost, payUndo, UNDO_HP, FIGHT_GOLD,
   buildSpoils, rollSpoils, claimSpoils, SPOIL_PIECE_WEIGHT,
+  turnClock, TURN_CLOCK, CLOCK_WARN, CLOCK_PANIC,
 } from '../js/run.js';
 import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
@@ -138,6 +139,18 @@ const alley = ENCOUNTERS.alley;
     return settleFight(run, game, gate, { clockLeft }).gold;
   };
   assert('speed does not pay extra gold', pay(20) === pay(0) && pay(0) === FIGHT_GOLD.trash);
+}
+
+{
+  assert('a trash fight is not on a short fuse', turnClock(gate) >= 48, String(turnClock(gate)));
+  assert('elites get a longer clock than trash',
+    turnClock(ENCOUNTERS.pond) > turnClock(gate),
+    `${turnClock(ENCOUNTERS.pond)} vs ${turnClock(gate)}`);
+  assert('bosses get the longest clock',
+    turnClock(ENCOUNTERS.steward) > turnClock(ENCOUNTERS.pond));
+  assert('the run warning is well before they leave',
+    CLOCK_WARN === 15 && CLOCK_PANIC === 5 && turnClock(gate) - CLOCK_WARN >= 30,
+    JSON.stringify({ warn: CLOCK_WARN, clock: turnClock(gate), clocks: TURN_CLOCK }));
 }
 
 {

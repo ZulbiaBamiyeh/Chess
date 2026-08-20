@@ -1357,7 +1357,27 @@ kbd {
   min-width: 1.6em;
   text-align: center;
 }
-.hud-clock.low { color: var(--red); border-color: rgba(255, 84, 112, 0.45); text-shadow: 0 0 12px rgba(255, 84, 112, 0.55); }
+.hud-clock.warn {
+  color: var(--gold);
+  border-color: rgba(255, 207, 63, 0.55);
+  text-shadow: 0 0 12px rgba(255, 207, 63, 0.55);
+  animation: clock-pulse 1.15s ease-in-out infinite;
+}
+.hud-clock.low {
+  color: var(--red);
+  border-color: rgba(255, 84, 112, 0.45);
+  text-shadow: 0 0 12px rgba(255, 84, 112, 0.55);
+  animation: clock-pulse-low 0.7s ease-in-out infinite;
+}
+@keyframes clock-pulse {
+  50% { box-shadow: 0 0 14px rgba(255, 207, 63, 0.5); }
+}
+@keyframes clock-pulse-low {
+  50% { box-shadow: 0 0 16px rgba(255, 84, 112, 0.7); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-clock.warn, .hud-clock.low { animation: none; }
+}
 .hud-gold {
   color: var(--gold);
   border-color: rgba(255, 207, 63, 0.35);

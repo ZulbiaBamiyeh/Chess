@@ -20,7 +20,7 @@ import {
   suggestLoadout, runStats, ensureFormation, placementsFromFormation, CREW_BOARD,
   pruneFormation, payUndo, UNDO_HP, claimSpoils,
 } from './run.js';
-import { kingDef, EVENTS, encounterFor } from './content.js';
+import { kingDef, EVENTS, encounterFor, CLOCK_WARN, CLOCK_PANIC } from './content.js';
 import { relicById } from './relics.js';
 
 export function initCampaign(ctx) {
@@ -101,8 +101,13 @@ export function initCampaign(ctx) {
     }
     if ($('hud-clock')) {
       if (state.clock != null) {
-        $('hud-clock').textContent = `${state.clock}`;
-        $('hud-clock').classList.toggle('low', state.clock <= 3);
+        const n = state.clock;
+        $('hud-clock').textContent = n <= CLOCK_WARN ? `${n} left` : `${n}`;
+        $('hud-clock').classList.toggle('warn', n <= CLOCK_WARN && n > CLOCK_PANIC);
+        $('hud-clock').classList.toggle('low', n <= CLOCK_PANIC);
+        $('hud-clock').title = n <= CLOCK_WARN
+          ? `${n} moves left — they're going to run away`
+          : `${n} moves before they run`;
         $('hud-clock').classList.remove('hidden');
       } else {
         $('hud-clock').classList.add('hidden');
@@ -2044,8 +2049,18 @@ export function initCampaign(ctx) {
       // wait behind.
       if (state.clock == null) return false;
       if (state.clock > 0) state.clock -= 1;
+      const left = state.clock;
       paintRunHud();
-      return state.clock <= 0;
+      if (left === CLOCK_WARN) {
+        toast(`${left} MOVES LEFT!`, 'danger');
+        setStatus("They're going to run away!", 'danger');
+        audio.check();
+      } else if (left === CLOCK_PANIC) {
+        toast(`${left} MOVES LEFT!`, 'danger');
+        setStatus("They're about to run!", 'danger');
+        audio.check();
+      }
+      return left <= 0;
     },
     isRun() { return state.mode === 'run'; },
   };

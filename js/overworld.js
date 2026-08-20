@@ -4,6 +4,7 @@
 // Pure logic. voyage.js paints it; campaign.js still runs the fights.
 
 import { pieceById } from './pieces.js';
+import { TURN_CLOCK } from './content.js';
 
 export const OW = {
   FILES: 27,
@@ -1358,7 +1359,7 @@ export function clashEncounter(world, pack, run, aggressor) {
     ai: pack.tier === 'boss' ? { depth: 5, slip: 0, budget: 1400 }
       : pack.tier === 'elite' ? { depth: 4, slip: 0.04, budget: 800 }
       : { depth: 3, slip: 0.1, budget: 450 },
-    clock: pack.tier === 'boss' ? 38 : pack.tier === 'elite' ? 30 : 24,
+    clock: TURN_CLOCK[pack.tier] || TURN_CLOCK.trash,
     packId: pack.id,
     aggressor,
     material: mat,

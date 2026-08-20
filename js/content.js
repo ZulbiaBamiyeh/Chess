@@ -20,10 +20,12 @@ const REST_NAMES = [
   { name: 'A Sheltered Corner', blurb: 'Out of the wind, at least. Rest, forage, or train.' },
   { name: 'The Last Mile Marker', blurb: 'Someone carved a name into it. Rest, forage, or train.' },
 ];
-// The clock only started ending fights in this pass (tickClock never used to
-// return true), which pushed the numbers up: these are meant to be felt on a
-// slow, careful line, not on a normal one.
-export const TURN_CLOCK = { trash: 24, elite: 30, boss: 38 };
+// Player turns before they run. Generous on purpose — a normal hunt should
+// never see the timer, only a slow grind or a dug-in king. CLOCK_WARN is
+// when the board shouts that they're about to leave.
+export const TURN_CLOCK = { trash: 48, elite: 60, boss: 72 };
+export const CLOCK_WARN = 15;
+export const CLOCK_PANIC = 5;
 
 export const STARTING_BAG = ['p', 'p', 'p'];
 
