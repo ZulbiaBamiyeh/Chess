@@ -2527,7 +2527,11 @@ kbd {
   background: transparent;
   box-shadow: none;
   scrollbar-width: thin;
+  cursor: grab;
+  touch-action: pan-x pan-y;
 }
+.ow-port.dragging { cursor: grabbing; }
+.ow-port.dragging .ow-sq { pointer-events: none; }
 .ow-stack {
   --ow-files: 11;
   --ow-ranks: 36;
@@ -2598,7 +2602,7 @@ kbd {
 .ow-sq.fog-seen {
   filter: brightness(0.72) saturate(0.75);
 }
-.ow-sq.fog-seen .ow-piece { display: none; }
+.ow-sq.fog-seen .ow-piece:not(.ow-landmark) { display: none; }
 .ow-sq.decay {
   background: #160806 !important;
   box-shadow: inset 0 0 22px rgba(255, 70, 20, 0.55);
@@ -2638,6 +2642,15 @@ kbd {
   filter: drop-shadow(0 2px 2px rgba(0,0,0,0.55));
 }
 .ow-poi { inset: 2% 4% 0; z-index: 1; }
+.ow-piece.ow-landmark {
+  opacity: 0.62;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.55)) grayscale(0.35) drop-shadow(0 0 10px rgba(255, 84, 112, 0.55));
+  animation: ow-landmark-pulse 2.6s ease-in-out infinite;
+}
+@keyframes ow-landmark-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.78; }
+}
 .ow-loot {
   position: absolute;
   inset: 0;

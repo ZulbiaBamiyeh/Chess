@@ -62,7 +62,7 @@ export function initVoyage(ctx) {
     state.playerColor = WHITE;
     state._hudPrev = null;
     state.run.voyage = generateWorld(state.run.rng, 1);
-    show();
+    showWithBossReveal();
   }
 
   function show() {
@@ -74,6 +74,36 @@ export function initVoyage(ctx) {
     audio.setMusicStyle(world()?.scene === 'town' ? 'town' : 'ambient');
     ensureFog();
     requestAnimationFrame(centerOnPlayer);
+  }
+
+  /**
+   * Opening an act: reveal where the boss holds the ramp before the camera
+   * settles on the leader, the way looking north across the Wilderness tells
+   * you where the ditch is before you ever take a step. Only for a fresh
+   * overworld — returning to a map already underway just centers as usual.
+   */
+  function showWithBossReveal(introLine) {
+    if (!world()) return;
+    campaign.paintRunHud();
+    paintBoard();
+    paintBlurb();
+    showScreen('screen-overworld');
+    audio.setMusicStyle('ambient');
+    ensureFog();
+    const w = overworld();
+    const spot = w?.bossSpot;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (!spot || reduce) {
+      requestAnimationFrame(centerOnPlayer);
+      return;
+    }
+    requestAnimationFrame(() => {
+      centerOnCell(spot.file, spot.rank, 'auto');
+      const boss = w.packs.find((p) => p.tier === 'boss' && !p.dead);
+      const line = boss ? `${boss.name} holds the ramp north. Find your way up.` : 'Find your way north.';
+      toast(introLine ? `${introLine} ${line}` : line, 'danger');
+      setTimeout(centerOnPlayer, 1700);
+    });
   }
 
   function resumeFromWorld() {
@@ -209,14 +239,18 @@ export function initVoyage(ctx) {
           }
         }
 
-        if (vis) {
-          const pack = w.packs.find((p) => !p.dead && p.file === file && p.rank === rank);
+        // A boss stays a landmark once its lair has been seen, even from
+        // outside current vision — you should always know where the goal
+        // is, not just when standing next to it.
+        const pack = w.packs.find((p) => !p.dead && p.file === file && p.rank === rank);
+        const showPack = vis || (pack?.tier === 'boss' && seen);
+        if (showPack) {
           if (pack) {
             const mat = armyMaterial(pack.army);
             const tint = threatTint(mat, playerMat);
             if (pack.stance === 'docile') sq.classList.add('ow-docile');
             const fig = document.createElement('i');
-            fig.className = 'ow-piece';
+            fig.className = `ow-piece${vis ? '' : ' ow-landmark'}`;
             fig.style.backgroundImage = `url('${pieceImage(keyPieceType(pack.army), 'b')}')`;
             sq.appendChild(fig);
             const badge = document.createElement('span');
@@ -225,6 +259,8 @@ export function initVoyage(ctx) {
             badge.title = `${pack.name} · ${pack.stance === 'docile' ? 'docile' : 'hostile'} · ${mat}`;
             sq.appendChild(badge);
           }
+        }
+        if (vis) {
           const npc = (w.npcs || []).find((n) => n.file === file && n.rank === rank);
           if (npc) {
             const fig = document.createElement('i');
@@ -257,13 +293,20 @@ export function initVoyage(ctx) {
     sizeFogCanvas();
   }
 
-  function centerOnPlayer() {
-    const you = document.querySelector('.ow-sq.you');
+  function centerOnEl(el, behavior = 'smooth') {
     const port = $('ow-port');
-    if (!you || !port) return;
-    const y = you.offsetTop - port.clientHeight * 0.55 + you.offsetHeight / 2;
-    const x = you.offsetLeft - port.clientWidth * 0.5 + you.offsetWidth / 2;
-    port.scrollTo({ top: Math.max(0, y), left: Math.max(0, x), behavior: 'smooth' });
+    if (!el || !port) return;
+    const y = el.offsetTop - port.clientHeight * 0.55 + el.offsetHeight / 2;
+    const x = el.offsetLeft - port.clientWidth * 0.5 + el.offsetWidth / 2;
+    port.scrollTo({ top: Math.max(0, y), left: Math.max(0, x), behavior });
+  }
+
+  function centerOnPlayer() {
+    centerOnEl(document.querySelector('.ow-sq.you'));
+  }
+
+  function centerOnCell(file, rank, behavior = 'smooth') {
+    centerOnEl(document.querySelector(`.ow-sq[data-file="${file}"][data-rank="${rank}"]`), behavior);
   }
 
   function onSquare(file, rank) {
@@ -636,9 +679,8 @@ export function initVoyage(ctx) {
       return;
     }
     state.run.voyage = generateWorld(state.run.rng, w.act + 1);
-    toast(`Act ${w.act + 1} opens.`, 'good');
     audio.victory();
-    show();
+    showWithBossReveal(`Act ${w.act + 1} opens.`);
   }
 
   function hash2(ix, iy) {
@@ -798,10 +840,62 @@ export function initVoyage(ctx) {
     }, hold);
   }
 
+  /**
+   * Click-and-drag panning for the mouse. Touch already scrolls the port
+   * natively, so this only arms for mouse pointers — grabbing the map with a
+   * finger would otherwise fight the browser's own touch-scroll. A real drag
+   * captures the pointer so the square underneath never sees the click that
+   * ends it; a plain tap that never crosses the threshold is untouched and
+   * still moves the leader as it always has.
+   */
+  function initDragPan() {
+    const port = $('ow-port');
+    if (!port) return;
+    const THRESHOLD = 4;
+    let dragging = false;
+    let captured = false;
+    let startX = 0;
+    let startY = 0;
+    let startScrollX = 0;
+    let startScrollY = 0;
+
+    port.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      dragging = true;
+      captured = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      startScrollX = port.scrollLeft;
+      startScrollY = port.scrollTop;
+    });
+    port.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!captured) {
+        if (Math.hypot(dx, dy) < THRESHOLD) return;
+        captured = true;
+        port.setPointerCapture(e.pointerId);
+        port.classList.add('dragging');
+      }
+      port.scrollLeft = startScrollX - dx;
+      port.scrollTop = startScrollY - dy;
+    });
+    const endDrag = (e) => {
+      if (captured) port.releasePointerCapture(e.pointerId);
+      dragging = false;
+      captured = false;
+      port.classList.remove('dragging');
+    };
+    port.addEventListener('pointerup', endDrag);
+    port.addEventListener('pointercancel', endDrag);
+  }
+
   $('btn-ow-quit')?.addEventListener('click', () => campaign.abandon());
   const openBag = () => document.getElementById('btn-map-bag')?.click();
   $('btn-ow-bag')?.addEventListener('click', openBag);
   $('ow-king')?.addEventListener('click', openBag);
+  initDragPan();
 
   return { start, show, resumeFromWorld, onFightSettled };
 }

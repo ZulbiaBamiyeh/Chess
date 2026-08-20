@@ -5,14 +5,14 @@
 import { pieceById } from './pieces.js';
 
 export const OW = {
-  FILES: 19,
+  FILES: 27,
   VISION: 3,
   GRACE: 24,
   DECAY_EVERY: 3,
   DECAY_HP: 3,
   // How far sideways the danger curve keeps rising before it caps — a
   // Wilderness-style "wander off the road and it gets worse" reach.
-  WANDER_REACH: 7,
+  WANDER_REACH: 11,
 };
 
 export const TERRAIN = {
@@ -84,12 +84,25 @@ export function threatTint(enemyMat, playerMat) {
   return 'deadly';
 }
 
-export function biomeAt(rank, ranks) {
+const DEFAULT_BIOME_ORDER = ['wood', 'frost', 'peak', 'gate'];
+
+/**
+ * The south is always the standard, easy opening — a glade, not a biome
+ * gimmick — and the gate is always what the boss holds at the top. What
+ * fills the two bands between them is shuffled per run, so the first real
+ * biome you meet isn't always frost.
+ */
+export function pickBiomeOrder(rng) {
+  const middle = rng() < 0.5 ? ['frost', 'peak'] : ['peak', 'frost'];
+  return ['wood', ...middle, 'gate'];
+}
+
+export function biomeAt(rank, ranks, order = DEFAULT_BIOME_ORDER) {
   const t = rank / Math.max(1, ranks - 1);
-  if (t < 0.24) return 'wood';
-  if (t < 0.52) return 'frost';
-  if (t < 0.78) return 'peak';
-  return 'gate';
+  if (t < 0.24) return order[0];
+  if (t < 0.52) return order[1];
+  if (t < 0.78) return order[2];
+  return order[3];
 }
 
 function inBounds(world, file, rank) {
@@ -126,7 +139,7 @@ function carve(world, file, rank, radius = 0) {
     for (let df = -radius; df <= radius; df++) {
       const cell = cellAt(world, file + df, rank + dr);
       if (!cell) continue;
-      const biome = biomeAt(rank + dr, world.ranks);
+      const biome = biomeAt(rank + dr, world.ranks, world.biomeOrder);
       cell.terrain = biome === 'frost' ? TERRAIN.FROST
         : biome === 'peak' && world.rng() < 0.12 ? TERRAIN.EMBER
         : TERRAIN.FLOOR;
@@ -137,7 +150,7 @@ function carve(world, file, rank, radius = 0) {
 
 function paintBiomeFloors(world) {
   for (let r = 0; r < world.ranks; r++) {
-    const biome = biomeAt(r, world.ranks);
+    const biome = biomeAt(r, world.ranks, world.biomeOrder);
     for (let f = 0; f < world.files; f++) {
       const cell = world.cells[r][f];
       cell.biome = biome;
@@ -350,6 +363,72 @@ function buildArmy(rng, power, arch) {
   return army;
 }
 
+// Named individuals for the fights that should feel like a fight against
+// someone, not a fight against a faction — every archetype that can come
+// up as a boss or an elite gets its own small cast, so meeting one reads as
+// a character and not just a bigger number.
+const BOSS_PERSONAS = {
+  frost: [
+    { name: 'The White Widow',
+      blurb: 'She has not been warm since the winter that made her. Everything she touches keeps that promise.' },
+    { name: 'Hoarking Vael',
+      blurb: 'Crowned in real ice, not glass. He remembers every army that tried to outlast the cold, and did not.' },
+  ],
+  pyre: [
+    { name: 'The Cinder Marshal',
+      blurb: 'What the fires left of him still gives orders. What is left of you is not his concern.' },
+    { name: 'Ashwrought Dyre',
+      blurb: 'He burned his own supply lines once, to make a point. Nobody has needed the reminder since.' },
+  ],
+  gate: [
+    { name: 'Warden Kessel',
+      blurb: 'The last thing between you and the next act. He has held this ramp longer than you have been alive.' },
+    { name: 'The Last Herald',
+      blurb: 'Every king who tried this road left a banner here. He collects them. He is running out of room.' },
+  ],
+};
+
+const ELITE_PERSONAS = {
+  frost: [
+    { name: 'Captain Rilka Snowbone', blurb: 'She trained on the passes nobody else survives crossing.' },
+    { name: 'The Frost Sergeant', blurb: 'Gives one order, twice: hold, and then hold longer.' },
+  ],
+  pyre: [
+    { name: 'The Ember Captain', blurb: 'Walks through her own fires to prove they will not slow her down.' },
+    { name: 'Sarrow Brandwake', blurb: 'Lost an eye to a duel he still insists he won.' },
+  ],
+  court: [
+    { name: "The Prince's Second", blurb: 'Here on behalf of someone who could not be bothered to come himself.' },
+    { name: 'Dame Ostellan', blurb: 'Knighted for a battle nobody else remembers her winning.' },
+  ],
+  tower: [
+    { name: 'The Siege Warden', blurb: 'Moves like the fortress she used to command: slow, and not actually stoppable.' },
+    { name: 'Old Marrow', blurb: 'Has outlived four commanding officers, and every reason to retire.' },
+  ],
+  horde: [
+    { name: 'Khan Ozgul', blurb: 'Rides at the front, because nobody else in his host is fast enough to stop him first.' },
+    { name: 'The Tribute Rider', blurb: 'Collects what the road owes. The road, in her accounting, owes quite a lot.' },
+  ],
+  watch: [
+    { name: 'Old Ferrin', blurb: 'Paid well enough not to ask what he is guarding, or why.' },
+    { name: 'The Idle Halberd', blurb: 'Has not drawn it in years. Would rather not start today.' },
+  ],
+  thieves: [
+    { name: 'Six-Finger Sal', blurb: 'Miscounted once, badly. The name stuck.' },
+    { name: 'The Quiet Cutter', blurb: 'You will not hear her coming. That is rather the point.' },
+  ],
+  skull: [
+    { name: 'The Bonecollector', blurb: 'Keeps trophies. Is not subtle about wanting yours.' },
+    { name: 'Grael Hollow-Eyed', blurb: 'Sits on the best loot in the wild because nobody has taken it from him yet.' },
+  ],
+};
+
+/** A named boss or elite, when the archetype has a cast for it — else the plain faction name. */
+function packPersona(arch, tier, rng) {
+  const pool = tier === 'boss' ? BOSS_PERSONAS[arch] : tier === 'elite' ? ELITE_PERSONAS[arch] : null;
+  return pool ? pick(rng, pool) : null;
+}
+
 function packName(spec, tier, rng) {
   const names = spec.names || [spec.name || 'A Company'];
   if (tier === 'boss') {
@@ -369,6 +448,7 @@ function placePack(world, file, rank, power, tier, opts = {}) {
   const arch = opts.arch || pickArchetype(biome, tier, danger, world.rng, role);
   const spec = ARCHETYPES[arch] || ARCHETYPES.levy;
   const stance = spec.stance || 'hostile';
+  const persona = packPersona(arch, tier, world.rng);
   const pack = {
     id: `pack-${world.packs.length}`,
     file,
@@ -379,8 +459,8 @@ function placePack(world, file, rank, power, tier, opts = {}) {
     biome,
     arch,
     theme: themeFor(biome),
-    name: packName(spec, tier, world.rng),
-    blurb: spec.blurb || '',
+    name: persona?.name || packName(spec, tier, world.rng),
+    blurb: persona?.blurb || spec.blurb || '',
     stance,
     army: buildArmy(world.rng, power, arch),
     hunting: 0,
@@ -470,13 +550,14 @@ function emptyFloor(world, pred) {
 export function generateWorld(rng, act = 1) {
   const files = OW.FILES;
   const ranks = 32 + act * 6;
+  const biomeOrder = pickBiomeOrder(rng);
   const cells = [];
   for (let r = 0; r < ranks; r++) {
     const row = [];
     for (let f = 0; f < files; f++) {
       row.push({
         terrain: TERRAIN.WALL,
-        biome: biomeAt(r, ranks),
+        biome: biomeAt(r, ranks, biomeOrder),
         poi: null,
         loot: null,
       });
@@ -488,6 +569,7 @@ export function generateWorld(rng, act = 1) {
     ranks,
     act,
     rng,
+    biomeOrder,
     cells,
     packs: [],
     npcs: [],
@@ -532,6 +614,24 @@ export function generateWorld(rng, act = 1) {
   // exist on the world before anything downstream of it runs.
   world.spine = spine;
 
+  // Short dead-end alleys, one tile wide, just off the spine — nothing but
+  // a wandering "?" waits at the end of one. Separate from the deeper greed
+  // pockets above: an event is a door off the road, not a resource pocket.
+  const alleys = [];
+  for (let y = 5; y < ranks - 8; y++) {
+    if (rng() >= 0.22) continue;
+    const dir = rng() < 0.5 ? -1 : 1;
+    const len = 2 + Math.floor(rng() * 3);
+    let bx = spine[y] ?? x;
+    const by = y;
+    for (let i = 0; i < len; i++) {
+      bx += dir;
+      if (bx < 1 || bx > files - 2) break;
+      carve(world, bx, by, 0);
+    }
+    alleys.push({ file: bx, rank: by });
+  }
+
   // A wide wilderness either side of the spine, not just the road itself —
   // open near the spine and thinning out with distance, so wandering off
   // to either side is a real, walkable choice rather than a wall. The
@@ -544,7 +644,7 @@ export function generateWorld(rng, act = 1) {
       for (const dir of [-1, 1]) {
         const fx = sx + dir * d;
         if (fx < 1 || fx > files - 2) continue;
-        if (rng() < fall * 0.6) carve(world, fx, y, 0);
+        if (rng() < fall * 0.7) carve(world, fx, y, 0);
       }
     }
   }
@@ -608,14 +708,26 @@ export function generateWorld(rng, act = 1) {
     pick(rng, signSpots).cell.poi = 'sign';
   }
 
-  // Wandering "?" events: a handful of STS-style rooms scattered the length
-  // of the act, so the road is not just fights, shops and caches.
-  const eventSpots = emptyFloor(world, (_c, _f, r) => r >= 3 && r <= ranks - 6);
-  const numEvents = Math.min(eventSpots.length, 4 + Math.floor(rng() * 3));
-  for (let i = 0; i < numEvents; i++) {
-    const idx = Math.floor(rng() * eventSpots.length);
-    const [spot] = eventSpots.splice(idx, 1);
-    spot.cell.poi = 'event';
+  // Wandering "?" events live down the alleys, not out in the open — a
+  // hidden side room you have to actually go looking for.
+  const alleySpots = shuffled(rng, alleys)
+    .map(({ file, rank }) => ({ file, rank, cell: cellAt(world, file, rank) }))
+    .filter(({ cell }) => cell && WALKABLE.has(cell.terrain) && !cell.poi);
+  const targetEvents = 4 + Math.floor(rng() * 3);
+  let placedEvents = Math.min(alleySpots.length, targetEvents);
+  for (let i = 0; i < placedEvents; i++) {
+    alleySpots[i].cell.poi = 'event';
+  }
+  // Too few alleys formed to seat every event — top up from any open floor
+  // still off the main road rather than leave the act short.
+  if (placedEvents < 4) {
+    const backup = emptyFloor(world, (_c, f, r) => r >= 5 && r <= ranks - 8
+      && Math.abs(f - (spine[r] ?? x)) >= 2);
+    for (const s of shuffled(rng, backup)) {
+      if (placedEvents >= 4) break;
+      s.cell.poi = 'event';
+      placedEvents++;
+    }
   }
 
   // Packs read as a crowd once two of them stand near enough to see each
@@ -669,8 +781,13 @@ export function generateWorld(rng, act = 1) {
     }
   }
 
-  // Gate boss on the ramp. You do not stroll off Act 1.
+  // Gate boss on the ramp. You do not stroll off Act 1. Their lair is
+  // revealed from the start — not fogged like the rest of the act — so
+  // there is always a landmark to navigate toward, the way the Wilderness
+  // ditch tells you which way is north.
   placePack(world, rampFile, ranks - 2, 18 + act * 6, 'boss', { arch: 'gate' });
+  world.bossSpot = { file: rampFile, rank: ranks - 2 };
+  revealAround(world, rampFile, ranks - 2, 3);
 
   let caches = 0;
   for (let r = 0; r < ranks; r++) {

@@ -1,7 +1,7 @@
 import {
   generateWorld, generateTown, mulberry32, playerMoves, movePlayer, materialOf, armyMaterial,
   clashEncounter, OW, TERRAIN, revealAround, packRoster, packCard, stepEnemies,
-  revealMapFragment, combinedDanger, chebyshev,
+  revealMapFragment, combinedDanger, chebyshev, key,
 } from '../js/overworld.js';
 import { buildFight, createVoyageRun } from '../js/run.js';
 import { BLACK } from '../js/chess.js';
@@ -350,15 +350,23 @@ function pawnLaneOpen(enc) {
 
 {
   // The map is wider than the road: real, walkable width to either side of
-  // the spine, not just a corridor with occasional dead-end branches.
+  // the spine, not just a corridor with occasional dead-end branches. Any
+  // single row can run thin by chance, so this checks the average across
+  // the middle of the map rather than one sampled rank.
+  let total = 0;
+  let rows = 0;
   const w = world(5);
-  const rank = Math.floor(w.ranks * 0.5);
-  let open = 0;
-  for (let f = 0; f < w.files; f++) {
-    const c = w.cells[rank][f];
-    if (c.terrain !== TERRAIN.WALL && c.terrain !== TERRAIN.CHASM) open++;
+  for (let r = Math.floor(w.ranks * 0.25); r < w.ranks * 0.8; r += 2) {
+    let open = 0;
+    for (let f = 0; f < w.files; f++) {
+      const c = w.cells[r][f];
+      if (c.terrain !== TERRAIN.WALL && c.terrain !== TERRAIN.CHASM) open++;
+    }
+    total += open;
+    rows++;
   }
-  assert(open >= w.files * 0.3, `mid-map width only ${open}/${w.files} walkable`);
+  const avg = total / rows;
+  assert(avg >= w.files * 0.3, `mid-map width only averages ${avg.toFixed(1)}/${w.files} walkable`);
   console.log('PASS  the road has real open width beside it, not just a corridor');
 }
 
@@ -397,6 +405,65 @@ function pawnLaneOpen(enc) {
   }
   assert(worst >= 4, `packs stood as close as ${worst} squares apart`);
   console.log('PASS  packs keep their distance instead of clumping together');
+}
+
+{
+  // Events are hidden down side alleys, not sitting out on the open road —
+  // every one should stand off the spine, and there should be a real spread
+  // of them per act.
+  let counts = [];
+  let minDist = Infinity;
+  for (let seed = 0; seed < 40; seed++) {
+    const w = world(seed);
+    let n = 0;
+    for (let r = 0; r < w.ranks; r++) {
+      for (let f = 0; f < w.files; f++) {
+        if (w.cells[r][f].poi !== 'event') continue;
+        n++;
+        const d = Math.abs(f - w.spine[r]);
+        if (d < minDist) minDist = d;
+      }
+    }
+    counts.push(n);
+  }
+  assert(Math.min(...counts) >= 3, `some acts had too few events: ${Math.min(...counts)}`);
+  assert(minDist >= 1, `an event sat right on the spine: distance ${minDist}`);
+  console.log('PASS  events wait down side alleys, not out on the open road');
+}
+
+{
+  // The boss's lair is revealed from the start, so there is always a
+  // landmark to navigate toward.
+  const w = world(4);
+  assert(w.bossSpot, 'no bossSpot recorded');
+  const boss = w.packs.find((p) => p.tier === 'boss');
+  assert(boss.file === w.bossSpot.file && boss.rank === w.bossSpot.rank, 'bossSpot does not match the boss pack');
+  assert(w.explored.has(key(boss.file, boss.rank)), 'the boss lair is not marked explored');
+  console.log('PASS  the boss lair is revealed from the start, not fogged');
+}
+
+{
+  // Bosses and elites are named individuals, not just a bigger faction tag.
+  const genericTail = /(Band|Host|Watch|Camp|Court|Cache|Guard|Wing|Cohort|Raid|Screen|Horde|Riders|Column|March|Battery|Keep|Outriders|Hunt|Haul|Company)$/;
+  let bossPersonal = 0;
+  let bossTotal = 0;
+  let elitePersonal = 0;
+  let eliteTotal = 0;
+  for (let seed = 0; seed < 30; seed++) {
+    const w = world(seed);
+    for (const p of w.packs) {
+      if (p.tier === 'boss') {
+        bossTotal++;
+        if (!genericTail.test(p.name)) bossPersonal++;
+      } else if (p.tier === 'elite') {
+        eliteTotal++;
+        if (!genericTail.test(p.name)) elitePersonal++;
+      }
+    }
+  }
+  assert(bossPersonal === bossTotal, `some bosses got a generic name: ${bossPersonal}/${bossTotal}`);
+  assert(elitePersonal === eliteTotal, `some elites got a generic name: ${elitePersonal}/${eliteTotal}`);
+  console.log('PASS  bosses and elites are named individuals');
 }
 
 console.log('\nOverworld clean.');
