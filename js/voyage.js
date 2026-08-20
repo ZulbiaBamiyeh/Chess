@@ -37,13 +37,21 @@ function owBadge(stroke, fill, glyph) {
     + `</svg>`;
 }
 const OW_ICON = {
-  event: owBadge('#c08cff', 'rgba(42,32,68,0.92)',
-    '<text x="16" y="23" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="17" fill="#c08cff">?</text>'),
-  shrine: owBadge('#ffcf3f', 'rgba(42,28,14,0.92)',
-    '<path d="M16 8v16M9 14h14" stroke="#ffcf3f" stroke-width="2.6" stroke-linecap="round"/>'),
-  sign: owBadge('#43d9ff', 'rgba(18,26,42,0.92)',
-    '<path d="M11 11h8l3 3.5-3 3.5h-8z" fill="none" stroke="#43d9ff" stroke-width="2" stroke-linejoin="round"/>'
-    + '<path d="M13.5 18v6" stroke="#43d9ff" stroke-width="2.2" stroke-linecap="round"/>'),
+  event: owBadge('#8a7bff', 'rgba(24,16,42,0.94)',
+    '<path d="M16 10a5 5 0 1 1-4.2 7.7" fill="none" stroke="#8a7bff" stroke-width="2" stroke-linecap="round"/>'
+    + '<path d="M16 10a5 5 0 0 1 5 5" fill="none" stroke="#c08cff" stroke-width="2" stroke-linecap="round"/>'
+    + '<text x="16" y="23" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="15" fill="#e8dcff">?</text>'),
+  quest: owBadge('#43d9ff', 'rgba(18,26,42,0.92)',
+    '<rect x="10" y="9" width="12" height="16" rx="2" fill="rgba(20,30,50,0.9)" stroke="#43d9ff" stroke-width="1.6"/>'
+    + '<circle cx="10" cy="9" r="1.8" fill="none" stroke="#43d9ff" stroke-width="1.3"/>'
+    + '<circle cx="22" cy="9" r="1.8" fill="none" stroke="#43d9ff" stroke-width="1.3"/>'
+    + '<circle cx="10" cy="25" r="1.8" fill="none" stroke="#43d9ff" stroke-width="1.3"/>'
+    + '<circle cx="22" cy="25" r="1.8" fill="none" stroke="#43d9ff" stroke-width="1.3"/>'
+    + '<text x="16" y="21" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="12" fill="#43d9ff">?</text>'),
+  shop: owBadge('#e0b84f', 'rgba(42,28,14,0.92)',
+    '<path d="M13 10c0-2 1.3-3.4 3-3.4s3 1.4 3 3.4" fill="none" stroke="#c9a24a" stroke-width="1.6"/>'
+    + '<path d="M11 11h10l2.4 12.6a2 2 0 0 1-2 2.4H10.6a2 2 0 0 1-2-2.4z" fill="rgba(120,80,30,0.9)" stroke="#e0b84f" stroke-width="1.8"/>'
+    + '<text x="16" y="22" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="13" fill="#ffd76a">$</text>'),
   loot: owBadge('#ffcf3f', 'rgba(42,28,14,0.92)',
     '<path d="M8 14a8 6 0 0 1 16 0" fill="none" stroke="#ffcf3f" stroke-width="2"/>'
     + '<rect x="8" y="14" width="16" height="9" rx="1.5" fill="rgba(255,207,63,0.14)" stroke="#ffcf3f" stroke-width="2"/>'
@@ -309,15 +317,15 @@ export function initVoyage(ctx) {
 
         if (seen && !sq.classList.contains('fog-hidden')) {
           if (cell.poi === 'village') {
-            sq.insertAdjacentHTML('beforeend', `<i class="ow-poi" style="background-image:url('assets/ow-village.png')"></i>`);
+            // Standing in for a town's own icon for now — the shop badge is
+            // the closest of the three to "a place with people in it."
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">${OW_ICON.shop}</i>`);
           } else if (cell.poi === 'shop') {
-            sq.insertAdjacentHTML('beforeend', `<i class="ow-poi" style="background-image:url('assets/ow-shop.png')"></i>`);
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">${OW_ICON.shop}</i>`);
           } else if (cell.poi === 'ramp') {
             sq.insertAdjacentHTML('beforeend', `<i class="ow-poi" style="background-image:url('assets/ow-ramp.png')"></i>`);
-          } else if (cell.poi === 'shrine') {
-            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">${OW_ICON.shrine}</i>`);
           } else if (cell.poi === 'sign') {
-            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">${OW_ICON.sign}</i>`);
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">${OW_ICON.quest}</i>`);
           } else if (cell.poi === 'event') {
             sq.insertAdjacentHTML('beforeend', `<i class="ow-loot ow-event">${OW_ICON.event}</i>`);
           } else if (cell.poi === 'exit') {
@@ -551,22 +559,6 @@ export function initVoyage(ctx) {
     }
     if (event.type === 'event') {
       campaign.openEvent(pickEvent(state.run));
-      return;
-    }
-    if (event.type === 'shrine') {
-      const cell = cellAt(overworld(), overworld().player.file, overworld().player.rank);
-      if (cell?.spent) {
-        toast('The shrine is cold.', '');
-      } else {
-        if (cell) cell.spent = true;
-        state.run.hp = Math.min(state.run.hpMax, state.run.hp + 5);
-        toast('The shrine mends you. +5 HP.', 'good');
-        audio.victory();
-        campaign.paintRunHud();
-      }
-      paintBoard();
-      paintBlurb();
-      centerOnPlayer();
       return;
     }
     if (event.type === 'sign') {

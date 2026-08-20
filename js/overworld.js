@@ -724,10 +724,6 @@ export function generateWorld(rng, act = 1) {
     s.cell.poi = 'shop';
     s.cell.terrain = TERRAIN.FORT;
   }
-  const shrineSpots = emptyFloor(world, (_c, _f, r) => r >= 3 && r <= 9);
-  if (shrineSpots.length) {
-    pick(rng, shrineSpots).cell.poi = 'shrine';
-  }
   const signSpots = emptyFloor(world, (_c, _f, r) => r >= 4 && r <= 12);
   if (signSpots.length) {
     pick(rng, signSpots).cell.poi = 'sign';
@@ -947,7 +943,6 @@ function applyPoi(world, file, rank) {
   if (cell.poi === 'village') {
     return { type: 'village', biome: cell.biome, name: cell.townName, seed: cell.townSeed };
   }
-  if (cell.poi === 'shrine') return { type: 'shrine', spent: Boolean(cell.spent) };
   if (cell.poi === 'sign') return { type: 'sign', spent: Boolean(cell.spent) };
   if (cell.poi === 'event') { cell.poi = null; return { type: 'event' }; }
   if (cell.poi === 'exit') return { type: 'exit' };
