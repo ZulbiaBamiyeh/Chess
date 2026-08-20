@@ -1,7 +1,7 @@
 import {
   generateWorld, generateTown, mulberry32, playerMoves, movePlayer, materialOf, armyMaterial,
   clashEncounter, OW, TERRAIN, revealAround, packRoster, packCard, stepEnemies,
-  revealMapFragment,
+  revealMapFragment, combinedDanger, chebyshev,
 } from '../js/overworld.js';
 import { buildFight, createVoyageRun } from '../js/run.js';
 import { BLACK } from '../js/chess.js';
@@ -204,11 +204,34 @@ function pawnLaneOpen(enc) {
   w.player.rank = 2;
   const pack = {
     id: 'test-jog', file: 5, rank: 3, army: [{ type: 'k' }, { type: 'p' }],
-    name: 'Levy', theme: 'wood', tier: 'trash',
+    name: 'Levy', theme: 'wood', biome: 'peak', tier: 'trash',
   };
   const enc = clashEncounter(w, pack, { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] }, 'player');
   assert(pawnLaneOpen(enc), `jog still blocked ${JSON.stringify(enc.terrain)}`);
   console.log('PASS  a narrow overworld corridor still yields a pawn crossing');
+}
+
+{
+  // Missing squares are a biome trait, not the default shape of a fight — a
+  // clean board should be the norm. The exact same wall-heavy terrain should
+  // yield holes in a biome that fits them and none in one that doesn't.
+  const w = world(1);
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < w.files; f++) {
+      w.cells[r][f].terrain = (f === 5) ? TERRAIN.FLOOR : TERRAIN.WALL;
+    }
+  }
+  w.player.file = 5;
+  w.player.rank = 2;
+  const bag = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
+  const woodPack = { id: 'wood-pack', file: 5, rank: 3, army: [{ type: 'k' }], name: 'Levy', biome: 'wood', tier: 'trash' };
+  const peakPack = { id: 'peak-pack', file: 5, rank: 3, army: [{ type: 'k' }], name: 'Cinder Host', biome: 'peak', tier: 'trash' };
+  const cleanEnc = clashEncounter(w, woodPack, bag, 'player');
+  const holeEnc = clashEncounter(w, peakPack, bag, 'player');
+  const blocks = (enc) => Object.values(enc.terrain).filter((t) => t === 'block').length;
+  assert(blocks(cleanEnc) === 0, `wood board should have no holes, got ${blocks(cleanEnc)}`);
+  assert(blocks(holeEnc) > 0, 'peak board should still have holes');
+  console.log('PASS  fight-board holes are a biome trait, not the default');
 }
 
 {
@@ -323,6 +346,57 @@ function pawnLaneOpen(enc) {
     assert(firstHostile.rank >= 8, `first fight at rank ${firstHostile.rank}`);
   }
   console.log('PASS  towns have a merchant, a courier, and work');
+}
+
+{
+  // The map is wider than the road: real, walkable width to either side of
+  // the spine, not just a corridor with occasional dead-end branches.
+  const w = world(5);
+  const rank = Math.floor(w.ranks * 0.5);
+  let open = 0;
+  for (let f = 0; f < w.files; f++) {
+    const c = w.cells[rank][f];
+    if (c.terrain !== TERRAIN.WALL && c.terrain !== TERRAIN.CHASM) open++;
+  }
+  assert(open >= w.files * 0.3, `mid-map width only ${open}/${w.files} walkable`);
+  console.log('PASS  the road has real open width beside it, not just a corridor');
+}
+
+{
+  // Wilderness danger: flat and safe near spawn no matter where you stand,
+  // rises the further you stray from the spine once you're not brand new
+  // to the act, and never exceeds the cap.
+  const w = world(5);
+  const southRank = Math.floor(w.ranks * 0.25);
+  const sx0 = w.spine[southRank];
+  const onSpine = combinedDanger(w, sx0, southRank);
+  const offSpine = combinedDanger(w, Math.min(w.files - 1, sx0 + 6), southRank);
+  assert(onSpine === offSpine, `south should be flat: ${onSpine} vs ${offSpine}`);
+
+  const midRank = Math.floor(w.ranks * 0.6);
+  const sx1 = w.spine[midRank];
+  const near = combinedDanger(w, sx1, midRank);
+  const far = combinedDanger(w, Math.min(w.files - 1, sx1 + 6), midRank);
+  assert(far > near + 0.15, `wandering should raise danger: near ${near} far ${far}`);
+  assert(far <= 1 && near <= 1, 'danger never exceeds its cap');
+  console.log('PASS  danger is flat near spawn and rises when you wander off the road');
+}
+
+{
+  // Packs should read as a spread wilderness, not a crowd — nothing placed
+  // closer than the minimum spacing to anything else, across many seeds.
+  let worst = Infinity;
+  for (let seed = 0; seed < 40; seed++) {
+    const w = world(seed);
+    for (let i = 0; i < w.packs.length; i++) {
+      for (let j = i + 1; j < w.packs.length; j++) {
+        const d = chebyshev(w.packs[i], w.packs[j]);
+        if (d < worst) worst = d;
+      }
+    }
+  }
+  assert(worst >= 4, `packs stood as close as ${worst} squares apart`);
+  console.log('PASS  packs keep their distance instead of clumping together');
 }
 
 console.log('\nOverworld clean.');

@@ -877,6 +877,25 @@ export function initCampaign(ctx) {
     showScreen('screen-event');
   }
 
+  /**
+   * A quick read on what a choice actually is, so the card can carry that at
+   * a glance the way a Spire event does — red for a real risk, gold for a
+   * straight cost, green for a straight boon — instead of every option
+   * looking identical until you read every word of it.
+   */
+  function choiceTone(choice) {
+    const effects = choice.effects || [];
+    if (choice.gamble || effects.some((e) => (e.hp != null && e.hp < 0) || e.lose)) {
+      return 'tone-risk';
+    }
+    const boon = effects.some((e) => (e.gold != null && e.gold > 0) || e.gain
+      || e.heal != null || (e.hp != null && e.hp > 0) || e.supply != null
+      || e.deploy != null || e.maxHp != null || e.upgrade || e.king);
+    if (boon && !choice.cost) return 'tone-boon';
+    if (choice.cost) return 'tone-cost';
+    return 'tone-neutral';
+  }
+
   function paintChoices(ev) {
     const host = $('event-choices');
     host.innerHTML = '';
@@ -884,7 +903,7 @@ export function initCampaign(ctx) {
       const gate = choiceAvailable(state.run, choice);
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'event-choice';
+      btn.className = `event-choice ${choiceTone(choice)}`;
       btn.disabled = !gate.ok;
       btn.innerHTML = `<span class="ec-label">${choice.label}</span>`
         + `<span class="ec-detail">${gameText(choice.detail)}</span>`
@@ -898,14 +917,21 @@ export function initCampaign(ctx) {
   /** A choice that gives up a piece has to ask which one before it resolves. */
   function takeChoice(choice) {
     const effects = choice.effects || [];
-    const needsPick = effects.some((e) => e.lose === 'choose' || e.upgrade);
-    if (needsPick) { askWhichPiece(choice, effects.some((e) => e.upgrade)); return; }
+    const needsPick = effects.some((e) => e.lose === 'choose' || e.upgrade || e.duplicate);
+    if (needsPick) {
+      const mode = effects.some((e) => e.duplicate) ? 'copy'
+        : effects.some((e) => e.upgrade) ? 'feed' : 'lose';
+      askWhichPiece(choice, mode);
+      return;
+    }
     resolveChoice(choice, null);
   }
 
-  function askWhichPiece(choice, feeding = false) {
+  function askWhichPiece(choice, mode = 'lose') {
     const host = $('event-choices');
-    const prompt = feeding ? 'Which piece goes in?' : 'Which piece do you leave?';
+    const prompt = mode === 'feed' ? 'Which piece goes in?'
+      : mode === 'copy' ? 'Which piece gets copied?'
+      : 'Which piece do you leave?';
     host.innerHTML = `<div class="ec-detail" style="padding:0 0 .4rem">${prompt}</div>`;
     for (const item of state.run.bag) {
       const def = pieceById(item.type);
@@ -1026,7 +1052,7 @@ export function initCampaign(ctx) {
             ? `<i class="shop-art" style="background-image:url('assets/map-shop.png')"></i>`
             : offer.kind === 'relic'
               ? '<i class="shop-art shop-art-relic">✦</i>'
-              : `<i class="shop-art shop-art-${offer.kind === 'slot' ? 'slot' : 'purse'}"></i>`;
+              : '<i class="shop-art shop-art-slot"></i>';
       card.innerHTML = art
         + `<span class="shop-card-name">${offer.name}</span>`
         + `<span class="shop-card-blurb">${gameText(offer.blurb)}</span>`

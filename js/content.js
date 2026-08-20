@@ -1459,6 +1459,58 @@ export const EVENTS = {
       { label: 'Leave her to it', detail: 'She does not look up.', effects: [] },
     ],
   },
+  jester: {
+    id: 'jester', name: "The Jester's Wager",
+    text: 'A jester in motley juggles chess pieces carved from glass, humming off-key. '
+      + '"Give me your finest," they grin, already eyeing your best piece, "and I\'ll '
+      + 'give you back whatever the dice allow. Could be silver. Could be gold. Could '
+      + 'be a Pawn with a funny little hat."',
+    choices: [
+      { label: 'Take the wager',
+        detail: 'They take your priciest piece. 35% odds of a legendary back — otherwise a common.',
+        effects: [{ lose: 'priciest' }],
+        gamble: { odds: 0.35, win: [{ gain: 'random-legendary' }], lose: [{ gain: 'random-common' }] } },
+      { label: 'Keep your hands in your pockets', detail: 'Walk on.', effects: [] },
+    ],
+  },
+  lookingglass: {
+    id: 'lookingglass', name: 'The Looking-Glass',
+    text: 'A mirror leans against the wall, propped on a chair that should not hold '
+      + 'its weight. The reflection is a half-step behind you, and it is smiling '
+      + 'before you do. "Show it something worth having," it says, "and I will make '
+      + 'it real. Once."',
+    choices: [
+      { label: 'Show it a piece', detail: 'A piece of your choice is copied exactly, rarity and all. Costs 20 gold.',
+        cost: 20, effects: [{ duplicate: true }] },
+      { label: 'Turn the mirror to the wall', detail: 'Some things should not be doubled.', effects: [] },
+    ],
+  },
+  longodds: {
+    id: 'longodds', name: 'The Long Odds',
+    text: 'A crooked table, a single card face-down, and a man missing three fingers. '
+      + '"Turn it," he says. "Big prize under a bad card. Nothing under a good one. '
+      + 'Your call which is which — I stopped being able to tell a while ago."',
+    choices: [
+      { label: 'Turn the card',
+        detail: '25% odds of a legendary. Otherwise −10 HP and your priciest piece, gone.',
+        gamble: { odds: 0.25, win: [{ gain: 'random-legendary' }], lose: [{ hp: -10 }, { lose: 'priciest' }] },
+        effects: [] },
+      { label: 'Leave the table', detail: 'Some tables you just walk past.', effects: [] },
+    ],
+  },
+  bloodletter: {
+    id: 'bloodletter', name: 'The Bloodletter',
+    text: 'A physician with clean hands and a dirty table. "Vigour for value," she '
+      + 'says, already rolling a sleeve. "I have done this before. You will not enjoy '
+      + 'it. You will not regret it either."',
+    choices: [
+      { label: 'Give her a vein', detail: '−3 max HP, permanently. +30 gold.',
+        effects: [{ maxHp: -3 }, { gold: 30 }] },
+      { label: 'Give her more', detail: '−6 max HP, permanently. A legendary piece.',
+        effects: [{ maxHp: -6 }, { gain: 'random-legendary' }] },
+      { label: 'Keep your blood', detail: 'She shrugs, unsurprised.', effects: [] },
+    ],
+  },
 };
 
 export const EVENT_IDS = Object.keys(EVENTS);

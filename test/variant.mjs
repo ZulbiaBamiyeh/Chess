@@ -1422,5 +1422,31 @@ const engineSnapshot = (g) => JSON.stringify({
     engineSnapshot(g) === before, JSON.stringify(g.board[1 * 16 + 1]));
 }
 
+{
+  // A side frozen out of every legal move used to lose the fight outright,
+  // even with both kings still standing — freezing every enemy piece was a
+  // free win with no capture involved. It should forfeit the ply instead.
+  const g = Chess.fromDiagram(`
+    . . . {b:king}
+    . . . .
+    . . . {b:pawn}
+    {w:king} . . .
+  `, { files: 4, ranks: 4, rules: { ...KC } });
+  g.turn = BLACK;
+  g.status[g.kings.w] |= ST_FROZEN;
+  const beforeTurn = g.turn;
+  const mv = g.moves({ square: 2 * 16 + 3 })[0];
+  assert('black has a move to test with', Boolean(mv));
+  g.makeMove(mv);
+  assert('the turn bounces back to black instead of the fight ending',
+    g.turn === BLACK, `turn ${g.turn}`);
+  assert('both kings are still standing', g.kings.w >= 0 && g.kings.b >= 0);
+  assert('outcome is not over just because one side is frozen solid',
+    !g.outcome().over, JSON.stringify(g.outcome()));
+  g.undo();
+  assert('undo restores whoever\'s turn it truly was before the frozen bounce',
+    g.turn === beforeTurn, `turn ${g.turn}`);
+}
+
 console.log(failures ? `\n${failures} variant failure(s)` : '\nAll variant tests passed.');
 process.exit(failures ? 1 : 0);

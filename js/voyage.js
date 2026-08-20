@@ -262,7 +262,8 @@ export function initVoyage(ctx) {
     const port = $('ow-port');
     if (!you || !port) return;
     const y = you.offsetTop - port.clientHeight * 0.55 + you.offsetHeight / 2;
-    port.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    const x = you.offsetLeft - port.clientWidth * 0.5 + you.offsetWidth / 2;
+    port.scrollTo({ top: Math.max(0, y), left: Math.max(0, x), behavior: 'smooth' });
   }
 
   function onSquare(file, rank) {

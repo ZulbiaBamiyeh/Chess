@@ -1530,6 +1530,21 @@ export class Chess {
       : this.halfMoves + 1;
     if (us === BLACK) this.moveNumber++;
     this.turn = them;
+
+    // A side with no legal move (every piece frozen, say) used to lose the
+    // fight on the spot — so freezing an opponent solid ended the game
+    // without ever touching their king. It just forfeits the ply instead:
+    // the turn comes straight back to whoever can actually move. The guard
+    // caps it at one bounce each way, so a genuine mutual deadlock (both
+    // sides frozen) falls through to outcome()'s own no-moves check rather
+    // than spinning forever.
+    if (this.rules.kingCapture && this.kings.w >= 0 && this.kings.b >= 0) {
+      let guard = 0;
+      while (guard < 2 && this.moves().length === 0) {
+        this.turn = swap(this.turn);
+        guard++;
+      }
+    }
   }
 
   /**

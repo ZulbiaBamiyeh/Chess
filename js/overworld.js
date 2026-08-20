@@ -5,11 +5,14 @@
 import { pieceById } from './pieces.js';
 
 export const OW = {
-  FILES: 11,
+  FILES: 19,
   VISION: 3,
   GRACE: 24,
   DECAY_EVERY: 3,
   DECAY_HP: 3,
+  // How far sideways the danger curve keeps rising before it caps — a
+  // Wilderness-style "wander off the road and it gets worse" reach.
+  WANDER_REACH: 7,
 };
 
 export const TERRAIN = {
@@ -278,9 +281,42 @@ function pickArchetype(biome, tier, danger, rng, role = 'road') {
   return rng() < 0.5 ? 'scouts' : 'thieves';
 }
 
-function packPower(rank, ranks, act, rng) {
-  const t = rank / Math.max(1, ranks - 1);
-  // Until well up the board, they field what you field: two or three pawns.
+/**
+ * How far off the spine a square sits, 0 (on it) to 1 (as far as the
+ * Wilderness reach goes). The spine is recorded per rank during generation.
+ */
+function wanderOf(world, file, rank) {
+  const sx = world.spine?.[rank];
+  if (sx == null) return 0;
+  const reach = Math.max(4, OW.WANDER_REACH);
+  return Math.min(1, Math.abs(file - sx) / reach);
+}
+
+/**
+ * The real danger of a square: mostly how far north you've climbed, plus —
+ * Wilderness-style — how far you've strayed from the road, once you're not
+ * brand new to the act. Straying near the spawn glade stays exactly as safe
+ * as standing on the spine; straying deep in gets properly dangerous.
+ */
+export function combinedDanger(world, file, rank) {
+  const rankT = rank / Math.max(1, world.ranks - 1);
+  const wander = wanderOf(world, file, rank);
+  const wanderWeight = Math.max(0, Math.min(1, (rankT - 0.4) / 0.3));
+  return Math.min(1, rankT + wander * 0.6 * wanderWeight);
+}
+
+/** True when every already-placed pack sits at least `min` squares away. */
+function spacedOut(world, file, rank, min) {
+  for (const p of world.packs) {
+    if (chebyshev(p, { file, rank }) < min) return false;
+  }
+  return true;
+}
+
+function packPower(world, file, rank, act, rng) {
+  const t = combinedDanger(world, file, rank);
+  // Until well up the board (or well off the road), they field what you
+  // field: two or three pawns.
   if (t < 0.4) return rng() < 0.55 ? 2 : 3;
   if (t < 0.55) return 4 + Math.floor(rng() * 3);
   return Math.round(6 + t * (12 + act * 5) + rng() * 3);
@@ -328,7 +364,7 @@ function placePack(world, file, rank, power, tier, opts = {}) {
   if (!cell || !WALKABLE.has(cell.terrain)) return null;
   if (occupier(world, file, rank)) return null;
   const biome = cell.biome;
-  const danger = rank / Math.max(1, world.ranks - 1);
+  const danger = combinedDanger(world, file, rank);
   const role = opts.role || 'road';
   const arch = opts.arch || pickArchetype(biome, tier, danger, world.rng, role);
   const spec = ARCHETYPES[arch] || ARCHETYPES.levy;
@@ -492,6 +528,26 @@ export function generateWorld(rng, act = 1) {
       pockets.push({ file: bx, rank: by, depth: len, mouth: y });
     }
   }
+  // Danger and pack placement key off distance from the spine, so it has to
+  // exist on the world before anything downstream of it runs.
+  world.spine = spine;
+
+  // A wide wilderness either side of the spine, not just the road itself —
+  // open near the spine and thinning out with distance, so wandering off
+  // to either side is a real, walkable choice rather than a wall. The
+  // pinch near the ramp (below) still closes this back to a single file,
+  // so straying wide never finds a way around the gate.
+  for (let y = 0; y < ranks; y++) {
+    const sx = spine[y];
+    for (let d = 1; d <= OW.WANDER_REACH; d++) {
+      const fall = 1 - d / (OW.WANDER_REACH + 1);
+      for (const dir of [-1, 1]) {
+        const fx = sx + dir * d;
+        if (fx < 1 || fx > files - 2) continue;
+        if (rng() < fall * 0.6) carve(world, fx, y, 0);
+      }
+    }
+  }
 
   // Turn leftover walls beside floor into chasms so combat boards get holes.
   for (let r = 0; r < ranks; r++) {
@@ -562,33 +618,55 @@ export function generateWorld(rng, act = 1) {
     spot.cell.poi = 'event';
   }
 
+  // Packs read as a crowd once two of them stand near enough to see each
+  // other; every placement pass from here on keeps this much room between
+  // any two, so the road reads as a wilderness rather than a mob.
+  const MIN_PACK_SPACING = 4;
+
   // Greed nodes: every pocket end is a cache, and the deeper/later it is
-  // the more it pays — and the nastier the camp sitting on it.
+  // the more it pays — and the nastier the camp sitting on it. A cache too
+  // close to an already-placed guard just goes unwatched — free loot, no
+  // extra body crowding the same corner of the map.
   for (const pocket of pockets) {
     const cell = cellAt(world, pocket.file, pocket.rank);
     if (!cell || !WALKABLE.has(cell.terrain) || cell.poi) continue;
     const danger = Math.min(1, pocket.rank / ranks * 0.65 + pocket.depth / 10 * 0.45);
     cell.poi = 'loot';
     cell.loot = rollLoot(rng, danger, act);
-    const guardPower = packPower(pocket.rank, ranks, act, rng);
+    if (!spacedOut(world, pocket.file, pocket.rank, MIN_PACK_SPACING)) continue;
+    const guardPower = packPower(world, pocket.file, pocket.rank, act, rng);
     const guardTier = danger > 0.7 ? 'elite' : danger > 0.52 ? 'elite' : 'trash';
     placePack(world, pocket.file, pocket.rank, guardPower, guardTier, { role: 'cache' });
   }
 
-  // Spine patrols. These are the wilderness — they hunt, they sit on the
-  // road, and walking north means meeting them.
+  // Patrols, spread across the width rather than lined up on the spine —
+  // clumped packs read as a crowd; spaced ones read as a wilderness you
+  // actually have to watch for. Each checkpoint tries a handful of squares
+  // near that rank, at varying distance from the road, and skips any that
+  // would land too close to a pack already placed.
   const used = new Set(world.packs.map((p) => key(p.file, p.rank)));
-  const patrolRanks = [12, 16, 20, 24, 28, ranks - 10, ranks - 6];
+  // Never in the last 8 ranks — that stretch is pinched to a single file for
+  // the boss gate below, where "spread out" has no room to mean anything and
+  // a patrol would just crowd the boss guarding it.
+  const patrolRanks = [10, 13, 16, 19, 22, 25, 28, ranks - 13, ranks - 10].filter((y) => y < ranks - 8);
   for (const ry of patrolRanks) {
-    const y = Math.max(11, Math.min(ranks - 4, ry + (rng() < 0.5 ? 0 : 1)));
-    const f = spine[y] ?? x;
-    if (used.has(key(f, y))) continue;
-    if (chebyshev({ file: f, rank: y }, world.player) < 8) continue;
-    used.add(key(f, y));
-    const t = y / ranks;
-    const power = packPower(y, ranks, act, rng);
-    const tier = t > 0.82 ? 'elite' : t > 0.62 ? 'elite' : 'trash';
-    placePack(world, f, y, power, tier, { role: 'road' });
+    const y = Math.max(9, Math.min(ranks - 9, ry + (rng() < 0.5 ? 0 : 1)));
+    if (chebyshev({ file: spine[y] ?? x, rank: y }, world.player) < 8) continue;
+    let placed = false;
+    for (let attempt = 0; attempt < 7 && !placed; attempt++) {
+      const spread = attempt === 0 ? 0 : Math.floor(rng() * (OW.WANDER_REACH * 2 + 1)) - OW.WANDER_REACH;
+      const f = Math.max(1, Math.min(files - 2, (spine[y] ?? x) + spread));
+      if (used.has(key(f, y))) continue;
+      if (!isWalkable(world, f, y)) continue;
+      if (!spacedOut(world, f, y, MIN_PACK_SPACING)) continue;
+      const t = combinedDanger(world, f, y);
+      const power = packPower(world, f, y, act, rng);
+      const tier = t > 0.82 ? 'elite' : t > 0.62 ? 'elite' : 'trash';
+      if (placePack(world, f, y, power, tier, { role: 'road' })) {
+        used.add(key(f, y));
+        placed = true;
+      }
+    }
   }
 
   // Gate boss on the ramp. You do not stroll off Act 1.
@@ -608,17 +686,21 @@ export function generateWorld(rng, act = 1) {
       s.cell.poi = 'loot';
       s.cell.loot = rollLoot(rng, danger, act);
       caches++;
-      placePack(world, s.file, s.rank, packPower(s.rank, ranks, act, rng), danger > 0.62 ? 'elite' : 'trash', { role: 'cache' });
+      if (!spacedOut(world, s.file, s.rank, MIN_PACK_SPACING)) continue;
+      placePack(world, s.file, s.rank, packPower(world, s.file, s.rank, act, rng), danger > 0.62 ? 'elite' : 'trash', { role: 'cache' });
     }
   }
 
-  // Fill any thin maps so the road is never empty.
+  // Fill any thin maps so the road is never empty — still spread out, still
+  // spaced from whatever is already standing.
   let extra = 0;
-  for (let y = 12; y < ranks - 3 && world.packs.length < 14 && extra < 8; y += 3) {
-    const f = spine[y] ?? x;
+  for (let y = 12; y < ranks - 8 && world.packs.length < 14 && extra < 8; y += 3) {
+    const spread = Math.floor(rng() * (OW.WANDER_REACH * 2 + 1)) - OW.WANDER_REACH;
+    const f = Math.max(1, Math.min(files - 2, (spine[y] ?? x) + spread));
     if (used.has(key(f, y))) continue;
     if (chebyshev({ file: f, rank: y }, world.player) < 5) continue;
-    const placed = placePack(world, f, y, packPower(y, ranks, act, rng), y / ranks > 0.62 ? 'elite' : 'trash', { role: 'road' });
+    if (!isWalkable(world, f, y) || !spacedOut(world, f, y, MIN_PACK_SPACING)) continue;
+    const placed = placePack(world, f, y, packPower(world, f, y, act, rng), y / ranks > 0.62 ? 'elite' : 'trash', { role: 'road' });
     if (placed) {
       used.add(key(f, y));
       extra++;
@@ -1092,15 +1174,23 @@ function openPawnCrossing(terrain, files, ranks) {
   }
 }
 
+// Missing squares are a biome trait, not the default shape of a fight — a
+// clean board (with a fort tile here or there) is the norm, the way a 6×6
+// board with nothing missing reads best. Mountains and the ruined approach
+// to a gate are jagged enough that holes belong there; woods and ice are not.
+const HOLE_BIOMES = new Set(['peak', 'gate']);
+
 /**
  * Build a fight encounter from the overworld tile the clash happened on.
- * Mountains/chasms become holes; frost and ember come with the biome.
+ * Mountains/chasms become holes only in a biome that fits them; frost and
+ * ember always come with their biome regardless.
  */
 export function clashEncounter(world, pack, run, aggressor) {
   const files = Math.min(8, 6 + Math.min(2, world.act - 1));
   const ranks = Math.min(8, 6 + Math.min(2, world.act - 1));
   const originFile = world.player.file - Math.floor(files / 2);
   const originRank = world.player.rank - Math.floor(ranks / 2);
+  const holes = HOLE_BIOMES.has(pack.biome);
   const terrain = {};
   for (let r = 0; r < ranks; r++) {
     for (let f = 0; f < files; f++) {
@@ -1108,8 +1198,8 @@ export function clashEncounter(world, pack, run, aggressor) {
       const owR = originRank + r;
       const cell = cellAt(world, owF, owR);
       const combatName = `${String.fromCharCode(97 + f)}${r + 1}`;
-      if (!cell || cell.terrain === TERRAIN.WALL || cell.terrain === TERRAIN.CHASM
-        || owR <= world.decayRank) {
+      if (!cell || owR <= world.decayRank
+        || (holes && (cell.terrain === TERRAIN.WALL || cell.terrain === TERRAIN.CHASM))) {
         terrain[combatName] = 'block';
       } else if (cell.terrain === TERRAIN.FROST) {
         terrain[combatName] = 'frost';

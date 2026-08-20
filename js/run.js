@@ -663,14 +663,6 @@ export function openShop(run) {
     cost: supplyUpgradeCost(run.supplyBought),
   });
 
-  offers.push({
-    kind: 'heal',
-    id: 'heal',
-    name: 'A Purse',
-    blurb: 'A little extra gold.',
-    cost: 4,
-  });
-
   const ownedKings = new Set(ownedKingIds(run));
   const kingPool = Object.values(KING_PASSIVES).filter((pas) => !ownedKings.has(pas.id));
   // One king offer regardless of act. Two in act 3 was one more thing on an
@@ -786,8 +778,6 @@ export function buyOffer(run, offerId) {
     if (!owned.includes(offer.king)) owned.push(offer.king);
     run.kings = owned;
     run.king = offer.king;
-  } else if (offer.kind === 'heal') {
-    run.gold += 6;
   } else if (offer.kind === 'slot') {
     run.slots[offer.rarity] = (run.slots[offer.rarity] || 0) + 1;
   } else if (offer.kind === 'relic') {
@@ -904,6 +894,12 @@ export function choiceAvailable(run, choice) {
   if (dropsAPiece && run.bag.length <= 1) {
     return { ok: false, reason: 'Nothing to give' };
   }
+  // Duplicate doesn't give anything up, so it only needs one piece to exist
+  // to copy — not one left over afterward.
+  const needsAPiece = (choice.effects || []).some((e) => e.duplicate);
+  if (needsAPiece && run.bag.length < 1) {
+    return { ok: false, reason: 'Nothing to copy' };
+  }
   return { ok: true };
 }
 
@@ -1014,6 +1010,19 @@ export function applyChoice(run, choice, pickedUid = null) {
           run.gold += 25;
           lines.push('Nothing comes out but slag. +25 gold');
         }
+      }
+    }
+    // Copies a piece you already own — unlike upgrade, the original stays.
+    // The reflection is exact: same type, same rarity, just one more of it.
+    if (effect.duplicate) {
+      const at = pickedUid ? run.bag.findIndex((p) => p.uid === pickedUid) : -1;
+      if (at >= 0) {
+        const type = run.bag[at].type;
+        const added = addToBag(run, type);
+        lines.push(added ? `A second ${PIECES[type].name} joins the bag`
+          : `The copy has no slot — sold for 12 gold`);
+        if (!added) run.gold += 12;
+        gained.push({ type, sold: added ? 0 : 12 });
       }
     }
     if (effect.king) {
