@@ -152,6 +152,7 @@ export class Chess {
     this.kingPassives = options.kingPassives ? options.kingPassives.slice() : [];
     this.board = new Array(128).fill(null);
     this.status = new Uint8Array(128);
+    this.frozenAt = new Uint16Array(128);
     this.terrain = new Uint8Array(128);
     this.fireUntil = new Uint16Array(128);
     // A telegraphed square: the ply count at which it detonates, or 0 for
@@ -197,6 +198,17 @@ export class Chess {
     this.awaitingDuck = Boolean(options.awaitingDuck);
 
     if (options.status) this.applyStatus(options.status);
+    if (options.frozenAt) {
+      for (const entry of options.frozenAt) {
+        const sq = typeof entry.sq === 'string' ? parseSquare(entry.sq, this.ranks) : entry.sq;
+        this.frozenAt[sq] = entry.at | 0;
+      }
+    } else {
+      for (let sq = 0; sq <= 119; sq++) {
+        if (sq & 0x88) { sq += 7; continue; }
+        if (this.status[sq] & ST_FROZEN) this.frozenAt[sq] = 1;
+      }
+    }
     if (options.fire) {
       for (const entry of options.fire) {
         const sq = typeof entry.sq === 'string' ? parseSquare(entry.sq, this.ranks) : entry.sq;
@@ -324,6 +336,23 @@ export class Chess {
     return Boolean(piece) && piece.color === WHITE && this.kingPassives.includes('icebound');
   }
 
+  /** Freeze a piece until the other side has played, then it sits out one activation. */
+  markFrozen(sq) {
+    if (sq == null || sq < 0 || !this.inBounds(sq)) return;
+    this.status[sq] |= ST_FROZEN;
+    this.frozenAt[sq] = this.history.length || 1;
+  }
+
+  /** True if a ply by the other colour exists after this square was frozen. */
+  opponentMovedSinceFreeze(sq, us) {
+    const since = this.frozenAt[sq] || 0;
+    const last = this.history.length - 1;
+    for (let i = since; i < last; i++) {
+      if (this.history[i]?.move?.color && this.history[i].move.color !== us) return true;
+    }
+    return false;
+  }
+
   isFire(sq) {
     // Fire comes from two places: a Flame painting it as it slides (which
     // expires), and an encounter declaring the tile outright (which does not).
@@ -363,10 +392,12 @@ export class Chess {
   toSpec() {
     const terrain = [];
     const status = [];
+    const frozenAt = [];
     for (let sq = 0; sq <= 119; sq++) {
       if (sq & 0x88) { sq += 7; continue; }
       if (this.terrain[sq]) terrain.push({ sq, tile: this.terrain[sq] });
       if (this.status[sq]) status.push({ sq, status: this.status[sq] });
+      if (this.frozenAt[sq]) frozenAt.push({ sq, at: this.frozenAt[sq] });
     }
     const fire = [];
     for (let sq = 0; sq <= 119; sq++) {
@@ -382,6 +413,7 @@ export class Chess {
       bossScript: this.bossScript ? { ...this.bossScript } : null,
       terrain,
       status,
+      frozenAt,
       fire,
       duck: this.duck,
       awaitingDuck: this.awaitingDuck,
@@ -1162,16 +1194,21 @@ export class Chess {
     });
 
     if (extra) {
-      // Pieces of the mover that sat out this turn now thaw.
+      extra.frozenAtSnap = this.frozenAt.slice();
+      // Pieces of the mover thaw only after the other side has actually
+      // had a ply. Without that, sandbox (and any double move) thawed on
+      // the next same-colour move, so landing on ice never lasted a turn.
       let thawed = null;
       for (let sq = 0; sq <= 119; sq++) {
         if (sq & 0x88) { sq += 7; continue; }
         if (!(this.status[sq] & ST_FROZEN)) continue;
         const p = board[sq];
         if (!p || p.color !== us) continue;
+        if (!this.opponentMovedSinceFreeze(sq, us)) continue;
         if (!thawed) thawed = [];
         thawed.push(sq, this.status[sq]);
         this.status[sq] &= ~ST_FROZEN;
+        this.frozenAt[sq] = 0;
       }
       extra.thawed = thawed;
     }
@@ -1208,6 +1245,8 @@ export class Chess {
         const toStatus = this.status[move.to];
         this.status[move.to] = fromStatus & ~ST_FROZEN;
         this.status[move.from] = toStatus & ~ST_FROZEN;
+        this.frozenAt[move.to] = 0;
+        this.frozenAt[move.from] = 0;
       }
     } else {
       board[move.to] = moving;
@@ -1215,6 +1254,8 @@ export class Chess {
       if (extra) {
         this.status[move.to] = this.status[move.from] & ~ST_FROZEN;
         this.status[move.from] = 0;
+        this.frozenAt[move.to] = 0;
+        this.frozenAt[move.from] = 0;
       }
     }
 
@@ -1276,7 +1317,7 @@ export class Chess {
     if (extra && !shooting && !guardFalls) {
       const dest = move.to;
       if (this.terrain[dest] === TILE.FROST && !this.freezeImmune(board[dest])) {
-        this.status[dest] |= ST_FROZEN;
+        this.markFrozen(dest);
       }
       if (this.terrain[dest] === TILE.FORT) this.status[dest] |= ST_SHIELD;
       // Glass holds exactly once. Whoever lands on it gets to stand there —
@@ -1340,12 +1381,12 @@ export class Chess {
           const p = board[sq];
           if (p && p.color === them && !this.freezeImmune(p)) {
             extra.iced.push(sq, this.status[sq]);
-            this.status[sq] |= ST_FROZEN;
+            this.markFrozen(sq);
           }
         }
         // Recoil. Undo restores this square from `extra.statusTo`, so it needs
         // no bookkeeping of its own.
-        if (extra.iced.length) this.status[dest] |= ST_FROZEN;
+        if (extra.iced.length) this.markFrozen(dest);
       }
 
       // A lodestone bends the board toward it. Every enemy standing exactly
@@ -1392,7 +1433,7 @@ export class Chess {
           // the reason to field a lodestone at all, so it would be strange
           // for the terrain to only apply to pieces that walked there.
           if ((dragChill || this.terrain[mid] === TILE.FROST) && !this.freezeImmune(victim)) {
-            this.status[mid] |= ST_FROZEN;
+            this.markFrozen(mid);
           }
           if (this.isFire(mid)) {
             extra.pullKilled = extra.pullKilled || [];
@@ -1441,7 +1482,7 @@ export class Chess {
         && this.kingPassives.includes('vengefulash')) {
         extra.iced = extra.iced || [];
         extra.iced.push(dest, this.status[dest]);
-        this.status[dest] |= ST_FROZEN;
+        this.markFrozen(dest);
       }
 
       const tookWisp = move.captured && PIECES[move.captured]?.wisp
@@ -1564,7 +1605,7 @@ export class Chess {
           const p = this.board[sq];
           if (p && !this.freezeImmune(p) && !(this.status[sq] & ST_FROZEN)) {
             frozen.push(sq, this.status[sq]);
-            this.status[sq] |= ST_FROZEN;
+            this.markFrozen(sq);
           }
         }
         extra.envFrozen = frozen;
@@ -1758,6 +1799,7 @@ export class Chess {
           this.status[extra.thawed[i]] = extra.thawed[i + 1];
         }
       }
+      if (extra.frozenAtSnap) this.frozenAt = extra.frozenAtSnap;
     }
 
     if (move._shieldSaved) move._shieldSaved = false;

@@ -2198,7 +2198,22 @@ kbd {
   50% { opacity: 1; }
 }
 
-.piece.frozen { filter: grayscale(0.4) saturate(0.6) drop-shadow(0 0 8px rgba(67, 217, 255, 0.8)) !important; }
+.piece.frozen {
+  filter: brightness(1.12) saturate(0.45) drop-shadow(0 0 12px rgba(120, 220, 255, 1)) !important;
+}
+.piece.frozen::before {
+  content: '';
+  position: absolute;
+  inset: -6%;
+  border-radius: 18%;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(210, 245, 255, 0.5), rgba(140, 210, 240, 0.08) 52%, rgba(190, 235, 255, 0.35));
+  box-shadow:
+    inset 0 0 0 2px rgba(190, 240, 255, 0.95),
+    0 0 16px rgba(80, 200, 255, 0.65);
+}
 /* Divine shield sits around the piece, not as a sticker on its chest. */
 .piece.shielded::after {
   content: '';

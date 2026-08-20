@@ -229,6 +229,42 @@ const KC = { kingCapture: true, checks: false, castling: false };
     `piece=${g.get('b3')?.type} status=${g.statusAt('b3')} moves=${names(g, 'b3')}`);
 }
 
+{
+  // Sandbox lets the same colour move twice. Ice still has to last until
+  // the other side plays, or "frozen for a turn" is a no-op at the menu.
+  const g = new Chess({
+    fen: '8/8/8/8/8/8/8/8 w - - 0 1',
+    files: 8, ranks: 8,
+    rules: { checks: false, kingCapture: true, castling: false },
+  });
+  const frost = g.sqOf('e4');
+  const d2 = g.sqOf('d2');
+  const g1 = g.sqOf('g1');
+  g.terrain[frost] = TILE.FROST;
+  g.board[d2] = { type: 'n', color: WHITE };
+  g.board[g1] = { type: 'n', color: WHITE };
+  g.turn = WHITE;
+  assert('sandbox knight can leap onto frost', Boolean(g.move({ from: 'd2', to: 'e4' })));
+  assert('sandbox landing freezes', (g.statusAt('e4') & ST_FROZEN) !== 0);
+  g.turn = WHITE;
+  assert('frozen knight has no moves before the other side plays', g.moves({ square: 'e4' }).length === 0);
+  g.turn = WHITE;
+  assert('a second white move does not thaw ice', Boolean(g.move({ from: 'g1', to: 'f3' })));
+  assert('knight still frozen after a same-colour follow-up', (g.statusAt('e4') & ST_FROZEN) !== 0);
+  g.board[g.sqOf('a8')] = { type: 'k', color: BLACK };
+  g.kings.b = g.sqOf('a8');
+  g.turn = BLACK;
+  assert('black can move while the knight is iced', Boolean(g.move({ from: 'a8', to: 'a7' })));
+  g.turn = WHITE;
+  assert('knight still sits out white\'s next activation', g.moves({ square: 'e4' }).length === 0);
+  g.turn = WHITE;
+  assert('white\'s other knight can still move', Boolean(g.move({ from: 'f3', to: 'g1' })));
+  g.turn = WHITE;
+  assert('knight thaws once white has spent a turn after black',
+    (g.statusAt('e4') & ST_FROZEN) === 0 && g.moves({ square: 'e4' }).length > 0,
+    `status=${g.statusAt('e4')} moves=${g.moves({ square: 'e4' }).length}`);
+}
+
 // ---- fort / shield -------------------------------------------------------
 
 {

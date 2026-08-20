@@ -4,7 +4,7 @@
 import { Chess, WHITE, BLACK, TILE, ST_FROZEN, ST_SHIELD } from './chess.js';
 import { PIECES } from './pieces.js';
 import { KING_PASSIVES, PLAIN_KING, kingDef } from './content.js';
-import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, setGameText } from './ui.js';
+import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, setGameText, toast } from './ui.js';
 
 const KING_STEPS = [-17, -16, -15, -1, 1, 15, 16, 17];
 
@@ -12,7 +12,8 @@ const TERRAIN = [
   { id: 'move', name: 'Move', tile: null, blurb: 'Click a piece on the board to see and play its moves.' },
   { id: 'erase', name: 'Erase', tile: TILE.NONE, blurb: 'Clear a square.' },
   { id: 'block', name: 'Wall', tile: TILE.BLOCK, blurb: 'A wall. Nothing lands here or slides through.' },
-  { id: 'frost', name: 'Frost', tile: TILE.FROST, blurb: 'Landing here freezes the piece for a turn.' },
+  { id: 'frost', name: 'Frost', tile: TILE.FROST,
+    blurb: 'Landing here freezes the piece until the other side has a turn.' },
   { id: 'fort', name: 'Fort', tile: TILE.FORT, blurb: 'Landing here grants a shield. The first hit knocks the piece aside.' },
   { id: 'fire', name: 'Fire', tile: TILE.FIRE, blurb: 'Lingering fire. A piece that steps here burns.' },
   { id: 'glass', name: 'Glass', tile: TILE.GLASS,
@@ -83,7 +84,7 @@ export function initSandbox({ $, showScreen, audio }) {
         const sq = wk + off;
         if (!game.inBounds(sq)) continue;
         const p = game.board[sq];
-        if (p && p.color === BLACK) game.status[sq] |= ST_FROZEN;
+        if (p && p.color === BLACK) game.markFrozen(sq);
       }
     }
     game.refreshMode();
@@ -104,7 +105,7 @@ export function initSandbox({ $, showScreen, audio }) {
     }
     game.board[sq] = { type, color };
     game.status[sq] = 0;
-    if (game.terrain[sq] === TILE.FROST) game.status[sq] |= ST_FROZEN;
+    if (game.terrain[sq] === TILE.FROST) game.markFrozen(sq);
     if (game.terrain[sq] === TILE.FORT) game.status[sq] |= ST_SHIELD;
     applyKingPassives();
     game.turn = color;
@@ -127,7 +128,7 @@ export function initSandbox({ $, showScreen, audio }) {
         game.board[sq] = null;
         game.status[sq] = 0;
       } else if (game.board[sq]) {
-        if (tile === TILE.FROST) game.status[sq] |= ST_FROZEN;
+        if (tile === TILE.FROST) game.markFrozen(sq);
         if (tile === TILE.FORT) game.status[sq] |= ST_SHIELD;
       }
     }
@@ -394,6 +395,7 @@ export function initSandbox({ $, showScreen, audio }) {
       box.view = new BoardView(root, {
         canPickUp: (sq) => {
           if (box.tool?.kind === 'terrain' || box.tool?.kind === 'erase') return false;
+          if (box.game.status[sq] & ST_FROZEN) return false;
           return Boolean(box.game.board[sq]);
         },
         legalTargets: (sq) => {
@@ -402,12 +404,21 @@ export function initSandbox({ $, showScreen, audio }) {
           box.game.turn = p.color;
           return box.game.moves({ square: sq });
         },
+        onInspect: (sq) => {
+          if (box.game.status[sq] & ST_FROZEN) toast('Frozen for a turn', 'danger');
+        },
         onPickUp: (sq) => {
           const p = box.game.board[sq];
           if (p) box.game.turn = p.color;
           audio.lift();
         },
         onAttemptMove: (from, to) => {
+          if (box.game.status[from] & ST_FROZEN) {
+            toast('Frozen for a turn', 'danger');
+            audio.illegal();
+            box.view.reject?.(to);
+            return;
+          }
           const p = box.game.board[from];
           if (p) box.game.turn = p.color;
           const played = box.game.move({ from, to });
@@ -418,6 +429,7 @@ export function initSandbox({ $, showScreen, audio }) {
           }
           if (played.captured) audio.capture();
           else audio.place();
+          if (box.game.status[to] & ST_FROZEN) toast('Frozen for a turn');
           box.view.syncFromGame(box.game);
           box.view.syncStatuses?.(box.game);
           box.view.markLastMove?.(from, to);

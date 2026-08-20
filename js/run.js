@@ -350,7 +350,7 @@ export function applyStartStatuses(game, run) {
       const sq = king + off;
       if (!game.inBounds(sq)) continue;
       const p = game.board[sq];
-      if (p && p.color === BLACK) game.status[sq] |= ST_FROZEN;
+      if (p && p.color === BLACK) game.markFrozen(sq);
     }
   }
   if (run.king === 'rampart') {
