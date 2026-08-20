@@ -78,9 +78,12 @@ function requestMove(game, level) {
 
 // ---- screens ---------------------------------------------------------------
 
+const MENU_SCREENS = new Set(['screen-start', 'screen-classic', 'screen-howto']);
+
 function showScreen(id) {
   for (const el of document.querySelectorAll('.screen')) el.classList.add('hidden');
   $(id).classList.remove('hidden');
+  if (MENU_SCREENS.has(id)) audio.setMusicStyle('menu');
 }
 
 // ---- HUD -------------------------------------------------------------------
@@ -707,7 +710,6 @@ function init() {
     state.generation++;
     state.gameOver = true;
     state.thinking = false;
-    audio.setMusicStyle('ambient');
     if (state.mode === 'run') state.campaign.abandon();
     else showScreen('screen-start');
   });
@@ -722,7 +724,6 @@ function init() {
   });
   $('btn-result-menu').addEventListener('click', () => {
     $('modal-result').classList.add('hidden');
-    audio.setMusicStyle('ambient');
     if (state.mode === 'run') state.campaign.abandon();
     else showScreen('screen-start');
   });

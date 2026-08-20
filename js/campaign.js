@@ -1612,7 +1612,6 @@ export function initCampaign(ctx) {
     } else if (run?.over) {
       showGameOver();
     } else {
-      audio.setMusicStyle('ambient');
       showScreen('screen-start');
       state.mode = 'classic';
     }
@@ -1688,7 +1687,6 @@ export function initCampaign(ctx) {
 
   function abandon() {
     closeBag();
-    audio.setMusicStyle('ambient');
     $('modal-result').classList.add('hidden');
     resetClassicButtons();
     state.mode = 'classic';
