@@ -5,10 +5,10 @@ import { PIECES, RARITY, shopPool, pieceCost } from './pieces.js';
 import { TILE, parseSquare } from './chess.js';
 
 export const START_HP = 18;
-export const START_GOLD = 4;
+export const START_GOLD = 3;
 export const REST_HEAL = 7;
-export const REST_GOLD = 3;
-export const FORAGE_GOLD = 9;
+export const REST_GOLD = 1;
+export const FORAGE_GOLD = 3;
 export const TRAIN_COST = 6;
 
 // A camp isn't one fixed room, so it shouldn't read like one — same choices

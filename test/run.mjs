@@ -67,8 +67,23 @@ const alley = ENCOUNTERS.alley;
   game.board[bk] = null;
   game.kings.b = -1;
   const reward = settleFight(run, game, gate);
-  assert('winning pays gold', reward.won && reward.gold >= 2, JSON.stringify(reward));
+  assert('winning pays gold', reward.won && reward.gold >= 1, JSON.stringify(reward));
   assert('captured pieces return to the bag', run.bag.length >= before);
+}
+
+{
+  const run = createRun(1);
+  const pawns = run.bag.filter((p) => p.type === 'p');
+  const game = buildFight(run, gate, autoPlace(gate, pawns));
+  game.board[game.kings.b] = null;
+  game.kings.b = -1;
+  settleFight(run, game, gate, { clockLeft: 20 });
+  const shop = openShop(run);
+  const prices = shop.offers.filter((o) => o.kind === 'piece').map((o) => o.cost)
+    .sort((a, b) => a - b);
+  assert('after the opening fight, two shop pieces are out of reach',
+    prices.length >= 2 && run.gold < prices[0] + prices[1],
+    JSON.stringify({ gold: run.gold, prices }));
 }
 
 {

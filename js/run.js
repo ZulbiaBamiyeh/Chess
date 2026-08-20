@@ -417,15 +417,12 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
     // No gold, no drop, no relic, no heal — a fight that ended because it
     // could never be finished isn't a fight that pays out.
   } else if (won) {
-    // Paying full army value in gold, plus an uncapped turns-remaining speed
-    // bonus, meant a player who actually plays well earned far more than any
-    // shop asked for — simulating a fast clean act 1 (win every room in ~40%
-    // of the clock) banked 165 gold against a 63 gold shop, twice over,
-    // before the SECOND shop of the run even opened. Both terms are cut:
-    // half of army instead of all of it, and the speed bonus capped low
-    // enough to reward a fast win without being the whole economy.
-    gold = 2 + Math.round(army * 0.5) + (tier === 'elite' ? 3 : 0) + (tier === 'boss' ? 6 : 0)
-      + Math.min(4, Math.max(0, clockLeft));
+    // First shop is one trash fight away. Army-scaled payouts plus a fat
+    // speed bonus used to land you there with enough gold for half the stall.
+    // Trash pays a coin, elites/bosses a little more, and a clean win tacks
+    // on one extra — enough for one piece at the first stall, not two.
+    gold = (tier === 'boss' ? 4 : tier === 'elite' ? 2 : 1)
+      + (clockLeft >= 10 ? 1 : 0);
     gold += relics.goldPerFight;
     martyrGold = lost * relics.goldPerLoss;
     gold += martyrGold;
@@ -737,7 +734,7 @@ function pieceOffer(run, pick, i, act) {
     type: pick.id,
     name: pick.name,
     blurb: pick.blurb,
-    cost: 2 + pick.cost + (act - 1),
+    cost: 3 + pick.cost + (act - 1) * 2,
     rarity: pick.rarity,
   };
   const bloodCost = BLOOD_HP_COST[pick.rarity];
