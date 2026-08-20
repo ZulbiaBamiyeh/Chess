@@ -703,6 +703,21 @@ function init() {
     newGame();
   });
 
+  if ($('btn-cheat-win')) {
+    $('btn-cheat-win').addEventListener('click', () => {
+      if (!state.game || state.gameOver) return;
+      const them = state.playerColor === WHITE ? BLACK : WHITE;
+      const k = state.game.kings[them];
+      if (k >= 0) {
+        state.game.board[k] = null;
+        state.game.kings[them] = -1;
+      }
+      state.generation++;
+      state.thinking = false;
+      state.view?.syncFromGame(state.game);
+      checkGameOver();
+    });
+  }
   $('btn-howto').addEventListener('click', () => showScreen('screen-howto'));
   $('btn-howto-close').addEventListener('click', () => showScreen('screen-start'));
 

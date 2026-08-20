@@ -529,6 +529,18 @@ kbd {
   color: var(--gold);
   text-shadow: 0 2px 0 var(--gold-deep), 0 0 18px rgba(255, 207, 63, 0.4);
 }
+button.brand {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+}
+button.brand:hover { filter: brightness(1.15); }
 .brand .title-knight { font-size: 1.1em; animation: none; margin: 0 0.05em; }
 .topbar-controls { display: flex; gap: 0.4rem; justify-content: flex-end; }
 
