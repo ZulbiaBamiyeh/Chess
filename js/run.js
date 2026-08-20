@@ -922,11 +922,10 @@ export function pruneFormation(run) {
 }
 
 /**
- * Stamp the saved line of march onto this encounter's home ranks, dropping
- * anyone who will not fit, then nudge the line if it already checks their king.
+ * Stamp one file-shift of the saved line onto this encounter's home ranks.
+ * `shift` is added to every file; pieces that still miss the board are dropped.
  */
-export function placementsFromFormation(run, encounter) {
-  ensureFormation(run);
+function stampLine(run, encounter, shift) {
   const files = encounter.files;
   const ranks = encounter.ranks;
   const homeRows = ranks <= 4 ? 1 : 2;
@@ -934,7 +933,7 @@ export function placementsFromFormation(run, encounter) {
   const used = new Set();
   const mapped = [];
   for (const p of run.formation) {
-    const f = p.sq & 15;
+    const f = (p.sq & 15) + shift;
     const r = p.sq >> 4;
     const back = 7 - r;
     if (back < 0 || back >= homeRows) continue;
@@ -946,12 +945,34 @@ export function placementsFromFormation(run, encounter) {
     used.add(dest);
     mapped.push({ uid: p.uid, type, sq: dest });
   }
-  if (!mapped.some((p) => p.uid === 'king')) {
-    const sq = [...homes].find((h) => !used.has(h));
-    if (sq != null) mapped.unshift({ uid: 'king', type: 'k', sq });
+  return mapped;
+}
+
+/**
+ * Stamp the saved line of march onto this encounter's home ranks. If the
+ * line hangs off a narrower field, slide it left or right (the smallest
+ * shift that keeps the king and as much of the army as possible) instead
+ * of dropping whoever sat on the a- or h-file.
+ */
+export function placementsFromFormation(run, encounter) {
+  ensureFormation(run);
+  const wanted = run.formation.length;
+  const order = [0];
+  for (let s = 1; s <= 7; s++) order.push(-s, s);
+  let best = [];
+  for (const shift of order) {
+    const mapped = stampLine(run, encounter, shift);
+    if (!mapped.some((p) => p.uid === 'king')) continue;
+    if (mapped.length <= best.length) continue;
+    best = mapped;
+    if (mapped.length === wanted) break;
   }
-  const king = mapped.find((p) => p.uid === 'king');
-  let items = mapped.filter((p) => p.uid !== 'king');
+  if (!best.some((p) => p.uid === 'king')) {
+    const homes = freeHomeSquares(encounter);
+    if (homes[0] != null) best = [{ uid: 'king', type: 'k', sq: homes[0] }];
+  }
+  const king = best.find((p) => p.uid === 'king');
+  let items = best.filter((p) => p.uid !== 'king');
   while (items.length && !validateLoadout(run, encounter, items.map((i) => i.uid)).ok) {
     items.sort((a, b) => (a.sq >> 4) - (b.sq >> 4) || (a.sq & 15) - (b.sq & 15));
     items.shift();
