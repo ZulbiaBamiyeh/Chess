@@ -27,10 +27,6 @@ export const pieceImage = (type, color, skin = null) => {
   return `assets/${sprite}-${color === WHITE ? 'white' : 'black'}.png${ASSET_VERSION}`;
 };
 
-// Only the first five kings ever got dedicated art (assets/king-<id>-*.png).
-// Every king since reuses the plain king sprite and leans on `kingHue()`
-// for a colour identity instead — the same trick pieceHue() already uses so
-// a growing roster doesn't need a matching flood of new PNGs.
 export function kingSkin(id) {
   return kingDef(id).sprite || 'king';
 }

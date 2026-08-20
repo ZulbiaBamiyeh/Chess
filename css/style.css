@@ -1283,7 +1283,7 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .game-title, .title-knight, .think-dots i, .sq.check, .sq.tile-fire { animation: none; }
+  .game-title, .title-knight, .think-dots i, .sq.check, .sq.tile-fire::before { animation: none; }
   .piece { transition: translate 0.12s linear; }
   #app.shaking { animation: none; }
 }
@@ -2099,42 +2099,20 @@ kbd {
 .sq.tile-block {
   background: transparent;
 }
-/* Frost and fire are drawn rather than photographed.
-   The old tiles were raster textures — a washed-out photographic frost and a
-   glossy airbrushed flame — dropped onto a board of flat colour and heavy ink.
-   They read as stickers. These are built from the same vocabulary as the
-   pieces: few tones, chunky shapes, a dark outline of the same weight, and
-   they stay crisp at any board size because they are vectors.
-
-   A frost tile is stood on, so the ice creeps in from the edges and leaves the
-   middle clear for the piece. */
+/* Frost is a packed-ice slab over the square — the piece still stands on it,
+   so the tile is the ground, not a sticker on top of it. */
 .sq.tile-frost {
   overflow: hidden;
-  background:
-    linear-gradient(160deg, rgba(223, 244, 255, 0.58), rgba(111, 184, 216, 0.44));
-  box-shadow:
-    inset 0 0 0 3px #1d3b52,
-    inset 0 0 22px rgba(169, 220, 242, 0.75);
+  background: url('../assets/tile-frost.png') center / 100% 100% no-repeat;
+  box-shadow: inset 0 0 18px rgba(160, 214, 240, 0.35);
 }
-/* Frost grows as branching fronds, the way it does on glass. Line work rather
-   than filled shapes: solid wedges with a heavy outline merged into a dark ring
-   and read as a hole punched through the square. */
-.sq.tile-frost::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg stroke='%232a5d7a' stroke-width='3.6' fill='none' stroke-linecap='round' opacity='0.35'%3E%3Cg transform='rotate(0 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3Cg transform='rotate(90 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3Cg transform='rotate(180 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3Cg transform='rotate(270 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3C/g%3E%3Cg stroke='%23f4fcff' stroke-width='2.4' fill='none' stroke-linecap='round'%3E%3Cg transform='rotate(0 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3Cg transform='rotate(90 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3Cg transform='rotate(180 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3Cg transform='rotate(270 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") center / 100% 100% no-repeat,
-    radial-gradient(circle at 50% 50%, transparent 32%, rgba(160, 214, 240, 0.55) 100%);
-}
-/* A slow glint travelling across the ice. */
+.sq.tile-frost::before { content: none; }
 .sq.tile-frost::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.65) 48%, transparent 58%);
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.45) 48%, transparent 58%);
   background-size: 260% 260%;
   animation: frost-glint 4.5s ease-in-out infinite;
 }
@@ -2189,60 +2167,52 @@ kbd {
   animation: frost-glint 6.5s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
+  .sq.tile-frost::after,
   .sq.tile-glass::after { animation: none; }
+  .sq.tile-fire::before { animation: none; }
 }
-/* Nothing stands on a fire tile — it denies the square — so the flames own it.
-   Charred ground underneath, two tongues on top at different rhythms so the
-   wall never looks like one looping sprite. */
+/* Fire is the board's own wood, cracked and embering — light squares keep the
+   parchment, dark squares keep the espresso. A slow glow on top so it reads
+   as burning, not as a sticker of cartoon flames. */
 .sq.tile-fire {
   overflow: hidden;
-  background: linear-gradient(180deg, #4a1608 0%, #2c1006 100%);
-  box-shadow:
-    inset 0 0 0 3px #3a1204,
-    inset 0 -10px 22px rgba(255, 110, 20, 0.5);
+  box-shadow: inset 0 0 22px rgba(255, 110, 20, 0.45);
 }
-.sq.tile-fire::before,
-.sq.tile-fire::after {
+.sq.light.tile-fire {
+  background: url('../assets/tile-fire-light.png') center / 100% 100% no-repeat;
+}
+.sq.dark.tile-fire {
+  background: url('../assets/tile-fire-dark.png') center / 100% 100% no-repeat;
+}
+.sq.tile-fire::before {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-repeat: no-repeat;
-  transform-origin: 50% 100%;
+  background: radial-gradient(circle at 50% 80%, rgba(255, 140, 40, 0.35), transparent 62%);
+  animation: ember-glow 1.6s ease-in-out infinite;
 }
-/* Back tongues: wider, darker, slower. */
-.sq.tile-fire::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg stroke='%233a1204' stroke-width='4' stroke-linejoin='round' fill='%23c93d12'%3E%3Cpath d='M18 100 C0 82 4 54 18 34 C20 50 27 54 30 47 C32 30 24 22 33 6 C44 28 54 42 52 66 C50 86 36 96 18 100 Z'/%3E%3Cpath d='M82 100 C64 92 56 70 68 48 C70 60 77 64 79 57 C81 43 76 36 83 24 C93 44 104 54 102 74 C100 90 93 96 82 100 Z'/%3E%3C/g%3E%3C/svg%3E");
-  background-position: center bottom;
-  background-size: 108% 100%;
-  animation: flame-back 1.5s ease-in-out infinite;
-}
-/* Front tongue: brighter core, faster, offset. */
-.sq.tile-fire::after {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg stroke='%233a1204' stroke-width='4' stroke-linejoin='round'%3E%3Cpath fill='%23e8531f' d='M50 100 C14 86 6 56 26 28 C30 47 42 52 46 45 C49 24 37 14 48 0 C57 25 85 31 85 59 C85 84 70 95 50 100 Z'/%3E%3Cpath fill='%23ffc23c' d='M50 95 C30 85 23 64 36 47 C40 60 47 64 51 58 C54 44 47 37 55 24 C62 44 71 52 71 67 C71 84 60 91 50 95 Z'/%3E%3C/g%3E%3C/svg%3E");
-  background-position: center bottom;
-  background-size: 100% 104%;
-  animation: flame-front 1.05s ease-in-out infinite;
-}
-@keyframes flame-front {
-  0%, 100% { transform: scaleY(1) scaleX(1) translateY(0); }
-  30% { transform: scaleY(1.1) scaleX(0.94) translateY(-3%); }
-  60% { transform: scaleY(0.93) scaleX(1.05) translateY(1%); }
-}
-@keyframes flame-back {
-  0%, 100% { transform: scaleY(0.96) scaleX(1.04); opacity: 0.85; }
-  45% { transform: scaleY(1.09) scaleX(0.96); opacity: 1; }
+.sq.tile-fire::after { content: none; }
+@keyframes ember-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 
 .piece.frozen { filter: grayscale(0.4) saturate(0.6) drop-shadow(0 0 8px rgba(67, 217, 255, 0.8)) !important; }
+/* Divine shield sits around the piece, not as a sticker on its chest. */
 .piece.shielded::after {
   content: '';
   position: absolute;
-  inset: 8%;
-  border: 2px solid rgba(255, 207, 63, 0.85);
-  border-radius: 50%;
-  box-shadow: 0 0 12px rgba(255, 207, 63, 0.5);
+  inset: -14%;
+  background: url('../assets/shield-ring.png') center / contain no-repeat;
   pointer-events: none;
+  filter: drop-shadow(0 0 8px rgba(255, 200, 60, 0.85));
+  animation: shield-spin 7s linear infinite;
+  z-index: 2;
+}
+@keyframes shield-spin { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .piece.shielded::after { animation: none; }
 }
 
 /* A guarded king cannot be taken while a friend stands beside it. Without a
@@ -2407,20 +2377,14 @@ kbd {
 }
 /* Swatches mirror the drawn tiles so the picker matches the board. */
 .sandbox-pick.terrain-frost .sandbox-swatch {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg stroke='%23f4fcff' stroke-width='2.6' fill='none' stroke-linecap='round'%3E%3Cg transform='rotate(0 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3Cg transform='rotate(90 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3Cg transform='rotate(180 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3Cg transform='rotate(270 50 50)'%3E%3Cpath d='M2 2 L44 44'/%3E%3Cpath d='M12 12 L27 5'/%3E%3Cpath d='M12 12 L5 27'/%3E%3Cpath d='M22 22 L34 15'/%3E%3Cpath d='M22 22 L15 34'/%3E%3Cpath d='M32 32 L41 27'/%3E%3Cpath d='M32 32 L27 41'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") center / 100% 100% no-repeat,
-    linear-gradient(160deg, rgba(223, 244, 255, 0.85), rgba(111, 184, 216, 0.7));
-  box-shadow: inset 0 0 0 2px #1d3b52;
+  background: url('../assets/tile-frost.png') center / cover no-repeat;
 }
 .sandbox-pick.terrain-fort .sandbox-swatch {
   background: linear-gradient(180deg, rgba(255, 207, 63, 0.35), rgba(80, 56, 20, 0.55));
   box-shadow: inset 0 0 0 3px rgba(255, 207, 63, 0.8);
 }
 .sandbox-pick.terrain-fire .sandbox-swatch {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg stroke='%233a1204' stroke-width='4' stroke-linejoin='round'%3E%3Cpath fill='%23e8531f' d='M50 100 C24 88 18 62 32 36 C35 50 43 54 46 48 C48 30 40 20 48 4 C55 26 76 34 76 60 C76 82 66 94 50 100 Z'/%3E%3Cpath fill='%23ffc23c' d='M50 96 C36 88 32 70 40 56 C43 65 48 68 51 63 C53 51 49 45 54 34 C58 49 66 56 66 68 C66 84 58 92 50 96 Z'/%3E%3C/g%3E%3C/svg%3E") center bottom / 80% 100% no-repeat,
-    linear-gradient(180deg, #4a1608, #2c1006);
-  box-shadow: inset 0 0 0 2px #3a1204;
+  background: url('../assets/tile-fire-dark.png') center / cover no-repeat;
 }
 .sandbox-detail {
   margin: 0.65rem 0 0;

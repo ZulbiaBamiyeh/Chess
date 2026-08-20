@@ -100,20 +100,20 @@ export const PIECES = {
   },
   h: {
     id: 'h', name: 'Champion', blurb: 'Wazir, alfil and dabbaba — short and long.',
-    cost: 4, rarity: RARITY.RARE, value: 420, sprite: 'king', hue: 168,
+    cost: 4, rarity: RARITY.RARE, value: 420, sprite: 'champion',
     leaps: [...R, ...ALFIL, ...DABBABA],
   },
   s: {
     id: 's', name: 'Princess', blurb: 'Bishop plus knight.',
-    cost: 8, rarity: RARITY.EPIC, value: 780, sprite: 'bishop', hue: 280, leaps: N, slides: B,
+    cost: 8, rarity: RARITY.EPIC, value: 780, sprite: 'princess', leaps: N, slides: B,
   },
   t: {
     id: 't', name: 'Empress', blurb: 'Rook plus knight.',
-    cost: 9, rarity: RARITY.EPIC, value: 850, sprite: 'rook', hue: 155, leaps: N, slides: R,
+    cost: 9, rarity: RARITY.EPIC, value: 850, sprite: 'empress', leaps: N, slides: R,
   },
   a: {
     id: 'a', name: 'Amazon', blurb: 'Queen plus knight. A problem.',
-    cost: 17, rarity: RARITY.LEGENDARY, value: 1250, sprite: 'queen', hue: 318, leaps: N, slides: K,
+    cost: 17, rarity: RARITY.LEGENDARY, value: 1250, sprite: 'amazon', leaps: N, slides: K,
   },
   g: {
     id: 'g', name: 'Hopper', blurb: 'Hops the first piece it meets, lands just beyond.',
@@ -139,21 +139,21 @@ export const PIECES = {
   },
   z: {
     id: 'z', name: 'Zebra', blurb: 'The 3–2 leap. Lands where nothing else can reach.',
-    cost: 3, rarity: RARITY.RARE, value: 270, sprite: 'camel', hue: 205, leaps: ZEBRA,
+    cost: 3, rarity: RARITY.RARE, value: 270, sprite: 'zebra', leaps: ZEBRA,
   },
   m: {
     id: 'm', name: 'Nightrider',
     blurb: 'Repeats the knight leap in a line until something blocks it.',
-    cost: 6, rarity: RARITY.EPIC, value: 620, sprite: 'knight', hue: 264, slides: N,
+    cost: 6, rarity: RARITY.EPIC, value: 620, sprite: 'nightrider', slides: N,
   },
   x: {
     id: 'x', name: 'Sapper',
     blurb: 'One orthogonal step. Take it and the blast kills the captor and all around it.',
-    cost: 3, rarity: RARITY.EPIC, value: 300, sprite: 'wazir', hue: 22, leaps: R, sapper: true,
+    cost: 3, rarity: RARITY.EPIC, value: 300, sprite: 'sapper', leaps: R, sapper: true,
   },
   v: {
     id: 'v', name: 'Warden', blurb: 'One step any way, and it walks into the fight shielded.',
-    cost: 4, rarity: RARITY.RARE, value: 370, sprite: 'rook', hue: 190, leaps: K, shielded: true,
+    cost: 4, rarity: RARITY.RARE, value: 370, sprite: 'warden', leaps: K, shielded: true,
   },
 
   // ---- bodies -----------------------------------------------------------
@@ -161,50 +161,50 @@ export const PIECES = {
   // pawn and a 3-supply knight worth filling a deploy slot with.
   guard: {
     id: 'guard', name: 'Guard', san: 'Gd', blurb: 'One step any way. No tricks, just a body that fights.',
-    cost: 2, rarity: RARITY.RARE, value: 270, sprite: 'wazir', hue: 300, leaps: K,
+    cost: 2, rarity: RARITY.RARE, value: 270, sprite: 'guard', leaps: K,
   },
 
   // ---- leapers ----------------------------------------------------------
   gnu: {
     id: 'gnu', name: 'Gnu', san: 'Gn', blurb: 'Knight and camel in one. Nothing on the board is safe from it.',
-    cost: 6, rarity: RARITY.RARE, value: 520, sprite: 'knight', hue: 40, leaps: [...N, ...C],
+    cost: 6, rarity: RARITY.RARE, value: 520, sprite: 'gnu', leaps: [...N, ...C],
   },
   squirrel: {
     id: 'squirrel', name: 'Squirrel', san: 'Sq',
     blurb: 'Leaps to any square exactly two away. Sixteen of them.',
-    cost: 4, rarity: RARITY.RARE, value: 450, sprite: 'hopper', hue: 95, leaps: DIST2,
+    cost: 4, rarity: RARITY.RARE, value: 450, sprite: 'squirrel', leaps: DIST2,
   },
 
   // ---- sliders ----------------------------------------------------------
   horse: {
     id: 'horse', name: 'Dragon Horse', san: 'Dh', blurb: 'A bishop that also steps sideways. It sees every square.',
-    cost: 5, rarity: RARITY.RARE, value: 520, sprite: 'bishop', hue: 35, leaps: R, slides: B,
+    cost: 5, rarity: RARITY.RARE, value: 520, sprite: 'horse', leaps: R, slides: B,
   },
   dragon: {
     id: 'dragon', name: 'Dragon King', san: 'Dk', blurb: 'A rook that also steps on the diagonals.',
-    cost: 9, rarity: RARITY.EPIC, value: 800, sprite: 'rook', hue: 330, leaps: B, slides: R,
+    cost: 9, rarity: RARITY.EPIC, value: 800, sprite: 'dragon', leaps: B, slides: R,
   },
 
   // ---- new rules --------------------------------------------------------
   banner: {
     id: 'banner', name: 'Banner', san: 'Bn',
     blurb: 'One orthogonal step. Every friend standing beside it also moves a king’s step.',
-    cost: 5, rarity: RARITY.RARE, value: 300, sprite: 'ferz', hue: 60, leaps: R, aura: true,
+    cost: 5, rarity: RARITY.RARE, value: 300, sprite: 'banner', leaps: R, aura: true,
   },
   courier: {
     id: 'courier', name: 'Courier', san: 'Co',
     blurb: 'Slides on the diagonals, and trades places with a friend instead of stopping at one.',
-    cost: 4, rarity: RARITY.RARE, value: 360, sprite: 'ferz', hue: 195, slides: B, swaps: true,
+    cost: 4, rarity: RARITY.RARE, value: 360, sprite: 'courier', slides: B, swaps: true,
   },
   crossbow: {
     id: 'crossbow', name: 'Crossbow', san: 'Xb',
     blurb: 'Steps one square diagonally. Kills at a knight’s leap without ever moving.',
-    cost: 7, rarity: RARITY.EPIC, value: 470, sprite: 'blaze', leaps: B, shoots: N,
+    cost: 7, rarity: RARITY.EPIC, value: 470, sprite: 'crossbow', leaps: B, shoots: N,
   },
   reaper: {
     id: 'reaper', name: 'Reanimator', san: 'Rn',
     blurb: 'Steps one square any way. Whatever it kills gets up again on your side.',
-    cost: 8, rarity: RARITY.EPIC, value: 560, sprite: 'wisp', hue: 120, leaps: K, raises: true,
+    cost: 8, rarity: RARITY.EPIC, value: 560, sprite: 'reaper', leaps: K, raises: true,
   },
 
   // ---- the pull ---------------------------------------------------------
@@ -217,7 +217,7 @@ export const PIECES = {
     id: 'lodestone', name: 'Lodestone', san: 'Ld',
     blurb: 'Steps one square any way. Every enemy two squares off in a straight line, '
       + 'with the gap between clear, is dragged one square closer.',
-    cost: 7, rarity: RARITY.EPIC, value: 500, sprite: 'hopper', hue: 320, leaps: K, pull: true,
+    cost: 7, rarity: RARITY.EPIC, value: 500, sprite: 'lodestone', leaps: K, pull: true,
   },
 
   // ---- legendaries ------------------------------------------------------
@@ -228,14 +228,14 @@ export const PIECES = {
     id: 'basilisk', name: 'Basilisk', san: 'Bs',
     blurb: 'Slides on the diagonals, and everything orthogonally beside where it stops '
       + 'freezes — itself included.',
-    cost: 9, rarity: RARITY.LEGENDARY, value: 760, sprite: 'ice', hue: 96,
+    cost: 9, rarity: RARITY.LEGENDARY, value: 760, sprite: 'basilisk',
     slides: B, ice: true,
   },
   colossus: {
     id: 'colossus', name: 'Colossus', san: 'Cl',
     blurb: 'A slow, enormous body: one step any way, and it enters the fight shielded. '
       + 'Whatever takes the shield off is standing next to a Colossus.',
-    cost: 8, rarity: RARITY.LEGENDARY, value: 690, sprite: 'king', hue: 22,
+    cost: 8, rarity: RARITY.LEGENDARY, value: 690, sprite: 'colossus',
     leaps: [...K, ...DABBABA], shielded: true,
   },
 
@@ -244,7 +244,7 @@ export const PIECES = {
     id: 'bombard', name: 'Bombard', san: 'Bd',
     blurb: 'Steps one square orthogonally. Kills anything exactly two squares away '
       + 'in a straight line, without moving.',
-    cost: 6, rarity: RARITY.RARE, value: 430, sprite: 'blaze', hue: 210,
+    cost: 6, rarity: RARITY.RARE, value: 430, sprite: 'bombard',
     leaps: R, shoots: DABBABA,
   },
 };
