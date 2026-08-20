@@ -2342,20 +2342,36 @@ kbd {
 .sq.tile-block {
   background: transparent;
 }
-/* Frost is a packed-ice slab over the square — the piece still stands on it,
-   so the tile is the ground, not a sticker on top of it. */
+/* Frost is a glaze on the checkerboard — light and dark wood still show
+   through, with rime, cracks and a slow glint sitting on top. */
 .sq.tile-frost {
   overflow: hidden;
-  background: url('../assets/tile-frost.png') center / 100% 100% no-repeat;
-  box-shadow: inset 0 0 18px rgba(160, 214, 240, 0.35);
+  box-shadow: inset 0 0 16px rgba(120, 200, 230, 0.28);
 }
-.sq.tile-frost::before { content: none; }
+.sq.light.tile-frost {
+  background:
+    linear-gradient(165deg, rgba(210, 242, 255, 0.38), rgba(170, 220, 245, 0.16) 55%, rgba(210, 242, 255, 0.22)),
+    #e8d4b0;
+}
+.sq.dark.tile-frost {
+  background:
+    linear-gradient(165deg, rgba(70, 150, 190, 0.42), rgba(40, 100, 140, 0.22) 55%, rgba(80, 160, 200, 0.28)),
+    #6b4530;
+}
+.sq.tile-frost::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.72;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23f4fdff' stroke-width='1.6' stroke-linecap='round' opacity='0.85'%3E%3Cpath d='M12 18 L38 44 L22 70'/%3E%3Cpath d='M38 44 L62 28 L88 40'/%3E%3Cpath d='M62 28 L70 8'/%3E%3Cpath d='M44 58 L58 82'/%3E%3Cpath d='M22 70 L8 86'/%3E%3Cpath d='M78 52 L92 78'/%3E%3C/g%3E%3Cg fill='%23e8f8ff' opacity='0.55'%3E%3Ccircle cx='24' cy='30' r='3.2'/%3E%3Ccircle cx='72' cy='22' r='2.4'/%3E%3Ccircle cx='84' cy='62' r='2.8'/%3E%3Ccircle cx='36' cy='78' r='2.1'/%3E%3C/g%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
 .sq.tile-frost::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.45) 48%, transparent 58%);
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.4) 48%, transparent 58%);
   background-size: 260% 260%;
   animation: frost-glint 4.5s ease-in-out infinite;
 }
@@ -2681,7 +2697,9 @@ kbd {
 }
 /* Swatches mirror the drawn tiles so the picker matches the board. */
 .sandbox-pick.terrain-frost .sandbox-swatch {
-  background: url('../assets/tile-frost.png') center / cover no-repeat;
+  background:
+    linear-gradient(165deg, rgba(210, 242, 255, 0.45), rgba(170, 220, 245, 0.2)),
+    repeating-conic-gradient(#e8d4b0 0% 25%, #6b4530 0% 50%) 0 0 / 50% 50%;
 }
 .sandbox-pick.terrain-fort .sandbox-swatch {
   background: linear-gradient(180deg, rgba(255, 207, 63, 0.35), rgba(80, 56, 20, 0.55));
