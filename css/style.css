@@ -2214,18 +2214,45 @@ kbd {
     inset 0 0 0 2px rgba(190, 240, 255, 0.95),
     0 0 16px rgba(80, 200, 255, 0.65);
 }
-/* Divine shield sits around the piece, not as a sticker on its chest. */
+/* Divine shield: a gold glow on the sprite, not a spinning hoop around the square. */
+.piece.shielded {
+  filter:
+    drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 3px rgba(255, 226, 120, 1))
+    drop-shadow(0 0 10px rgba(255, 196, 50, 0.8));
+}
+.piece.white.shielded {
+  filter:
+    drop-shadow(0 3px 3px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 0 3px rgba(255, 226, 120, 1))
+    drop-shadow(0 0 10px rgba(255, 196, 50, 0.8));
+}
+.piece.lifted.shielded,
+.piece.dragging.shielded {
+  filter:
+    drop-shadow(0 12px 10px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 5px rgba(255, 226, 120, 1))
+    drop-shadow(0 0 14px rgba(255, 196, 50, 0.9))
+    brightness(1.08);
+}
 .piece.shielded::after {
   content: '';
   position: absolute;
-  inset: -14%;
-  background: url('../assets/shield-ring.png') center / contain no-repeat;
+  left: 22%;
+  right: 22%;
+  bottom: 5%;
+  top: 24%;
+  border-radius: 50%;
   pointer-events: none;
-  filter: drop-shadow(0 0 8px rgba(255, 200, 60, 0.85));
-  animation: shield-spin 7s linear infinite;
-  z-index: 2;
+  z-index: 1;
+  background: radial-gradient(ellipse at 50% 58%, rgba(255, 220, 110, 0.16), transparent 72%);
+  box-shadow: 0 0 8px 1px rgba(255, 208, 70, 0.28);
+  animation: shield-breathe 2.8s ease-in-out infinite;
 }
-@keyframes shield-spin { to { rotate: 360deg; } }
+@keyframes shield-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
   .piece.shielded::after { animation: none; }
 }
