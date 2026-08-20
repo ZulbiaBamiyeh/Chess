@@ -9,7 +9,7 @@ import { RELICS } from './relics.js';
 import {
   generateWorld, playerMoves, movePlayer, clashEncounter, bagMaterial,
   armyMaterial, threatTint, leadersInBag, setLeader, villageRecruit,
-  bumpFromPack, cellAt, TERRAIN, OW, key,
+  bumpFromPack, cellAt, TERRAIN, OW, key, packCard,
 } from './overworld.js';
 
 export function initVoyage(ctx) {
@@ -195,14 +195,15 @@ export function initVoyage(ctx) {
           if (pack) {
             const mat = armyMaterial(pack.army);
             const tint = threatTint(mat, playerMat);
+            if (pack.stance === 'docile') sq.classList.add('ow-docile');
             const fig = document.createElement('i');
             fig.className = 'ow-piece';
             fig.style.backgroundImage = `url('${pieceImage(pack.army[1]?.type || 'p', 'b')}')`;
             sq.appendChild(fig);
             const badge = document.createElement('span');
-            badge.className = `ow-lvl ${tint}${pack.skull ? ' skull' : ''}`;
+            badge.className = `ow-lvl ${pack.stance === 'docile' ? 'docile' : tint}${pack.skull ? ' skull' : ''}`;
             badge.textContent = String(mat);
-            badge.title = `${pack.name} · material ${mat}`;
+            badge.title = `${pack.name} · ${pack.stance === 'docile' ? 'docile' : 'hostile'} · ${mat}`;
             sq.appendChild(badge);
           }
           if (w.player.file === file && w.player.rank === rank) {
@@ -235,6 +236,13 @@ export function initVoyage(ctx) {
   function onSquare(file, rank) {
     const w = world();
     if (!w || state.run.over) return;
+    const vis = w.visible.has(key(file, rank));
+    const pack = vis && w.packs.find((p) => !p.dead && p.file === file && p.rank === rank);
+    if (pack) {
+      const canStep = legal.some((m) => m.file === file && m.rank === rank);
+      openPackSheet(pack, { canStep });
+      return;
+    }
     const dest = legal.find((m) => m.file === file && m.rank === rank);
     if (!dest) {
       audio.illegal();
@@ -249,6 +257,78 @@ export function initVoyage(ctx) {
     handleEvent(result.event);
   }
 
+  function closePackSheet() {
+    const host = $('ow-modal');
+    if (!host) return;
+    host.classList.add('hidden');
+    host.innerHTML = '';
+    host.onclick = null;
+  }
+
+  function beginClash(pack, aggressor) {
+    const w = world();
+    const enc = clashEncounter(w, pack, state.run, aggressor);
+    playVersus(enc, () => campaign.openLoadout(enc));
+  }
+
+  function openPackSheet(pack, { canStep = false, onThem = false } = {}) {
+    const host = $('ow-modal');
+    if (!host) return;
+    const info = packCard(pack, bagMaterial(state.run));
+    const reach = onThem || canStep;
+    host.classList.remove('hidden');
+    host.innerHTML = `
+      <div class="ow-card pack-card">
+        <span class="pack-stance ${info.stance}">${info.stanceLine}</span>
+        <h2>${info.name}</h2>
+        <p class="pack-blurb">${info.blurb}</p>
+        <p class="pack-roster">${info.roster}</p>
+        <p class="pack-level ${info.tint}">Material ${info.material} · ${
+          info.tint === 'safe' ? 'weaker than you' : info.tint === 'deadly' ? 'stronger than you' : 'even with you'
+        }</p>
+        ${reach
+          ? `<button class="btn btn-gold" data-act="fight" type="button">Fight</button>`
+          : `<p class="pack-reach">You cannot reach them from here.</p>`}
+        <button class="btn btn-ghost" data-act="leave" type="button">${
+          onThem ? 'Leave them' : 'Back'
+        }</button>
+      </div>`;
+    host.onclick = (e) => {
+      const act = e.target?.dataset?.act;
+      if (!act) return;
+      const w = world();
+      if (act === 'leave') {
+        closePackSheet();
+        if (onThem) {
+          bumpFromPack(w, pack);
+          paintBoard();
+          paintBlurb();
+          centerOnPlayer();
+        }
+        return;
+      }
+      if (act !== 'fight') return;
+      closePackSheet();
+      if (onThem) {
+        audio.click();
+        beginClash(pack, 'player');
+        return;
+      }
+      if (!canStep) {
+        toast('You cannot reach them from here', 'danger');
+        audio.illegal();
+        return;
+      }
+      const result = movePlayer(w, pack.file, pack.rank, { fight: true });
+      if (!result.ok) {
+        audio.illegal();
+        return;
+      }
+      audio.place();
+      handleEvent(result.event);
+    };
+  }
+
   function handleEvent(event) {
     const w = world();
     if (!event) {
@@ -258,8 +338,14 @@ export function initVoyage(ctx) {
       return;
     }
     if (event.type === 'combat') {
-      const enc = clashEncounter(w, event.pack, state.run, event.aggressor);
-      playVersus(enc, () => campaign.openLoadout(enc));
+      beginClash(event.pack, event.aggressor);
+      return;
+    }
+    if (event.type === 'meet') {
+      paintBoard();
+      paintBlurb();
+      centerOnPlayer();
+      openPackSheet(event.pack, { onThem: true, canStep: true });
       return;
     }
     if (event.type === 'shop') {

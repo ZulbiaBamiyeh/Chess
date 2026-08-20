@@ -2877,7 +2877,11 @@ kbd {
 .ow-lvl.safe { color: var(--green); }
 .ow-lvl.even { color: var(--gold); }
 .ow-lvl.deadly { color: var(--red); }
+.ow-lvl.docile { color: var(--blue); }
 .ow-lvl.skull { box-shadow: 0 0 8px rgba(255, 84, 70, 0.8); }
+.ow-sq.ow-docile {
+  box-shadow: inset 0 0 0 2px rgba(67, 217, 255, 0.45);
+}
 
 .ow-blurb {
   margin: 0.45rem 1rem 0.7rem;
@@ -2906,6 +2910,26 @@ kbd {
 }
 .ow-card h2 { margin: 0; font-size: 1.15rem; }
 .ow-card p { margin: 0 0 0.3rem; color: var(--ink-dim); }
+.pack-stance {
+  font-family: var(--font-pixel);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pack-stance.hostile { color: var(--red); }
+.pack-stance.docile { color: var(--blue); }
+.pack-roster {
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+  color: var(--ink);
+  line-height: 1.45;
+}
+.pack-level { font-size: 0.82rem; }
+.pack-level.safe { color: var(--green); }
+.pack-level.even { color: var(--gold); }
+.pack-level.deadly { color: var(--red); }
+.pack-reach { font-size: 0.82rem; color: var(--ink-faint); }
+.pack-card .btn { margin-top: 0.15rem; }
 
 /* Fighting-game versus slam before a clash. */
 .ow-versus {

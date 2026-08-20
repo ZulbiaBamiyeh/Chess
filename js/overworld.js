@@ -156,41 +156,113 @@ const RELIC_CACHE = [
 ];
 
 const ARCHETYPES = {
-  levy:   { name: 'Wandering Levy', roam: 'k', hunt: 3, pool: ['p', 'p', 'p', 'w', 'f'] },
-  riders: { name: 'Outriders', roam: 'n', hunt: 6, pool: ['n', 'n', 'c', 'p', 'p'] },
-  frost:  { name: 'Rime Band', roam: 'k', hunt: 3, pool: ['i', 'i', 'g', 'f', 'w'] },
-  pyre:   { name: 'Cinder Host', roam: 'b', hunt: 4, pool: ['l', 'x', 'd', 'p', 'p'] },
-  tower:  { name: 'Siege Column', roam: 'r', hunt: 4, pool: ['r', 'b', 'h', 'p'] },
-  skull:  { name: 'Skull Camp', roam: 'n', hunt: 7, pool: ['s', 't', 'y', 'q', 'n'] },
-  court:  { name: 'Royal Outriders', roam: 'n', hunt: 5, pool: ['n', 'b', 'r', 'h', 'p'] },
-  gate:   { name: 'The Gate Watch', roam: 'k', hunt: 5, pool: ['r', 'q', 'h', 'n', 'b'] },
+  levy: {
+    names: ['Wandering Levy', 'Pressed Footmen', 'A Tax Cohort'],
+    blurb: 'Farmers with spears, told to walk north and not ask why.',
+    roam: 'k', hunt: 3, stance: 'hostile',
+    pool: ['p', 'p', 'p', 'w', 'f'],
+  },
+  thieves: {
+    names: ["Thieves' Raid", 'A Cutpurse Band', 'Night Haul'],
+    blurb: 'They work the south road and vanish when a real army comes.',
+    roam: 'n', hunt: 5, stance: 'hostile',
+    pool: ['p', 'n', 'f', 'w', 's'],
+  },
+  scouts: {
+    names: ['Cavalry Scouts', 'Outrider Screen', 'The Fast Wing'],
+    blurb: 'Horses and camels, sent ahead to find you before you find them.',
+    roam: 'n', hunt: 6, stance: 'hostile',
+    pool: ['n', 'n', 'c', 'p', 'p'],
+  },
+  horde: {
+    names: ['The Golden Horde', 'Khaganate Riders', 'A Tribute Host'],
+    blurb: 'A travelling court of horse and gold. They take what the road offers.',
+    roam: 'n', hunt: 5, stance: 'hostile',
+    pool: ['n', 'c', 'h', 'p', 'p', 'f'],
+  },
+  frost: {
+    names: ['Rime Band', 'Hoarfrost Choir', 'A Cold Company'],
+    blurb: 'They walk the ice and leave the ground frozen behind them.',
+    roam: 'k', hunt: 3, stance: 'hostile',
+    pool: ['i', 'i', 'g', 'f', 'w'],
+  },
+  pyre: {
+    names: ['Cinder Host', 'Ember Column', 'A Brand March'],
+    blurb: 'Ash on the cloaks. The path they take still smokes.',
+    roam: 'b', hunt: 4, stance: 'hostile',
+    pool: ['l', 'x', 'd', 'p', 'p'],
+  },
+  tower: {
+    names: ['Siege Column', 'A Slow Battery', 'The Rolling Keep'],
+    blurb: 'They do not chase far. They do not need to — they fill the road.',
+    roam: 'r', hunt: 3, stance: 'hostile',
+    pool: ['r', 'b', 'h', 'p'],
+  },
+  skull: {
+    names: ['Skull Camp', 'A Bone Court', 'The Black Cache'],
+    blurb: 'They sit on the best loot in the wild. They will come for you.',
+    roam: 'n', hunt: 7, stance: 'hostile',
+    pool: ['s', 't', 'y', 'q', 'n'],
+  },
+  court: {
+    names: ['Royal Outriders', 'A Prince\'s Wing', 'The Banner Hunt'],
+    blurb: 'Someone important sent them. They hunt like they have to come home with you.',
+    roam: 'n', hunt: 5, stance: 'hostile',
+    pool: ['n', 'b', 'r', 'h', 'p'],
+  },
+  gate: {
+    names: ['The Gate Watch'],
+    blurb: 'The ramp is theirs. There is no talking past them.',
+    roam: 'k', hunt: 5, stance: 'hostile',
+    pool: ['r', 'q', 'h', 'n', 'b'],
+  },
+  watch: {
+    names: ['A Hired Watch', 'Chest Wardens', 'Keepers of the Hole', 'A Quiet Guard'],
+    blurb: 'Paid to sit on a cache. They will not chase you, and they will not strike first.',
+    roam: 'k', hunt: 0, stance: 'docile',
+    pool: ['p', 'p', 'w', 'f', 'n'],
+  },
+  caravan: {
+    names: ['A Merchant Guard', 'Caravan Watch', 'A Toll Camp'],
+    blurb: 'They hold a stretch of road, not a grudge. Walk around, or make it a fight.',
+    roam: 'k', hunt: 0, stance: 'docile',
+    pool: ['p', 'n', 'w', 'f'],
+  },
 };
 
 function pick(rng, list) {
   return list[Math.floor(rng() * list.length)];
 }
 
-function pickArchetype(biome, tier, danger) {
+function pickArchetype(biome, tier, danger, rng, role = 'road') {
   if (tier === 'boss') {
     if (biome === 'frost') return 'frost';
     if (biome === 'peak') return 'pyre';
     return 'gate';
   }
+  if (role === 'cache') {
+    const r = rng();
+    if (r < 0.68) return 'watch';
+    if (r < 0.86) return 'thieves';
+    return 'skull';
+  }
+  if (role === 'road' && danger < 0.55 && rng() < 0.14) return 'caravan';
   if (danger > 0.74) {
     if (biome === 'frost' || biome === 'gate') return 'skull';
     if (biome === 'peak') return 'pyre';
-    return 'riders';
+    return rng() < 0.5 ? 'horde' : 'scouts';
   }
   if (tier === 'elite') {
     if (biome === 'frost') return 'frost';
     if (biome === 'peak') return 'pyre';
     if (biome === 'gate') return 'court';
-    return 'tower';
+    return rng() < 0.5 ? 'tower' : 'horde';
   }
   if (biome === 'frost') return 'frost';
   if (biome === 'peak') return 'pyre';
-  if (biome === 'gate') return 'court';
-  return danger < 0.22 ? 'levy' : 'riders';
+  if (biome === 'gate') return rng() < 0.5 ? 'court' : 'scouts';
+  if (danger < 0.22) return rng() < 0.55 ? 'levy' : 'thieves';
+  return rng() < 0.5 ? 'scouts' : 'thieves';
 }
 
 function buildArmy(rng, power, arch) {
@@ -216,39 +288,78 @@ function buildArmy(rng, power, arch) {
   return army;
 }
 
-function packName(arch, tier) {
-  const spec = ARCHETYPES[arch] || ARCHETYPES.levy;
-  if (tier === 'boss') return spec.name === 'The Gate Watch' ? 'The Gate Watch' : `Lord of the ${spec.name}`;
-  if (tier === 'elite') return spec.name;
-  return spec.name;
+function packName(spec, tier, rng) {
+  const names = spec.names || [spec.name || 'A Company'];
+  if (tier === 'boss') {
+    if (names[0] === 'The Gate Watch') return 'The Gate Watch';
+    return `Lord of the ${names[0]}`;
+  }
+  return pick(rng, names);
 }
 
-function placePack(world, file, rank, power, tier, archOverride = null) {
+function placePack(world, file, rank, power, tier, opts = {}) {
   const cell = cellAt(world, file, rank);
   if (!cell || !WALKABLE.has(cell.terrain)) return null;
   if (occupier(world, file, rank)) return null;
   const biome = cell.biome;
   const danger = rank / Math.max(1, world.ranks - 1);
-  const arch = archOverride || pickArchetype(biome, tier, danger);
+  const role = opts.role || 'road';
+  const arch = opts.arch || pickArchetype(biome, tier, danger, world.rng, role);
   const spec = ARCHETYPES[arch] || ARCHETYPES.levy;
+  const stance = spec.stance || 'hostile';
   const pack = {
     id: `pack-${world.packs.length}`,
     file,
     rank,
     roam: spec.roam,
-    huntRange: spec.hunt,
+    huntRange: stance === 'docile' ? 0 : spec.hunt,
     tier,
     biome,
     arch,
     theme: themeFor(biome),
-    name: packName(arch, tier),
+    name: packName(spec, tier, world.rng),
+    blurb: spec.blurb || '',
+    stance,
     army: buildArmy(world.rng, power, arch),
     hunting: 0,
     dead: false,
-    skull: arch === 'skull' || danger > 0.7,
+    skull: stance === 'hostile' && (arch === 'skull' || danger > 0.7),
   };
   world.packs.push(pack);
   return pack;
+}
+
+/** "King · Pawn ×3 · Knight" — what they actually brought. */
+export function packRoster(army) {
+  const counts = new Map();
+  const order = [];
+  for (const p of army || []) {
+    if (!counts.has(p.type)) order.push(p.type);
+    counts.set(p.type, (counts.get(p.type) || 0) + 1);
+  }
+  return order.map((type) => {
+    const n = counts.get(type);
+    const name = type === 'k' ? 'King' : (pieceById(type)?.name || type);
+    return n > 1 ? `${name} ×${n}` : name;
+  }).join(' · ');
+}
+
+export function packCard(pack, playerMat) {
+  const mat = armyMaterial(pack.army);
+  const docile = pack.stance === 'docile';
+  return {
+    name: pack.name,
+    blurb: pack.blurb || '',
+    stance: docile ? 'docile' : 'hostile',
+    stanceLine: docile
+      ? 'Docile. They will not strike first.'
+      : pack.tier === 'boss'
+        ? 'Hostile. They hold the ramp.'
+        : 'Hostile. They hunt if they see you.',
+    roster: packRoster(pack.army),
+    material: mat,
+    tint: threatTint(mat, playerMat),
+  };
 }
 
 function rollLoot(rng, danger, act) {
@@ -423,8 +534,7 @@ export function generateWorld(rng, act = 1) {
     cell.loot = rollLoot(rng, danger, act);
     const guardPower = Math.round(6 + danger * (16 + act * 5));
     const guardTier = danger > 0.7 ? 'elite' : danger > 0.45 ? 'elite' : 'trash';
-    const arch = danger > 0.68 ? 'skull' : null;
-    placePack(world, pocket.file, pocket.rank, guardPower, guardTier, arch);
+    placePack(world, pocket.file, pocket.rank, guardPower, guardTier, { role: 'cache' });
   }
 
   // Spine patrols. These are the wilderness — they hunt, they sit on the
@@ -440,11 +550,11 @@ export function generateWorld(rng, act = 1) {
     const t = y / ranks;
     const power = Math.round(5 + t * (14 + act * 6) + rng() * 3);
     const tier = t > 0.82 ? 'elite' : t > 0.55 ? 'elite' : 'trash';
-    placePack(world, f, y, power, tier);
+    placePack(world, f, y, power, tier, { role: 'road' });
   }
 
   // Gate boss on the ramp. You do not stroll off Act 1.
-  placePack(world, rampFile, ranks - 2, 18 + act * 6, 'boss', 'gate');
+  placePack(world, rampFile, ranks - 2, 18 + act * 6, 'boss', { arch: 'gate' });
 
   let caches = 0;
   for (let r = 0; r < ranks; r++) {
@@ -460,7 +570,7 @@ export function generateWorld(rng, act = 1) {
       s.cell.poi = 'loot';
       s.cell.loot = rollLoot(rng, danger, act);
       caches++;
-      placePack(world, s.file, s.rank, Math.round(8 + danger * 14), danger > 0.55 ? 'elite' : 'trash');
+      placePack(world, s.file, s.rank, Math.round(8 + danger * 14), danger > 0.55 ? 'elite' : 'trash', { role: 'cache' });
     }
   }
 
@@ -470,7 +580,7 @@ export function generateWorld(rng, act = 1) {
     const f = spine[y] ?? x;
     if (used.has(key(f, y))) continue;
     if (chebyshev({ file: f, rank: y }, world.player) < 5) continue;
-    const placed = placePack(world, f, y, Math.round(6 + (y / ranks) * 12), y / ranks > 0.55 ? 'elite' : 'trash');
+    const placed = placePack(world, f, y, Math.round(6 + (y / ranks) * 12), y / ranks > 0.55 ? 'elite' : 'trash', { role: 'road' });
     if (placed) {
       used.add(key(f, y));
       extra++;
@@ -598,18 +708,19 @@ function advanceDecay(world) {
 
 function chaseOrWander(world, pack) {
   const player = world.player;
-  const sees = chebyshev(pack, player) <= (pack.huntRange || OW.VISION + 1);
+  const docile = pack.stance === 'docile' || pack.huntRange === 0;
+  const sees = !docile && chebyshev(pack, player) <= (pack.huntRange || OW.VISION + 1);
   if (sees) pack.hunting = 4;
   else if (pack.hunting > 0) pack.hunting -= 1;
 
   const moves = movesFor(world, pack.file, pack.rank, pack.roam, {
-    capturePlayer: true,
+    capturePlayer: !docile,
     selfPack: pack,
   });
   if (!moves.length) return null;
 
   const ontoPlayer = moves.find((m) => m.file === player.file && m.rank === player.rank);
-  if (ontoPlayer && (sees || pack.hunting > 0)) return ontoPlayer;
+  if (ontoPlayer && !docile && (sees || pack.hunting > 0)) return ontoPlayer;
 
   if (sees || pack.hunting > 0) {
     let best = null;
@@ -622,8 +733,9 @@ function chaseOrWander(world, pack) {
     if (best) return best;
   }
 
-  return pick(world.rng, moves.filter((m) => !(m.file === player.file && m.rank === player.rank)))
-    || pick(world.rng, moves);
+  const away = moves.filter((m) => !(m.file === player.file && m.rank === player.rank));
+  if (docile) return pick(world.rng, away) || null;
+  return pick(world.rng, away) || pick(world.rng, moves);
 }
 
 export function stepEnemies(world) {
@@ -634,6 +746,7 @@ export function stepEnemies(world) {
     const dest = chaseOrWander(world, pack);
     if (!dest) continue;
     const hitPlayer = dest.file === world.player.file && dest.rank === world.player.rank;
+    if (hitPlayer && pack.stance === 'docile') continue;
     pack.file = dest.file;
     pack.rank = dest.rank;
     if (hitPlayer) {
@@ -647,7 +760,7 @@ export function stepEnemies(world) {
 /**
  * Move the leader, then every pack. Returns the first event the UI must handle.
  */
-export function movePlayer(world, file, rank) {
+export function movePlayer(world, file, rank, opts = {}) {
   const legal = playerMoves(world);
   if (!legal.some((m) => m.file === file && m.rank === rank)) {
     return { ok: false, reason: 'illegal' };
@@ -659,6 +772,9 @@ export function movePlayer(world, file, rank) {
   revealAround(world, file, rank, OW.VISION);
 
   if (pack) {
+    if (pack.stance === 'docile' && !opts.fight) {
+      return { ok: true, event: { type: 'meet', pack } };
+    }
     return { ok: true, event: { type: 'combat', pack, aggressor: 'player' } };
   }
 

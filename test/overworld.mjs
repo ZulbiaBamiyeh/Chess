@@ -1,6 +1,6 @@
 import {
   generateWorld, mulberry32, playerMoves, movePlayer, materialOf, armyMaterial,
-  clashEncounter, OW, TERRAIN, revealAround,
+  clashEncounter, OW, TERRAIN, revealAround, packRoster, packCard, stepEnemies,
 } from '../js/overworld.js';
 import { buildFight, createVoyageRun } from '../js/run.js';
 import { BLACK } from '../js/chess.js';
@@ -90,6 +90,44 @@ function world(seed = 1, act = 1) {
   const mat = armyMaterial([{ type: 'k' }, { type: 'p' }, { type: 'n' }]);
   assert(mat === 4, `levy material ${mat}`);
   console.log('PASS  combat level is chess material');
+}
+
+{
+  const names = new Set();
+  let docile = 0;
+  let hostile = 0;
+  for (const seed of [1, 2, 7, 9, 11, 13, 21, 42]) {
+    const w = world(seed);
+    for (const p of w.packs) {
+      names.add(p.name);
+      if (p.stance === 'docile') docile++;
+      else hostile++;
+      assert(p.blurb && p.blurb.length > 8, `blurb ${p.name}`);
+    }
+  }
+  assert(names.size >= 6, `band names ${[...names].join(', ')}`);
+  assert(docile > 0, 'some watches are docile');
+  assert(hostile > docile, `hostile ${hostile} docile ${docile}`);
+  const roster = packRoster([{ type: 'k' }, { type: 'p' }, { type: 'p' }, { type: 'n' }]);
+  assert(roster.includes('King') && roster.includes('Pawn') && roster.includes('×2'), roster);
+  const card = packCard({
+    name: 'A Hired Watch', blurb: 'Paid to sit.', stance: 'docile',
+    army: [{ type: 'k' }, { type: 'p' }], tier: 'trash',
+  }, 3);
+  assert(card.stance === 'docile' && card.stanceLine.includes('will not strike first'), card.stanceLine);
+  console.log('PASS  packs have names, blurbs, and a docile watch');
+}
+
+{
+  const w = world(7);
+  const guard = w.packs.find((p) => p.stance === 'docile');
+  assert(guard, 'a docile pack exists');
+  w.player.file = Math.max(0, guard.file - 1);
+  w.player.rank = guard.rank;
+  const events = [];
+  for (let i = 0; i < 8; i++) events.push(...stepEnemies(w));
+  assert(!events.some((e) => e.type === 'combat'), 'docile packs do not start fights');
+  console.log('PASS  a hired watch will not hunt you');
 }
 
 {
