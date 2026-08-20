@@ -1336,5 +1336,19 @@ const engineSnapshot = (g) => JSON.stringify({
     g.turn === beforeTurn, `turn ${g.turn}`);
 }
 
+{
+  // Clicking an enemy should list where it can go even though it is not
+  // that side's turn — the dots are a read, not a move.
+  const g = new Chess();
+  const b8 = 1;
+  assert('white to move does not play a black knight',
+    g.turn === WHITE && g.moves({ square: b8 }).length === 0);
+  const looks = g.moves({ square: b8, color: BLACK });
+  const dests = looks.map((m) => String.fromCharCode(97 + (m.to & 15)) + (8 - (m.to >> 4))).sort();
+  assert('a black knight still shows a6 and c6 on white\'s turn',
+    dests.join(',') === 'a6,c6', dests.join(','));
+  assert('previewing does not hand the turn over', g.turn === WHITE);
+}
+
 console.log(failures ? `\n${failures} variant failure(s)` : '\nAll variant tests passed.');
 process.exit(failures ? 1 : 0);

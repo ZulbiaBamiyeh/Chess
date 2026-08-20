@@ -407,7 +407,14 @@ function canPickUp(sq) {
 }
 
 function legalTargets(sq) {
-  return state.game.moves({ square: sq });
+  const piece = state.game.get(sq);
+  if (!piece) return [];
+  return state.game.moves({ square: sq, color: piece.color });
+}
+
+function canPreview(sq) {
+  if (!state.game || state.game.awaitingDuck) return false;
+  return Boolean(state.game.get(sq));
 }
 
 function onAttemptMove(from, to) {
@@ -632,7 +639,7 @@ function init() {
   state.background.start();
 
   state.view = new BoardView($('board'), {
-    onAttemptMove, canPickUp, legalTargets,
+    onAttemptMove, canPickUp, legalTargets, canPreview,
     onPickUp: () => audio.lift(),
     onInspect,
     isPlacingDuck: () => Boolean(state.game?.awaitingDuck && state.game.turn !== state.playerColor),

@@ -692,14 +692,15 @@ export class Chess {
    * @param {string|number} [opts.square] restrict to moves from one square
    * @param {boolean} [opts.capturesOnly] only captures (quiescence)
    * @param {boolean} [opts.legal=true] set false for pseudo-legal moves
+   * @param {string} [opts.color] generate for this side even if it is not the turn
    */
-  moves({ square, capturesOnly = false, legal = true } = {}) {
-    if (this.classic) return this.movesClassic({ square, capturesOnly, legal });
-    return this.movesGeneral({ square, capturesOnly, legal });
+  moves({ square, capturesOnly = false, legal = true, color } = {}) {
+    if (this.classic) return this.movesClassic({ square, capturesOnly, legal, color });
+    return this.movesGeneral({ square, capturesOnly, legal, color });
   }
 
-  movesClassic({ square, capturesOnly = false, legal = true } = {}) {
-    const us = this.turn;
+  movesClassic({ square, capturesOnly = false, legal = true, color } = {}) {
+    const us = color || this.turn;
     const them = swap(us);
     const board = this.board;
     const out = [];
@@ -830,8 +831,8 @@ export class Chess {
     return legalMoves;
   }
 
-  movesGeneral({ square, capturesOnly = false, legal = true } = {}) {
-    const us = this.turn;
+  movesGeneral({ square, capturesOnly = false, legal = true, color } = {}) {
+    const us = color || this.turn;
     const them = swap(us);
     const board = this.board;
     const out = [];

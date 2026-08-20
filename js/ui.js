@@ -51,6 +51,7 @@ export class BoardView {
     this.flipped = false;
     this.interactive = true;
     this.selected = null;
+    this.preview = false;
     this.pieceEls = new Map();   // 0x88 square -> element
     this.dragging = null;
 
@@ -391,10 +392,11 @@ export class BoardView {
 
   // ---- selection ---------------------------------------------------------
 
-  select(sq) {
+  select(sq, { preview = false } = {}) {
     this.clearSelection();
     this.selected = sq;
-    this.squares.get(sq)?.classList.add('sel');
+    this.preview = preview;
+    this.squares.get(sq)?.classList.add(preview ? 'sel-preview' : 'sel');
     for (const move of this.handlers.legalTargets(sq)) {
       const el = this.squares.get(move.to);
       if (!el) continue;
@@ -404,8 +406,9 @@ export class BoardView {
 
   clearSelection() {
     this.selected = null;
+    this.preview = false;
     for (const el of this.squares.values()) {
-      el.classList.remove('sel', 'target', 'target-capture', 'hovered');
+      el.classList.remove('sel', 'sel-preview', 'target', 'target-capture', 'hovered');
     }
   }
 
@@ -421,7 +424,7 @@ export class BoardView {
   }
 
   onPointerDown(event) {
-    if (!this.interactive || event.button === 2) return;
+    if (event.button === 2) return;
     const sq = this.squareFromEvent(event);
     if (sq == null) return;
     this.handlers.onInspect?.(sq);
@@ -430,10 +433,12 @@ export class BoardView {
       return;
     }
 
-    const mine = this.handlers.canPickUp(sq);
+    const mine = this.interactive && this.handlers.canPickUp(sq);
+    const canLook = this.handlers.canPreview?.(sq);
 
-    // Second click on a highlighted target completes a click-to-move.
-    if (this.selected != null && this.selected !== sq && !mine) {
+    // Second click on a highlighted target completes a click-to-move. This
+    // has to beat "preview the enemy" so a capture still lands on their piece.
+    if (this.interactive && this.selected != null && this.selected !== sq && !this.preview && !mine) {
       const target = this.squares.get(sq);
       if (target?.classList.contains('target') || target?.classList.contains('target-capture')) {
         const from = this.selected;
@@ -443,11 +448,22 @@ export class BoardView {
       }
     }
 
+    // Reading a piece (yours or theirs) while the board is locked, or looking
+    // at an enemy on your turn: show destinations, never pick it up.
+    if (!this.interactive || (!mine && canLook)) {
+      if (this.selected === sq && this.preview) this.clearSelection();
+      else if (canLook) this.select(sq, { preview: true });
+      else this.clearSelection();
+      return;
+    }
+
     if (!mine) {
-      if (this.selected != null) {
+      if (this.selected != null && !this.preview) {
         const from = this.selected;
         this.clearSelection();
         this.handlers.onAttemptMove(from, sq);
+      } else {
+        this.clearSelection();
       }
       return;
     }
