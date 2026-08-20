@@ -959,8 +959,8 @@ export function ensureFormation(run) {
     pruneFormation(run);
     return run.formation;
   }
-  const formation = [{ uid: 'king', type: 'k', sq: 7 * 16 + 4 }];
-  const pawnFiles = [3, 4, 5];
+  const formation = [{ uid: 'king', type: 'k', sq: 7 * 16 + 3 }];
+  const pawnFiles = [2, 3, 4];
   const pawns = run.bag.filter((p) => p.type === 'p');
   for (let i = 0; i < pawnFiles.length && i < pawns.length; i++) {
     formation.push({ uid: pawns[i].uid, type: 'p', sq: 6 * 16 + pawnFiles[i] });
@@ -975,8 +975,8 @@ export function pruneFormation(run) {
   run.formation = (run.formation || []).filter((p) => have.has(p.uid));
   if (!run.formation.some((p) => p.uid === 'king')) {
     const taken = new Set(run.formation.map((p) => p.sq));
-    const kingSq = [7 * 16 + 4, 7 * 16 + 3, 7 * 16 + 5, 7 * 16]
-      .find((sq) => !taken.has(sq)) ?? (7 * 16 + 4);
+    const kingSq = [7 * 16 + 3, 7 * 16 + 4, 7 * 16 + 2, 7 * 16]
+      .find((sq) => !taken.has(sq)) ?? (7 * 16 + 3);
     run.formation.unshift({ uid: 'king', type: 'k', sq: kingSq });
   }
 }
