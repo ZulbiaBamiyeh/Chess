@@ -57,6 +57,23 @@ const alley = ENCOUNTERS.alley;
 }
 
 {
+  const run = createRun(1);
+  const pawns = run.bag.filter((p) => p.type === 'p');
+  run.formation = [
+    { uid: 'king', type: 'k', sq: 7 * 16 + 7 },
+    { uid: pawns[0].uid, type: 'p', sq: 6 * 16 + 6 },
+    { uid: pawns[1].uid, type: 'p', sq: 6 * 16 + 7 },
+  ];
+  const mapped = placementsFromFormation(run, gate);
+  assert('a right-side line shifts left onto a 6-file field',
+    mapped.length === 3 && mapped.every((p) => (p.sq & 15) < 6),
+    JSON.stringify(mapped));
+  const files = mapped.map((p) => p.sq & 15).sort((a, b) => a - b);
+  assert('the shifted line keeps its shape',
+    files[2] - files[0] === 1, JSON.stringify(files));
+}
+
+{
   // A rook staring up the enemy king's file would open in check — the mapper
   // has to break that line rather than let the fight start illegal.
   const run = createRun(1);

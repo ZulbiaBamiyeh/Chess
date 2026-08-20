@@ -2328,20 +2328,36 @@ kbd {
 .sq.tile-block {
   background: transparent;
 }
-/* Frost is a packed-ice slab over the square — the piece still stands on it,
-   so the tile is the ground, not a sticker on top of it. */
+/* Frost is a glaze on the checkerboard — light and dark wood still show
+   through, with rime, cracks and a slow glint sitting on top. */
 .sq.tile-frost {
   overflow: hidden;
-  background: url('../assets/tile-frost.png') center / 100% 100% no-repeat;
-  box-shadow: inset 0 0 18px rgba(160, 214, 240, 0.35);
+  box-shadow: inset 0 0 16px rgba(120, 200, 230, 0.28);
 }
-.sq.tile-frost::before { content: none; }
+.sq.light.tile-frost {
+  background:
+    linear-gradient(165deg, rgba(210, 242, 255, 0.38), rgba(170, 220, 245, 0.16) 55%, rgba(210, 242, 255, 0.22)),
+    #e8d4b0;
+}
+.sq.dark.tile-frost {
+  background:
+    linear-gradient(165deg, rgba(70, 150, 190, 0.42), rgba(40, 100, 140, 0.22) 55%, rgba(80, 160, 200, 0.28)),
+    #6b4530;
+}
+.sq.tile-frost::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.72;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23f4fdff' stroke-width='1.6' stroke-linecap='round' opacity='0.85'%3E%3Cpath d='M12 18 L38 44 L22 70'/%3E%3Cpath d='M38 44 L62 28 L88 40'/%3E%3Cpath d='M62 28 L70 8'/%3E%3Cpath d='M44 58 L58 82'/%3E%3Cpath d='M22 70 L8 86'/%3E%3Cpath d='M78 52 L92 78'/%3E%3C/g%3E%3Cg fill='%23e8f8ff' opacity='0.55'%3E%3Ccircle cx='24' cy='30' r='3.2'/%3E%3Ccircle cx='72' cy='22' r='2.4'/%3E%3Ccircle cx='84' cy='62' r='2.8'/%3E%3Ccircle cx='36' cy='78' r='2.1'/%3E%3C/g%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
 .sq.tile-frost::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.45) 48%, transparent 58%);
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.4) 48%, transparent 58%);
   background-size: 260% 260%;
   animation: frost-glint 4.5s ease-in-out infinite;
 }
@@ -2428,20 +2444,49 @@ kbd {
 }
 
 .piece.frozen {
-  filter: brightness(1.12) saturate(0.45) drop-shadow(0 0 12px rgba(120, 220, 255, 1)) !important;
+  overflow: visible;
+  filter:
+    brightness(1.18) saturate(0.4)
+    drop-shadow(0 3px 3px rgba(0, 0, 0, 0.4))
+    drop-shadow(0 0 4px rgba(210, 250, 255, 1))
+    drop-shadow(0 0 12px rgba(110, 210, 255, 0.95))
+    drop-shadow(0 0 22px rgba(70, 180, 255, 0.55)) !important;
 }
+/* A glaze over the body of the sprite, not a box around the square. */
 .piece.frozen::before {
   content: '';
   position: absolute;
-  inset: -6%;
-  border-radius: 18%;
+  left: 22%;
+  width: 56%;
+  bottom: 7%;
+  height: 74%;
+  border-radius: 46% 46% 40% 40% / 52% 52% 38% 38%;
   pointer-events: none;
   z-index: 2;
   background:
-    linear-gradient(180deg, rgba(210, 245, 255, 0.5), rgba(140, 210, 240, 0.08) 52%, rgba(190, 235, 255, 0.35));
-  box-shadow:
-    inset 0 0 0 2px rgba(190, 240, 255, 0.95),
-    0 0 16px rgba(80, 200, 255, 0.65);
+    radial-gradient(ellipse at 48% 16%, rgba(255, 255, 255, 0.7), rgba(190, 236, 255, 0.18) 42%, transparent 68%),
+    linear-gradient(180deg, rgba(200, 240, 255, 0.22), transparent 62%);
+  mix-blend-mode: screen;
+}
+/* Rime at the feet and a few sparkles on the body — not a box. */
+.piece.frozen::after {
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 0;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='%23f2fdff' opacity='0.9'%3E%3Ccircle cx='28' cy='38' r='1.35'/%3E%3Ccircle cx='72' cy='34' r='1.15'/%3E%3Ccircle cx='50' cy='18' r='1.3'/%3E%3Ccircle cx='22' cy='56' r='1'/%3E%3Ccircle cx='78' cy='52' r='1.1'/%3E%3Ccircle cx='40' cy='26' r='0.8'/%3E%3Ccircle cx='62' cy='24' r='0.75'/%3E%3C/g%3E%3Cg fill='%23d4f3ff' stroke='%2398dcf0' stroke-width='0.55' stroke-linejoin='round' opacity='0.88'%3E%3Cpolygon points='22,96 26,78 31,96'/%3E%3Cpolygon points='32,97 38,72 44,97'/%3E%3Cpolygon points='46,97 50,70 55,97'/%3E%3Cpolygon points='56,97 62,74 68,97'/%3E%3Cpolygon points='70,96 75,80 80,96'/%3E%3Cpolygon points='18,92 20,84 24,92'/%3E%3Cpolygon points='76,92 80,83 84,92'/%3E%3C/g%3E%3C/svg%3E") center bottom / 100% 100% no-repeat;
+  animation: frost-sparkle 2.4s ease-in-out infinite;
+}
+@keyframes frost-sparkle {
+  0%, 100% { opacity: 0.82; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .piece.frozen::after { animation: none; }
 }
 /* Divine shield: a gold glow on the sprite, not a spinning hoop around the square. */
 .piece.shielded {
@@ -2638,7 +2683,9 @@ kbd {
 }
 /* Swatches mirror the drawn tiles so the picker matches the board. */
 .sandbox-pick.terrain-frost .sandbox-swatch {
-  background: url('../assets/tile-frost.png') center / cover no-repeat;
+  background:
+    linear-gradient(165deg, rgba(210, 242, 255, 0.45), rgba(170, 220, 245, 0.2)),
+    repeating-conic-gradient(#e8d4b0 0% 25%, #6b4530 0% 50%) 0 0 / 50% 50%;
 }
 .sandbox-pick.terrain-fort .sandbox-swatch {
   background: linear-gradient(180deg, rgba(255, 207, 63, 0.35), rgba(80, 56, 20, 0.55));
