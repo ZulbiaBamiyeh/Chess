@@ -39,6 +39,7 @@ export function initCampaign(ctx) {
   }
 
   let deployView = null;
+  let crewPreview = null;
   let selectedUid = null;
   let placements = []; // { uid, type, sq }
   let shopSelectedId = null;
@@ -307,6 +308,24 @@ export function initCampaign(ctx) {
     if (!state.run) return;
     ensureFormation(state.run);
     paintCrewRoster();
+    paintCrewPreview();
+  }
+
+  function paintCrewPreview() {
+    const root = $('crew-preview');
+    if (!root) return;
+    if (!crewPreview) {
+      crewPreview = new BoardView(root, {
+        onAttemptMove: () => {},
+        canPickUp: () => false,
+        legalTargets: () => [],
+      });
+    }
+    const game = buildFight(state.run, CREW_BOARD, crewPlacements());
+    crewPreview.setWhiteKingSkin(kingSkin(state.run.king), kingHue(state.run.king));
+    crewPreview.setFlipped(false);
+    crewPreview.syncFromGame(game);
+    crewPreview.setInteractive(false);
   }
 
   function openCrewSetup() {
@@ -1733,6 +1752,7 @@ export function initCampaign(ctx) {
   $('btn-loadout-fight').addEventListener('click', beginFight);
   $('deploy-board').addEventListener('click', onDeployClick);
   if ($('btn-crew-setup')) $('btn-crew-setup').addEventListener('click', openCrewSetup);
+  if ($('crew-preview-wrap')) $('crew-preview-wrap').addEventListener('click', openCrewSetup);
   if ($('btn-go-again')) {
     $('btn-go-again').addEventListener('click', () => {
       audio.setMusicStyle('ambient');
