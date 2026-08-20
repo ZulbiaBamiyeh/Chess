@@ -1,20 +1,22 @@
-// Run screens: map, loadout, shop, and the fight overlay on the shared board.
+// Run screens reached from the overworld: loadout, shop, rest, events, and
+// the fight overlay on the shared board. The overworld itself lives in
+// overworld.js (logic) and voyage.js (the walkable screen).
 
 import { WHITE, BLACK, FLAG, parseSquare, squareName, TILE } from './chess.js';
 import { pieceById, pieceCost, rarityOf } from './pieces.js';
 import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, toast,
   gameText, setGameText, setTitleText } from './ui.js';
 import {
-  createRun, currentNode, validateLoadout, buildFight, settleFight,
+  validateLoadout, buildFight, settleFight,
   openShop, buyOffer, rerollShop, closeShop, retryAllowed,
   autoPlace, supplyBudget, deployBudget, occupiedSlots, freeHomeSquares,
-  completeNode, pickNode, rest, forage, trainPiece,
+  rest, forage, trainPiece,
   REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, turnClock,
   restHeal, forageGold, trainCost,
   bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
   suggestLoadout,
 } from './run.js';
-import { encounterFor, kingDef, EVENTS } from './content.js';
+import { kingDef, EVENTS } from './content.js';
 import { relicById } from './relics.js';
 
 export function initCampaign(ctx) {
@@ -24,11 +26,7 @@ export function initCampaign(ctx) {
   } = ctx;
 
   function goWorld() {
-    if (state.world === 'voyage' && state.voyage?.resumeFromWorld) {
-      state.voyage.resumeFromWorld();
-      return;
-    }
-    showMap();
+    state.voyage?.resumeFromWorld();
   }
 
   let deployView = null;
@@ -57,7 +55,7 @@ export function initCampaign(ctx) {
     const goldChanged = run.gold !== prev.gold;
     const hpChanged = run.hp !== prev.hp;
 
-    for (const id of ['hud-gold', 'map-gold', 'load-gold', 'shop-gold', 'rest-gold', 'event-gold', 'ow-gold']) {
+    for (const id of ['hud-gold', 'load-gold', 'shop-gold', 'rest-gold', 'event-gold', 'ow-gold']) {
       const el = $(id);
       if (!el) continue;
       const num = el.querySelector('.chip-num');
@@ -65,7 +63,7 @@ export function initCampaign(ctx) {
       if (goldChanged) flashChip(el, run.gold > prev.gold);
     }
 
-    for (const id of ['hud-hp', 'map-hp', 'load-hp', 'shop-hp', 'rest-hp', 'event-hp', 'ow-hp']) {
+    for (const id of ['hud-hp', 'load-hp', 'shop-hp', 'rest-hp', 'event-hp', 'ow-hp']) {
       const el = $(id);
       if (!el) continue;
       const pct = run.hpMax > 0 ? Math.max(0, Math.min(1, run.hp / run.hpMax)) : 0;
@@ -77,9 +75,6 @@ export function initCampaign(ctx) {
     }
     state._hudPrev = { gold: run.gold, hp: run.hp };
 
-    if ($('map-supply')) {
-      $('map-supply').textContent = `Supply +${run.supplyBonus}`;
-    }
     paintKingChip(run);
     if ($('hud-army') && state.game && state.mode === 'run') {
       const now = state.game.armyValue(WHITE);
@@ -95,189 +90,6 @@ export function initCampaign(ctx) {
         $('hud-clock').classList.add('hidden');
       }
     }
-  }
-
-  function startRun() {
-    state.mode = 'run';
-    state.world = 'road';
-    state.run = createRun();
-    state.playerColor = WHITE;
-    state._hudPrev = null;
-    showMap();
-    // Stated once, up front, rather than left for the how-to screen a player
-    // might never open: the guard rule is asymmetric and worth knowing before
-    // the first fight, not after losing a king to it.
-    if ($('map-guard-note')) $('map-guard-note').classList.remove('hidden');
-  }
-
-  function showMap() {
-    closeBag();
-    audio.setMusicStyle('ambient');
-    const run = state.run;
-    if (run.over) { endRun(); return; }
-    const act = run.map.acts[run.act];
-    const here = currentNode(run);
-    const openIds = new Set(
-      (run.choices && run.choices.length)
-        ? run.choices.map((n) => n.id)
-        : here ? [here.id] : [],
-    );
-    const cleared = run.cleared || new Set();
-    const trail = new Set(run.trail || []);
-    paintRunHud();
-
-    const romans = ['I', 'II', 'III'];
-    if ($('map-act-label')) $('map-act-label').textContent = `ACT ${romans[run.act] || run.act + 1}`;
-    if ($('map-art')) {
-      $('map-art').classList.remove('act-0', 'act-1', 'act-2');
-      $('map-art').classList.add(`act-${run.act}`);
-    }
-
-    const climb = $('map-climb');
-    climb.innerHTML = '';
-
-    const floors = {};
-    let maxCol = 0;
-    for (const node of act.nodes) {
-      (floors[node.col] ||= []).push(node);
-      if (node.col > maxCol) maxCol = node.col;
-    }
-    const W = 420;
-    const step = 152;
-    const H = 168 + (maxCol + 1) * step;
-    climb.style.width = `${W}px`;
-    climb.style.height = `${H}px`;
-    if ($('map-art')) $('map-art').style.height = `${Math.max(H, 800)}px`;
-
-    const pos = {};
-    for (const node of act.nodes) {
-      const onFloor = floors[node.col];
-      const jx = (hash01(node.id) - 0.5) * 14;
-      const jy = (hash01(node.id + 'y') - 0.5) * 8;
-      const x = ((node.row + 1) / (onFloor.length + 1)) * W + jx;
-      const y = H - 86 - node.col * step + jy;
-      pos[node.id] = { x, y };
-    }
-
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'map-ink');
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    svg.setAttribute('width', String(W));
-    svg.setAttribute('height', String(H));
-    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    defs.innerHTML = `
-      <filter id="map-wobble">
-        <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" result="n"/>
-        <feDisplacementMap in="SourceGraphic" in2="n" scale="1.4"/>
-      </filter>`;
-    svg.appendChild(defs);
-
-    for (const node of act.nodes) {
-      const a = pos[node.id];
-      for (const nid of node.next || []) {
-        const b = pos[nid];
-        if (!b) continue;
-        const walked = trail.has(node.id) && trail.has(nid);
-        const ahead = openIds.has(nid) && (
-          node.id === run.nodeId || cleared.has(node.id) || openIds.has(node.id)
-        );
-        const mx = (a.x + b.x) / 2 + (hash01(node.id + nid) - 0.5) * 22;
-        const my = (a.y + b.y) / 2;
-        const d = `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`;
-        const under = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        under.setAttribute('d', d);
-        under.setAttribute('class', 'map-edge-under'
-          + (walked ? ' walked' : '')
-          + (ahead ? ' ahead' : ''));
-        svg.appendChild(under);
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', d);
-        path.setAttribute('class', 'map-edge'
-          + (walked ? ' walked' : '')
-          + (ahead ? ' ahead' : ''));
-        svg.appendChild(path);
-      }
-    }
-    climb.appendChild(svg);
-
-    for (const node of act.nodes) {
-      const p = pos[node.id];
-      const current = node.id === run.nodeId && !(run.choices && run.choices.length);
-      const open = openIds.has(node.id);
-      const done = cleared.has(node.id);
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'map-dot'
-        + (current ? ' current' : '')
-        + (open && !current ? ' open' : '')
-        + (done ? ' done' : '')
-        + (node.kind === 'shop' ? ' shop' : '')
-        + (node.kind === 'rest' ? ' rest' : '')
-        + (node.kind === 'event' ? ' event' : '')
-        + (node.boss ? ' boss' : '')
-        + (node.tier === 'elite' ? ' elite' : '');
-      btn.style.left = `${p.x}px`;
-      btn.style.top = `${p.y}px`;
-      btn.setAttribute('aria-label', node.name);
-      if (p.y < 90) btn.classList.add('tip-below');
-      btn.innerHTML = nodeIcon(node) + `<span class="map-tip"><b>${node.name}</b>${node.blurb}</span>`;
-      if (open) {
-        btn.addEventListener('click', () => {
-          if (node.id !== run.nodeId) pickNode(run, node.id);
-          enterNode();
-        });
-        btn.addEventListener('pointerenter', () => audio.hover());
-      }
-      climb.appendChild(btn);
-    }
-
-    const openRooms = (run.choices && run.choices.length)
-      ? run.choices
-      : (here && openIds.has(here.id) ? [here] : []);
-    if (openRooms.length > 1) {
-      $('map-blurb').textContent = openRooms.map((n) => n.name).join('  ·  ');
-    } else if (openRooms.length === 1) {
-      $('map-blurb').textContent = `${openRooms[0].name} — ${openRooms[0].blurb}`;
-    } else if (here) {
-      $('map-blurb').textContent = `${here.name} — ${here.blurb}`;
-    } else {
-      $('map-blurb').textContent = 'Choose a path.';
-    }
-    showScreen('screen-map');
-  }
-
-  function hash01(str) {
-    let h = 2166136261;
-    for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
-    return ((h >>> 0) % 1000) / 1000;
-  }
-
-  function nodeIcon(node) {
-    const src = node.boss ? 'map-boss'
-      : node.kind === 'shop' ? 'map-shop'
-      : node.kind === 'rest' ? 'map-rest'
-      : node.kind === 'event' ? null
-      : node.tier === 'elite' ? 'map-elite'
-      : 'map-fight';
-    // The ? room has no art of its own; the mark is the icon.
-    if (src === null) return '<span class="map-ico map-ico-mark">?</span>';
-    return `<img class="map-ico" src="assets/${src}.png" alt="" draggable="false" width="32" height="32">`;
-  }
-
-  function enterNode() {
-    const node = currentNode(state.run);
-    if (!node || state.run.over) { endRun(); return; }
-    if (node.kind === 'shop') openShopScreen();
-    else if (node.kind === 'rest') openRest();
-    else if (node.kind === 'event') openEvent(node);
-    else {
-      const enc = encounterFor(node);
-      if (enc) openLoadout(enc);
-    }
-  }
-
-  function goFromMap() {
-    enterNode();
   }
 
   /**
@@ -296,10 +108,12 @@ export function initCampaign(ctx) {
   ];
 
 
-  function openRest() {
+  let restDoneCb = null;
+
+  function openWorldRest(name, onDone) {
+    restDoneCb = onDone || null;
     paintRunHud();
-    const node = currentNode(state.run);
-    $('rest-name').textContent = node?.name || 'A Quiet Square';
+    $('rest-name').textContent = name || 'A Quiet Square';
     $('rest-detail').textContent = 'Choose how to spend the moment.';
     $('rest-outcome').classList.add('hidden');
     $('btn-rest-move-on').classList.add('hidden');
@@ -383,6 +197,7 @@ export function initCampaign(ctx) {
     $('rest-outcome').classList.remove('hidden');
     $('btn-rest-move-on').classList.remove('hidden');
     paintRunHud();
+    if (restDoneCb) { restDoneCb(); restDoneCb = null; }
   }
 
   function openLoadout(encounter) {
@@ -433,7 +248,7 @@ export function initCampaign(ctx) {
     const def = kingDef(run.king);
     const skin = kingSkin(run.king);
     const hue = kingHue(run.king);
-    for (const prefix of ['map', 'load', 'shop', 'rest', 'ow']) {
+    for (const prefix of ['load', 'shop', 'rest', 'ow']) {
       const art = $(`${prefix}-king-art`);
       const name = $(`${prefix}-king-name`);
       const chip = $(`${prefix}-king`);
@@ -981,13 +796,7 @@ export function initCampaign(ctx) {
 
     const pending = state.run.pendingRelics || [];
     const advance = () => {
-      if (state.world === 'voyage') {
-        state.voyage?.onFightSettled(state.run.lastReward);
-        return;
-      }
-      completeNode(state.run);
-      if (state.run.over) { endRun(); return; }
-      showMap();
+      state.voyage?.onFightSettled(state.run.lastReward);
     };
     const relicsThen = () => {
       if (pending.length) { offerRelics(pending, advance); return; }
@@ -1054,8 +863,8 @@ export function initCampaign(ctx) {
 
 // ---- events (the ? rooms) ----------------------------------------------
 
-  function openEvent(node) {
-    const ev = EVENTS[node.eventId] || Object.values(EVENTS)[0];
+  function openEvent(eventId) {
+    const ev = EVENTS[eventId] || Object.values(EVENTS)[0];
     state.event = ev;
     paintRunHud();
     $('event-name').textContent = ev.name;
@@ -1144,15 +953,12 @@ export function initCampaign(ctx) {
 
   function leaveEvent() {
     if (state.run.over) { endRun(); return; }
-    if (state.world === 'voyage') { goWorld(); return; }
-    completeNode(state.run);
-    if (state.run.over) { endRun(); return; }
-    showMap();
+    goWorld();
   }
 
 /** The relic tray — small marks with the rule they change on hover. */
   function paintRelics() {
-    for (const id of ['map-relics', 'loadout-relics', 'game-relics']) {
+    for (const id of ['loadout-relics', 'game-relics']) {
       const host = $(id);
       if (!host) continue;
       const owned = state.run?.relics || [];
@@ -1202,16 +1008,6 @@ export function initCampaign(ctx) {
     $('modal-relic').classList.remove('hidden');
   }
 
-  function openShopScreen() {
-    const node = currentNode(state.run);
-    openShop(state.run);
-    $('shop-name').textContent = node.name;
-    $('shop-blurb').textContent = node.blurb;
-    audio.setMusicStyle('shop');
-    paintShop();
-    showScreen('screen-shop');
-  }
-
   function paintShop() {
     const shop = state.run.shop;
     paintRunHud();
@@ -1249,9 +1045,7 @@ export function initCampaign(ctx) {
 
   function leaveShop() {
     closeShop(state.run);
-    if (state.world === 'voyage') { goWorld(); return; }
-    completeNode(state.run);
-    showMap();
+    goWorld();
   }
 
   function endRun() {
@@ -1301,7 +1095,7 @@ export function initCampaign(ctx) {
 
   // ---- bind --------------------------------------------------------------
 
-  for (const id of ['btn-map-bag', 'btn-shop-bag', 'btn-rest-bag', 'map-king']) {
+  for (const id of ['btn-shop-bag', 'btn-rest-bag']) {
     if ($(id)) $(id).addEventListener('click', openBag);
   }
   if ($('btn-bag-close')) $('btn-bag-close').addEventListener('click', closeBag);
@@ -1313,20 +1107,6 @@ export function initCampaign(ctx) {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeBag();
   });
-  if ($('btn-old-road')) {
-    $('btn-old-road').addEventListener('click', () => {
-      state.world = 'road';
-      startRun();
-      audio.resume().then(() => {
-        if (state.settings.music) audio.startMusic();
-      });
-    });
-  }
-  if ($('btn-map-go')) $('btn-map-go').addEventListener('click', goFromMap);
-  $('btn-map-quit').addEventListener('click', abandon);
-  if ($('btn-map-guard-note-close')) {
-    $('btn-map-guard-note-close').addEventListener('click', () => $('map-guard-note').classList.add('hidden'));
-  }
   $('btn-loadout-back').addEventListener('click', goWorld);
   if ($('btn-event-leave')) $('btn-event-leave').addEventListener('click', leaveEvent);
   if ($('btn-event-bag')) $('btn-event-bag').addEventListener('click', openBag);
@@ -1359,12 +1139,8 @@ export function initCampaign(ctx) {
   $('btn-continue').addEventListener('click', continueAfterFight);
   $('btn-retry').addEventListener('click', retryFight);
   $('btn-forfeit').addEventListener('click', forfeitFight);
-  $('btn-rest-move-on').addEventListener('click', () => {
-    if (state.world === 'voyage') { goWorld(); return; }
-    completeNode(state.run);
-    showMap();
-  });
-  $('btn-rest-back').addEventListener('click', showMap);
+  $('btn-rest-move-on').addEventListener('click', goWorld);
+  $('btn-rest-back').addEventListener('click', goWorld);
 
   function openWorldShop({ name, blurb } = {}) {
     openShop(state.run);
@@ -1376,13 +1152,14 @@ export function initCampaign(ctx) {
   }
 
   return {
-    startRun,
     onFightOver,
     paintRunHud,
     resetClassicButtons,
     abandon,
     openLoadout,
     openWorldShop,
+    openWorldRest,
+    openEvent,
     goWorld,
     finishRun: endRun,
     tickClock() {

@@ -4,14 +4,36 @@
 import { WHITE } from './chess.js';
 import { pieceById } from './pieces.js';
 import { pieceImage, kingSkin, toast } from './ui.js';
-import { createVoyageRun, addToBag, removeFromBag, REST_HEAL } from './run.js';
+import { createVoyageRun, addToBag, removeFromBag } from './run.js';
 import { RELICS } from './relics.js';
+import { EVENTS } from './content.js';
 import {
   generateWorld, generateTown, playerMoves, movePlayer, clashEncounter, bagMaterial,
-  armyMaterial, threatTint, leadersInBag, setLeader,
+  armyMaterial, threatTint, keyPieceType,
   bumpFromPack, cellAt, TERRAIN, OW, key, packCard, chebyshev,
   revealMapFragment, questProgress, mulberry32,
 } from './overworld.js';
+
+/** Draws an unseen event for this run where possible, same idea as the old map's picker. */
+function pickEvent(run) {
+  run.seenEvents = run.seenEvents || new Set();
+  const all = Object.values(EVENTS);
+  const fresh = all.filter((e) => !run.seenEvents.has(e.id));
+  const pool = fresh.length ? fresh : all;
+  const ev = pool[Math.floor(run.rng() * pool.length)];
+  run.seenEvents.add(ev.id);
+  return ev.id;
+}
+
+// Town NPCs stand in for roles with no bespoke art of their own yet, borrowing
+// a combat piece's silhouette. A hue shift — the same reskin trick every
+// placeholder king and piece in this game used before its own art arrived —
+// keeps a merchant reading as a trader instead of a stray Wazir.
+const NPC_TINT = {
+  merchant: { hue: 0, sat: 1.75 },
+  cartographer: { hue: 265, sat: 1.4 },
+  quest: { hue: 320, sat: 1.4 },
+};
 
 export function initVoyage(ctx) {
   const {
@@ -47,7 +69,6 @@ export function initVoyage(ctx) {
     if (!world()) return;
     campaign.paintRunHud();
     paintBoard();
-    paintLeaders();
     paintBlurb();
     showScreen('screen-overworld');
     audio.setMusicStyle(world()?.scene === 'town' ? 'town' : 'ambient');
@@ -119,30 +140,6 @@ export function initVoyage(ctx) {
     }
   }
 
-  function paintLeaders() {
-    const host = $('ow-leaders');
-    if (!host) return;
-    const w = world();
-    host.innerHTML = '';
-    for (const type of leadersInBag(state.run)) {
-      const def = pieceById(type);
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'ow-leader' + (w.player.leader === type ? ' on' : '');
-      const skin = type === 'k' ? kingSkin(state.run.king) : null;
-      btn.style.backgroundImage = `url('${pieceImage(type, WHITE, skin)}')`;
-      btn.title = type === 'k' ? 'Lead with the king' : `Lead with the ${def?.name || type}`;
-      btn.addEventListener('click', () => {
-        if (setLeader(w, type, state.run)) {
-          audio.click();
-          paintBoard();
-          paintLeaders();
-        }
-      });
-      host.appendChild(btn);
-    }
-  }
-
   function terrainClass(cell, file, rank) {
     const w = world();
     const bits = ['ow-sq'];
@@ -202,6 +199,8 @@ export function initVoyage(ctx) {
             sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">✝</i>`);
           } else if (cell.poi === 'sign') {
             sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">☰</i>`);
+          } else if (cell.poi === 'event') {
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot ow-event">?</i>`);
           } else if (cell.poi === 'exit') {
             sq.classList.add('ow-exit');
           } else if (cell.poi === 'loot') {
@@ -218,7 +217,7 @@ export function initVoyage(ctx) {
             if (pack.stance === 'docile') sq.classList.add('ow-docile');
             const fig = document.createElement('i');
             fig.className = 'ow-piece';
-            fig.style.backgroundImage = `url('${pieceImage(pack.army[1]?.type || 'p', 'b')}')`;
+            fig.style.backgroundImage = `url('${pieceImage(keyPieceType(pack.army), 'b')}')`;
             sq.appendChild(fig);
             const badge = document.createElement('span');
             badge.className = `ow-lvl ${pack.stance === 'docile' ? 'docile' : tint}${pack.skull ? ' skull' : ''}`;
@@ -231,6 +230,8 @@ export function initVoyage(ctx) {
             const fig = document.createElement('i');
             fig.className = 'ow-piece ow-npc';
             fig.style.backgroundImage = `url('${pieceImage(npc.type, WHITE)}')`;
+            const tint = NPC_TINT[npc.role];
+            if (tint) fig.style.filter = `hue-rotate(${tint.hue}deg) saturate(${tint.sat})`;
             sq.appendChild(fig);
             const tag = document.createElement('span');
             tag.className = 'ow-npc-tag';
@@ -401,6 +402,10 @@ export function initVoyage(ctx) {
       leaveTown();
       return;
     }
+    if (event.type === 'event') {
+      campaign.openEvent(pickEvent(state.run));
+      return;
+    }
     if (event.type === 'shrine') {
       const cell = cellAt(overworld(), overworld().player.file, overworld().player.rank);
       if (cell?.spent) {
@@ -533,7 +538,7 @@ export function initVoyage(ctx) {
       body += `<p class="pack-reach">Walk next to them.</p>`;
     } else if (npc.role === 'inn') {
       const town = world();
-      actions.push(`<button class="btn btn-gold" data-act="rest" type="button" ${town.rested ? 'disabled' : ''}>Rest · +${REST_HEAL} HP</button>`);
+      actions.push(`<button class="btn btn-gold" data-act="rest" type="button" ${town.rested ? 'disabled' : ''}>${town.rested ? 'Already rested' : 'Sit a while'}</button>`);
     } else if (npc.role === 'merchant') {
       actions.push(`<button class="btn btn-gold" data-act="shop" type="button">See the stall</button>`);
     } else if (npc.role === 'cartographer') {
@@ -569,12 +574,8 @@ export function initVoyage(ctx) {
       if (act === 'rest') {
         const town = world();
         if (town.rested) { audio.illegal(); return; }
-        town.rested = true;
-        state.run.hp = Math.min(state.run.hpMax, state.run.hp + REST_HEAL);
-        toast('You sleep. The bag is still there in the morning.', 'good');
-        audio.victory();
-        campaign.paintRunHud();
         closePackSheet();
+        campaign.openWorldRest(npc.name, () => { town.rested = true; });
         return;
       }
       if (act === 'shop') {

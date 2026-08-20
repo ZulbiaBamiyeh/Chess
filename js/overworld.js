@@ -61,6 +61,13 @@ export function armyMaterial(army) {
   return (army || []).reduce((sum, p) => sum + materialOf(p.type), 0);
 }
 
+/** The piece that actually represents a side: their most valuable non-king body. */
+export function keyPieceType(army) {
+  const best = (army || []).filter((p) => p.type !== 'k')
+    .sort((a, b) => materialOf(b.type) - materialOf(a.type))[0];
+  return best?.type || 'p';
+}
+
 export function bagMaterial(run) {
   return (run.bag || []).reduce((sum, p) => sum + materialOf(p.type), 0);
 }
@@ -545,6 +552,16 @@ export function generateWorld(rng, act = 1) {
     pick(rng, signSpots).cell.poi = 'sign';
   }
 
+  // Wandering "?" events: a handful of STS-style rooms scattered the length
+  // of the act, so the road is not just fights, shops and caches.
+  const eventSpots = emptyFloor(world, (_c, _f, r) => r >= 3 && r <= ranks - 6);
+  const numEvents = Math.min(eventSpots.length, 4 + Math.floor(rng() * 3));
+  for (let i = 0; i < numEvents; i++) {
+    const idx = Math.floor(rng() * eventSpots.length);
+    const [spot] = eventSpots.splice(idx, 1);
+    spot.cell.poi = 'event';
+  }
+
   // Greed nodes: every pocket end is a cache, and the deeper/later it is
   // the more it pays — and the nastier the camp sitting on it.
   for (const pocket of pockets) {
@@ -707,6 +724,7 @@ function applyPoi(world, file, rank) {
   }
   if (cell.poi === 'shrine') return { type: 'shrine', spent: Boolean(cell.spent) };
   if (cell.poi === 'sign') return { type: 'sign', spent: Boolean(cell.spent) };
+  if (cell.poi === 'event') { cell.poi = null; return { type: 'event' }; }
   if (cell.poi === 'exit') return { type: 'exit' };
   if (cell.poi === 'ramp') return { type: 'ramp' };
   if (cell.poi === 'loot' && cell.loot) {
@@ -881,9 +899,21 @@ function makeQuest(rng, npcId, act) {
   };
 }
 
+/** Fisher-Yates against the town's own rng, so a shuffle replays the same for a given seed. */
+function shuffled(rng, list) {
+  const arr = list.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 /**
  * A small plaza you walk. The people are pieces: a merchant, a courier
- * who sells map scraps, an inn, and one or two with work for you.
+ * who sells map scraps, an inn, and one or two with work for you. Every
+ * visit reshuffles which stalls stand and where each of them sets up, so
+ * two villages of the same biome don't read as the same square.
  */
 export function generateTown(rng, biome, act, name, leader = 'k') {
   const files = 9;
@@ -903,32 +933,49 @@ export function generateTown(rng, biome, act, name, leader = 'k') {
     }
     cells.push(row);
   }
-  // A couple of stalls as short walls, leaving a plaza.
-  const stalls = [[2, 4], [6, 4], [1, 2], [7, 2]];
+  // A handful of stalls as short walls, leaving a plaza — which ones stand
+  // (and where the walkable floor around them falls) varies by seed.
+  const stallPool = [[2, 4], [6, 4], [1, 2], [7, 2], [2, 2], [6, 2], [1, 4], [7, 4]];
+  const stalls = shuffled(rng, stallPool).slice(0, 3 + Math.floor(rng() * 3));
   for (const [f, r] of stalls) {
     if (cells[r]?.[f]) cells[r][f].terrain = TERRAIN.WALL;
   }
+
+  // Interior floor not spoken for by a stall, the gate, or the spawn square —
+  // the pool every NPC draws a seat from.
+  const stallSet = new Set(stalls.map(([f, r]) => `${f},${r}`));
+  const seats = [];
+  for (let r = 1; r <= ranks - 2; r++) {
+    for (let f = 1; f <= files - 2; f++) {
+      if (stallSet.has(`${f},${r}`)) continue;
+      if (f === 4 && r === 1) continue; // the player's own doorstep
+      seats.push([f, r]);
+    }
+  }
+  const drawn = shuffled(rng, seats);
+  const seatFor = (i) => drawn[i % drawn.length] || [4, 3 + (i % 2)];
+
   const npcs = [
     {
-      id: 'inn', role: 'inn', type: 'guard', file: 4, rank: 5,
+      id: 'inn', role: 'inn', type: 'guard', file: seatFor(0)[0], rank: seatFor(0)[1],
       title: 'Inn',
       name: biome === 'frost' ? 'A Hoarfrost Host' : biome === 'peak' ? 'A Cinder Host' : 'The March Host',
       blurb: 'A bed and a bowl. The road will still be there in the morning.',
     },
     {
-      id: 'merchant', role: 'merchant', type: 'w', file: 2, rank: 3,
+      id: 'merchant', role: 'merchant', type: 'w', file: seatFor(1)[0], rank: seatFor(1)[1],
       title: 'Merchant',
       name: 'The Stall',
       blurb: 'Steel, bone, and the odd fairy. Gold talks.',
     },
     {
-      id: 'cartographer', role: 'cartographer', type: 'courier', file: 6, rank: 3,
+      id: 'cartographer', role: 'cartographer', type: 'courier', file: seatFor(2)[0], rank: seatFor(2)[1],
       title: 'Maps',
       name: 'The Courier',
       blurb: 'Fragments of the road north. Four gold a scrap.',
     },
     {
-      id: 'quest-a', role: 'quest', type: 'banner', file: 3, rank: 2,
+      id: 'quest-a', role: 'quest', type: 'banner', file: seatFor(3)[0], rank: seatFor(3)[1],
       title: 'Banner',
       name: 'The Banner',
       blurb: 'They have work, if you have a king to spend.',
@@ -936,7 +983,7 @@ export function generateTown(rng, biome, act, name, leader = 'k') {
   ];
   if (rng() < 0.7) {
     npcs.push({
-      id: 'quest-b', role: 'quest', type: 'f', file: 5, rank: 2,
+      id: 'quest-b', role: 'quest', type: 'f', file: seatFor(4)[0], rank: seatFor(4)[1],
       title: 'Priest',
       name: 'The Ferz',
       blurb: 'A quieter kind of errand.',
