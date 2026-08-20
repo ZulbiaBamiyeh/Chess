@@ -1123,8 +1123,7 @@ export function climbScore(mark) {
 
 export function formatClimbMark(mark) {
   if (!mark) return '';
-  if (mark.won) return `Act ${mark.act} cleared`;
-  return `Act ${mark.act} · level ${mark.floor}`;
+  return `Furthest travelled: Act ${mark.act}: level ${mark.floor}`;
 }
 
 export function runStats(run) {

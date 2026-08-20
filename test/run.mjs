@@ -43,11 +43,12 @@ const alley = ENCOUNTERS.alley;
   assert('start rooms are fights', run.choices.every((n) => n.kind === 'fight'));
   const mark = climbMark(run);
   assert('a new climb is act 1 level 1', mark.act === 1 && mark.floor === 1 && !mark.won, JSON.stringify(mark));
-  assert('the title line names the floor', formatClimbMark(mark) === 'Act 1 · level 1');
+  assert('the title line names the floor',
+    formatClimbMark(mark) === 'Furthest travelled: Act 1: level 1');
   assert('a later act outranks a deep early floor',
     climbScore({ act: 2, floor: 1, won: false }) > climbScore({ act: 1, floor: 8, won: false }));
-  assert('clearing the run is the top mark',
-    formatClimbMark({ act: 3, floor: 8, won: true }) === 'Act 3 cleared');
+  assert('a won run still names the floor',
+    formatClimbMark({ act: 3, floor: 8, won: true }) === 'Furthest travelled: Act 3: level 8');
   const form = ensureFormation(run);
   assert('a new run has a line of march', form.some((p) => p.uid === 'king') && form.filter((p) => p.type === 'p').length === 3);
   const king = form.find((p) => p.uid === 'king');
