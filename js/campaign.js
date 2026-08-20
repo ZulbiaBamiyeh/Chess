@@ -1701,7 +1701,6 @@ export function initCampaign(ctx) {
     $('btn-event-leave').classList.add('hidden');
     $('event-choices').classList.remove('hidden');
     paintChoices(ev);
-    audio.setMusicStyle('shop');
     showScreen('screen-event');
   }
 
