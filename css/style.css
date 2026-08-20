@@ -815,6 +815,10 @@ kbd {
 
 .sq.target:hover, .sq.target-capture:hover,
 .sq.hovered { background: rgba(255, 255, 255, 0.22); box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.55); }
+.sq.drop-ok {
+  background: rgba(78, 240, 142, 0.28);
+  box-shadow: inset 0 0 0 3px var(--green), 0 0 18px rgba(78, 240, 142, 0.4);
+}
 
 .sq.check {
   background: radial-gradient(circle, rgba(255, 84, 112, 0.75), rgba(255, 84, 112, 0.12) 70%);
@@ -1019,10 +1023,22 @@ kbd {
   height: 14px;
   border-radius: 2px;
   animation: fall linear forwards;
+  pointer-events: none;
 }
 @keyframes fall {
   0% { translate: 0 0; rotate: 0deg; opacity: 1; }
   100% { translate: var(--drift) 105vh; rotate: var(--spin); opacity: 0.85; }
+}
+.confetti.burst {
+  top: 0;
+  width: 8px;
+  height: 12px;
+  animation-name: confetti-burst;
+  animation-timing-function: cubic-bezier(.12, .7, .2, 1);
+}
+@keyframes confetti-burst {
+  0% { translate: 0 0; rotate: 0deg; scale: 1; opacity: 1; }
+  100% { translate: var(--drift) var(--rise); rotate: var(--spin); scale: 0.35; opacity: 0; }
 }
 
 .board-toast {
@@ -1906,6 +1922,24 @@ kbd {
   text-align: center;
 }
 .bag-tile:hover { border-color: var(--gold); transform: translateY(-2px); }
+.bag-tile.dragging { opacity: 0.35; cursor: grabbing; }
+.bag-drag-ghost {
+  position: fixed;
+  z-index: 80;
+  width: 56px;
+  height: 56px;
+  pointer-events: none;
+  translate: -50% -70%;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.55));
+}
+.bag-drag-ghost i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center bottom;
+}
 .bag-tile.on {
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(255, 207, 63, 0.14);

@@ -77,6 +77,8 @@ export function initCampaign(ctx) {
   let placements = []; // { uid, type, sq }
   let shopSelectedId = null;
   let setupMode = false;
+  let bagDrag = null;
+  let ignoreNextClick = false;
   let spoilsAnim = 0;
   let spoilsFinish = null;
   let spoilsSkipHandler = null;
@@ -756,7 +758,8 @@ export function initCampaign(ctx) {
         + `<span class="bag-tile-cost">${def.cost}</span>`
         + `<span class="bag-tile-name">${def.name}</span>`
         + `<span class="bag-tile-meta">${def.cost}${allPlaced ? ' · on board' : ''}</span>`;
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        if (ignoreNextClick) { ignoreNextClick = false; return; }
         if (allPlaced) {
           placements = placements.filter((p) => p.uid !== activeItem.uid);
           selectedUid = activeItem.uid;
@@ -782,6 +785,13 @@ export function initCampaign(ctx) {
         renderBag();
         paintMoveDiagram(selectedUid ? activeItem.type : null);
       });
+      if (!allPlaced && (setupMode || (!tooDear && !atDeployCap))) {
+        btn.style.cursor = 'grab';
+        btn.addEventListener('pointerdown', (e) => beginBagDrag(e, activeItem));
+        btn.addEventListener('pointermove', onBagPointerMove);
+        btn.addEventListener('pointerup', onBagPointerUp);
+        btn.addEventListener('pointercancel', () => clearBagDrag());
+      }
       btn.addEventListener('pointerenter', () => audio.hover());
       list.appendChild(btn);
     }
@@ -1116,11 +1126,13 @@ export function initCampaign(ctx) {
     const item = state.run.bag.find((p) => p.uid === selectedUid);
     if (!item) return false;
     const next = [...placements, { uid: item.uid, type: item.type, sq }];
-    const check = validateLoadout(state.run, enc, next.filter((p) => p.uid !== 'king').map((p) => p.uid));
-    if (!check.ok) {
-      audio.illegal();
-      toast(check.reason || 'Over supply', 'danger');
-      return false;
+    if (!setupMode) {
+      const check = validateLoadout(state.run, enc, next.filter((p) => p.uid !== 'king').map((p) => p.uid));
+      if (!check.ok) {
+        audio.illegal();
+        toast(check.reason || 'Over supply', 'danger');
+        return false;
+      }
     }
     if (placementChecksEnemy(enc, next)) {
       audio.illegal();
@@ -1136,7 +1148,79 @@ export function initCampaign(ctx) {
     return true;
   }
 
+  function beginBagDrag(event, item) {
+    if (event.button) return;
+    if (bagDrag) clearBagDrag();
+    bagDrag = {
+      uid: item.uid,
+      type: item.type,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      ghost: null,
+      fromEl: event.currentTarget,
+    };
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* already captured */ }
+  }
+
+  function onBagPointerMove(event) {
+    if (!bagDrag || bagDrag.fromEl !== event.currentTarget) return;
+    const dx = event.clientX - bagDrag.startX;
+    const dy = event.clientY - bagDrag.startY;
+    if (!bagDrag.moved && Math.hypot(dx, dy) < 8) return;
+    if (!bagDrag.moved) {
+      bagDrag.moved = true;
+      selectedUid = bagDrag.uid;
+      const ghost = document.createElement('div');
+      ghost.className = 'bag-drag-ghost';
+      const hue = pieceHue(bagDrag.type);
+      ghost.innerHTML = `<i style="background-image:url('${pieceImage(bagDrag.type, WHITE)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`;
+      document.body.appendChild(ghost);
+      bagDrag.ghost = ghost;
+      bagDrag.fromEl.classList.add('dragging');
+      audio.lift();
+      paintMoveDiagram(bagDrag.type);
+    }
+    bagDrag.ghost.style.left = `${event.clientX}px`;
+    bagDrag.ghost.style.top = `${event.clientY}px`;
+    if (!deployView) return;
+    for (const el of deployView.squares.values()) el.classList.remove('drop-ok');
+    const sq = deployView.squareFromEvent(event);
+    const homes = freeHomeSquares(state.encounter);
+    if (sq != null && homes.includes(sq) && !placements.some((p) => p.sq === sq)) {
+      deployView.squares.get(sq)?.classList.add('drop-ok');
+    }
+  }
+
+  function onBagPointerUp(event) {
+    if (!bagDrag || bagDrag.fromEl !== event.currentTarget) return;
+    const moved = bagDrag.moved;
+    const uid = bagDrag.uid;
+    const sq = moved && deployView ? deployView.squareFromEvent(event) : null;
+    clearBagDrag();
+    if (!moved) return;
+    ignoreNextClick = true;
+    setTimeout(() => { ignoreNextClick = false; }, 80);
+    selectedUid = uid;
+    if (sq == null) return;
+    if (!placeSelected(sq)) {
+      audio.illegal();
+      deployView.reject(sq);
+    }
+  }
+
+  function clearBagDrag() {
+    if (!bagDrag) return;
+    bagDrag.ghost?.remove();
+    bagDrag.fromEl?.classList.remove('dragging');
+    if (deployView) {
+      for (const el of deployView.squares.values()) el.classList.remove('drop-ok', 'hovered');
+    }
+    bagDrag = null;
+  }
+
   function onDeployClick(event) {
+    if (ignoreNextClick) { ignoreNextClick = false; return; }
     if (event.target.closest('.piece')) return;
     const sq = deployView.squareFromEvent(event);
     if (sq == null) return;
@@ -1494,10 +1578,18 @@ export function initCampaign(ctx) {
         ? `A ${def?.name || prize.type} — no slot, sold for ${sold}g.`
         : `A ${def?.name || prize.type}. It joins the bag.`;
       take.textContent = sold ? 'Take the gold' : 'Take it';
-      if (tone !== 'common') {
-        state.lastDrop = { type: prize.type, sold };
-        confetti();
-      }
+      if (tone !== 'common') state.lastDrop = { type: prize.type, sold };
+      const burstColors = {
+        common: ['#a9b3d0', '#ffcf3f', '#f4ecdd'],
+        rare: ['#43d9ff', '#ffcf3f', '#f4ecdd'],
+        epic: ['#c08cff', '#43d9ff', '#ffcf3f'],
+        legendary: ['#ffcf3f', '#fff6cf', '#d99613', '#c08cff'],
+      };
+      confetti(tone === 'legendary' ? 72 : tone === 'epic' ? 56 : 40, {
+        origin: $('spoils-wheel') || card,
+        layer: $('modal-spoils') || undefined,
+        colors: burstColors[tone] || burstColors.common,
+      });
     }
     callout.className = `spoils-callout ${tone}`;
     take.classList.remove('hidden');

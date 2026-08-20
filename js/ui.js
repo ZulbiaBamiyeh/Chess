@@ -560,22 +560,42 @@ export function shake(strength = 1) {
   shakeTimer = setTimeout(() => app.classList.remove('shaking'), 420);
 }
 
-/** Confetti for the end of the game. */
-export function confetti(count = 90) {
-  const layer = document.getElementById('particles');
+/** Confetti. Pass `{ origin }` to burst from a node instead of falling from the top. */
+export function confetti(count = 90, opts = {}) {
+  const layer = opts.layer || document.getElementById('particles');
   if (!layer) return;
-  const colors = ['#ffcf3f', '#ff5470', '#43d9ff', '#4ef08e', '#c08cff'];
+  const colors = opts.colors || ['#ffcf3f', '#ff5470', '#43d9ff', '#4ef08e', '#c08cff'];
+  let ox = null;
+  let oy = null;
+  if (opts.origin?.getBoundingClientRect) {
+    const r = opts.origin.getBoundingClientRect();
+    const host = layer.getBoundingClientRect();
+    ox = r.left + r.width / 2 - host.left;
+    oy = r.top + r.height / 2 - host.top;
+  }
+  const burst = ox != null;
   for (let i = 0; i < count; i++) {
     const bit = document.createElement('i');
-    bit.className = 'confetti';
-    bit.style.left = `${Math.random() * 100}%`;
+    bit.className = burst ? 'confetti burst' : 'confetti';
     bit.style.background = colors[Math.floor(Math.random() * colors.length)];
-    bit.style.setProperty('--drift', `${(Math.random() - 0.5) * 240}px`);
     bit.style.setProperty('--spin', `${Math.random() * 900 - 450}deg`);
-    bit.style.animationDelay = `${Math.random() * 500}ms`;
-    bit.style.animationDuration = `${1800 + Math.random() * 1400}ms`;
+    if (burst) {
+      bit.style.left = `${ox}px`;
+      bit.style.top = `${oy}px`;
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 36 + Math.random() * 150;
+      bit.style.setProperty('--drift', `${Math.cos(ang) * dist}px`);
+      bit.style.setProperty('--rise', `${Math.sin(ang) * dist}px`);
+      bit.style.animationDelay = `${Math.random() * 70}ms`;
+      bit.style.animationDuration = `${680 + Math.random() * 520}ms`;
+    } else {
+      bit.style.left = `${Math.random() * 100}%`;
+      bit.style.setProperty('--drift', `${(Math.random() - 0.5) * 240}px`);
+      bit.style.animationDelay = `${Math.random() * 500}ms`;
+      bit.style.animationDuration = `${1800 + Math.random() * 1400}ms`;
+    }
     layer.appendChild(bit);
-    setTimeout(() => bit.remove(), 3600);
+    setTimeout(() => bit.remove(), burst ? 1400 : 3600);
   }
 }
 
