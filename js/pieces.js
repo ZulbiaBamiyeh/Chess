@@ -120,7 +120,7 @@ export const PIECES = {
     cost: 4, rarity: RARITY.RARE, value: 300, sprite: 'hopper', hopper: K,
   },
   d: {
-    id: 'd', name: 'Drake', blurb: 'A living wall. Cannot capture, and cannot be taken.',
+    id: 'd', name: 'Drake', blurb: 'A living wall. Cannot capture. Only a king can take it.',
     cost: 2, rarity: RARITY.RARE, value: 220, sprite: 'drake', leaps: K,
     cannotCapture: true, uncapturable: true,
   },

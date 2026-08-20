@@ -489,7 +489,7 @@ export const ENCOUNTERS = {
   },
   shallows: {
     id: 'shallows', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
-    name: 'The Shallows', blurb: 'A drake in the doorway. You cannot take it.',
+    name: 'The Shallows', blurb: 'A drake in the doorway. Only a king can take it.',
     files: 6, ranks: 6, supply: 13, ai: AI.mid, theme: 'duck',
     enemy: [{ type: 'k', at: 'c6' }, { type: 'd', at: 'c5' }, { type: 'p', at: 'b6' }, { type: 'p', at: 'd6' }],
   },

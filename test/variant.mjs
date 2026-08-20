@@ -134,8 +134,8 @@ const KC = { kingCapture: true, checks: false, castling: false };
     . K .
   `, { files: 3, ranks: 3, rules: KC });
   const out = g.outcome();
-  assert('uncapturable drakes that wall the king are unwinnable',
-    out.over && out.reason === 'unwinnable', JSON.stringify(out));
+  assert('a king can take a drake wall', hasMove(g, 'b1', 'b2'), names(g, 'b1').join(','));
+  assert('drakes a king can walk into are winnable', !out.over, JSON.stringify(out));
 }
 
 {
@@ -494,8 +494,17 @@ const KC = { kingCapture: true, checks: false, castling: false };
   `, { files: 3, ranks: 3, rules: KC });
   assert('drake cannot capture', !hasMove(g, 'b2', 'b3'), names(g, 'b2').join(','));
   g.turn = 'b';
-  assert('drake cannot be taken', !hasMove(g, 'a3', 'b2') && !hasMove(g, 'b3', 'b2'),
-    `king=${names(g, 'a3')} knight=${names(g, 'b3')}`);
+  assert('a knight cannot take a drake', !hasMove(g, 'b3', 'b2'), names(g, 'b3').join(','));
+  assert('a king can take a drake', hasMove(g, 'a3', 'b2'), names(g, 'a3').join(','));
+}
+
+{
+  const g = Chess.fromDiagram(`
+    k . n
+    . . .
+    . {w:d} K
+  `, { files: 3, ranks: 3, rules: KC, turn: 'b' });
+  assert('a leaping knight still cannot take a drake', !hasMove(g, 'c3', 'b1'), names(g, 'c3').join(','));
 }
 
 {
