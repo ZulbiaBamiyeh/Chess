@@ -18,7 +18,7 @@ import {
   restHeal, forageGold, trainCost,
   bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
   suggestLoadout, runStats, ensureFormation, placementsFromFormation, CREW_BOARD,
-  pruneFormation,
+  pruneFormation, payUndo, UNDO_HP,
 } from './run.js';
 import { kingDef, EVENTS, encounterFor } from './content.js';
 import { relicById } from './relics.js';
@@ -1103,7 +1103,9 @@ export function initCampaign(ctx) {
     state.view.setInteractive(true);
     resetInspect?.();
     $('run-hud').classList.remove('hidden');
-    $('btn-undo').classList.add('hidden');
+    $('btn-undo').classList.remove('hidden');
+    $('btn-undo').textContent = `Take Back · ${UNDO_HP} HP`;
+    $('btn-undo').title = `Costs ${UNDO_HP} HP. A fallen king cannot be taken back.`;
     $('btn-new').classList.add('hidden');
     $('btn-forfeit').classList.remove('hidden');
     $('opponent-name').textContent = enc.name;
@@ -1164,13 +1166,15 @@ export function initCampaign(ctx) {
       detail = 'Their king cannot be taken.';
     } else if (run.over) {
       title = 'YOU DIED';
-      detail = `Your king fell, and you had nothing left. −${reward.hpLost} HP.`;
+      detail = reward.reason === 'king capture'
+        ? 'Your king fell. The run is over.'
+        : `Nothing left. −${reward.hpLost} HP.`;
     } else if (reward.secondWind) {
       title = 'SECOND WIND';
       detail = 'That should have finished you. You get up anyway, on one hit point.';
     } else {
-      title = 'YOUR KING FALLS';
-      detail = `−${reward.hpLost} HP. You still have ${run.hp} left — go again.`;
+      title = reward.forfeit ? 'FORFEIT' : reward.timeout ? 'TOO SLOW' : 'THE FIGHT IS LOST';
+      detail = `−${reward.hpLost} HP. You still have ${run.hp} left.`;
     }
 
     setStatus(title, youWon ? 'good' : 'danger');
@@ -1277,6 +1281,39 @@ export function initCampaign(ctx) {
     if (state.mode !== 'run' || state.gameOver) return;
     const enc = state.encounter;
     onFightOver({ forfeit: true });
+  }
+
+  function takeBack() {
+    if (state.mode !== 'run' || !state.run || !state.game) return false;
+    if (state.gameOver || state.thinking) return false;
+    if (state.game.history.length === 0) return false;
+    if (state.game.outcome?.().over && state.game.kings.w < 0) {
+      audio.illegal();
+      toast('Your king is gone. The run is over.', 'danger');
+      return false;
+    }
+    const paid = payUndo(state.run);
+    if (!paid.ok) {
+      audio.illegal();
+      toast(paid.reason, 'danger');
+      return false;
+    }
+    state.generation++;
+    state.game.undoMove();
+    if (state.game.turn !== state.playerColor && state.game.history.length > 0) {
+      state.game.undoMove();
+    }
+    state.view.syncFromGame(state.game);
+    const last = state.game.history[state.game.history.length - 1];
+    state.view.markLastMove(last?.move.from ?? null, last?.move.to ?? null);
+    state.view.markCheck(state.game.inCheck() ? state.game.kings[state.game.turn] : null);
+    state.view.setInteractive(true);
+    audio.lift();
+    paintRunHud();
+    updateHud();
+    refreshStatus();
+    toast(`−${UNDO_HP} HP`, 'danger');
+    return true;
   }
 
 // ---- events (the ? rooms) ----------------------------------------------
@@ -1638,6 +1675,8 @@ export function initCampaign(ctx) {
   function resetClassicButtons() {
     $('run-hud').classList.add('hidden');
     $('btn-undo').classList.remove('hidden');
+    $('btn-undo').textContent = 'Take Back';
+    $('btn-undo').title = 'Take back your last move.';
     $('btn-new').classList.remove('hidden');
     $('btn-forfeit').classList.add('hidden');
     $('btn-again').classList.remove('hidden');
@@ -1737,6 +1776,7 @@ export function initCampaign(ctx) {
 
   return {
     onFightOver,
+    takeBack,
     paintRunHud,
     resetClassicButtons,
     abandon,

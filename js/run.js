@@ -5,7 +5,7 @@ import { WHITE, BLACK, Chess, ST_SHIELD, ST_FROZEN, FLAG, TILE, parseSquare } fr
 import { PIECES, SLOT_CAPS, pieceCost, rarityOf, RARITY } from './pieces.js';
 import { relicTotals, discountedCost, hasTag, relicPool } from './relics.js';
 import {
-  LOSS_HP, FORFEIT_HP, REST_HEAL,
+  LOSS_HP, FORFEIT_HP, UNDO_HP, REST_HEAL,
   START_HP, START_GOLD, STARTING_BAG, KING_PASSIVES, REST_GOLD,
   FORAGE_GOLD, TRAIN_COST,
   TURN_CLOCK, THEME_DROPS, DROP_CHANCE,
@@ -454,25 +454,32 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
       }
     }
   } else {
-    // Losing costs HP, not the run. LOSS_HP and FORFEIT_HP had been sitting in
-    // the content file unused, so a single lost fight ended a forty-minute run
-    // outright — and every HP system in the game (rests, the Field Surgeon,
-    // Second Wind, the whole heal economy) had nothing to protect you from.
-    hpLost = Math.max(1, (forfeit
-      ? (FORFEIT_HP[tier] ?? 2)
-      : (LOSS_HP[tier] ?? 3)));
-    run.hp -= hpLost;
+    const kingTaken = !forfeit && !timeout
+      && outcome.reason === 'king capture'
+      && outcome.winner === BLACK;
+    if (kingTaken) {
+      // HP buys take-backs during the fight. Once the king is gone, the run is.
+      hpLost = 0;
+      run.over = true;
+      run.won = false;
+    } else {
+      hpLost = Math.max(1, (forfeit
+        ? (FORFEIT_HP[tier] ?? 2)
+        : (LOSS_HP[tier] ?? 3)));
+      run.hp -= hpLost;
 
-    if (run.hp <= 0) {
-      if (relics.secondWind && !run.secondWindUsed) {
-        // Second Wind turns the first fatal defeat of a run into a scratch.
-        run.secondWindUsed = true;
-        run.hp = 1;
-        run.survived = true;
-      } else {
-        run.hp = 0;
-        run.over = true;
-        run.won = false;
+      if (run.hp <= 0) {
+        if (relics.secondWind && !run.secondWindUsed) {
+          // Second Wind turns the first fatal forfeit/timeout into a scratch.
+          // It does not revive a captured king.
+          run.secondWindUsed = true;
+          run.hp = 1;
+          run.survived = true;
+        } else {
+          run.hp = 0;
+          run.over = true;
+          run.won = false;
+        }
       }
     }
   }
@@ -643,6 +650,19 @@ export function trainPiece(run, itemUid) {
 /** You may take a room again for as long as you are still standing. */
 export function retryAllowed(run) {
   return Boolean(run) && !run.over && run.hp > 0;
+}
+
+/**
+ * Pay the HP cost of taking a move back. Refuses if it would drop you to
+ * zero — undo is a spend, not a way to die without losing the king.
+ */
+export function payUndo(run) {
+  if (!run || run.over) return { ok: false, reason: 'The run is over.' };
+  if (run.hp <= UNDO_HP) {
+    return { ok: false, reason: `Need more than ${UNDO_HP} HP to take a move back.` };
+  }
+  run.hp -= UNDO_HP;
+  return { ok: true, hpLost: UNDO_HP, hp: run.hp };
 }
 
 export function openShop(run) {
@@ -1021,7 +1041,7 @@ function tallyTypes(types) {
     .sort((a, b) => b.count - a.count || (PIECES[a.type]?.cost || 0) - (PIECES[b.type]?.cost || 0));
 }
 
-export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST };
+export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, UNDO_HP };
 
 // ---- events ---------------------------------------------------------------
 

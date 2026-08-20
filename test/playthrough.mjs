@@ -256,21 +256,29 @@ assert('the run reached a terminal state or ran its course',
 }
 
 {
-  // Losing must cost HP and leave the run alive until the blood runs out.
+  // Forfeit costs HP and leaves the run alive until the blood runs out.
   const r = createRun(2222);
   const enc = ENCOUNTERS_FOR_LOSS;
   let losses = 0;
   while (!r.over && losses < 20) {
     const g = buildFight(r, enc, autoPlace(enc, []));
-    g.board[g.kings.w] = null;
-    g.kings.w = -1;
-    const reward = settleFight(r, g, enc, {});
+    const reward = settleFight(r, g, enc, { forfeit: true });
     losses++;
     if (reward.hpLost <= 0) break;
   }
-  assert('a lost fight costs HP rather than the run', losses > 1, String(losses));
-  assert('enough losses do end the run', r.over);
+  assert('a forfeit costs HP rather than the run', losses > 1, String(losses));
+  assert('enough forfeits do end the run', r.over);
   assert('HP bottoms out at zero', r.hp === 0, String(r.hp));
+}
+
+{
+  const r = createRun(2223);
+  const enc = ENCOUNTERS_FOR_LOSS;
+  const g = buildFight(r, enc, autoPlace(enc, []));
+  g.board[g.kings.w] = null;
+  g.kings.w = -1;
+  settleFight(r, g, enc, {});
+  assert('losing the king ends the run for good', r.over && !r.won);
 }
 
 console.log(failures ? `\n${failures} playthrough failure(s)` : '\nPlaythrough clean.');
