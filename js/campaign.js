@@ -30,6 +30,7 @@ export function initCampaign(ctx) {
   } = ctx;
 
   function goWorld() {
+    if (setupMode) { closeCrewSetup(); return; }
     if (state.world === 'voyage') {
       state.voyage?.resumeFromWorld();
       return;
@@ -41,8 +42,7 @@ export function initCampaign(ctx) {
   let selectedUid = null;
   let placements = []; // { uid, type, sq }
   let shopSelectedId = null;
-  let crewView = null;
-  let crewSelectedUid = null;
+  let setupMode = false;
 
   /**
    * Gold and HP used to be a bare number in the pixel font, same weight as
@@ -261,18 +261,6 @@ export function initCampaign(ctx) {
       climb.appendChild(btn);
     }
 
-    const openRooms = (run.choices && run.choices.length)
-      ? run.choices
-      : (here && openIds.has(here.id) ? [here] : []);
-    if (openRooms.length > 1) {
-      $('map-blurb').textContent = openRooms.map((n) => n.name).join('  ·  ');
-    } else if (openRooms.length === 1) {
-      $('map-blurb').textContent = `${openRooms[0].name} — ${openRooms[0].blurb}`;
-    } else if (here) {
-      $('map-blurb').textContent = `${here.name} — ${here.blurb}`;
-    } else {
-      $('map-blurb').textContent = 'Choose a path.';
-    }
     requestAnimationFrame(() => {
       const scroll = $('map-scroll');
       if (!scroll) return;
@@ -316,55 +304,57 @@ export function initCampaign(ctx) {
   }
 
   function paintCrew() {
-    if (!$('crew-board') || !state.run) return;
+    if (!state.run) return;
     ensureFormation(state.run);
-    if (!crewView) {
-      crewView = new BoardView($('crew-board'), {
-        onAttemptMove: onCrewDrop,
-        canPickUp: (sq) => crewPlacements().some((p) => p.sq === sq),
-        legalTargets: crewTargets,
-        onPickUp: () => audio.lift(),
-      });
-    }
-    const { Chess } = ctx;
-    const game = buildFight(state.run, CREW_BOARD, crewPlacements());
-    crewView.setWhiteKingSkin(kingSkin(state.run.king), kingHue(state.run.king));
-    crewView.setFlipped(false);
-    crewView.syncFromGame(game);
-    crewView.setInteractive(true);
-    paintCrewHomes();
     paintCrewRoster();
   }
 
-  function paintCrewHomes() {
-    if (!crewView) return;
-    const free = new Set(freeHomeSquares(CREW_BOARD));
-    const taken = new Set(crewPlacements().map((p) => p.sq));
-    for (const [sq, el] of crewView.squares) {
-      el.classList.toggle('home-free', free.has(sq) && !taken.has(sq));
-      el.classList.toggle('home', free.has(sq) && taken.has(sq));
-      el.classList.toggle('no-place', !free.has(sq) && !taken.has(sq));
+  function openCrewSetup() {
+    if (!state.run) return;
+    setupMode = true;
+    state.encounter = CREW_BOARD;
+    selectedUid = null;
+    placements = ensureFormation(state.run).map((p) => ({ ...p }));
+    if ($('loadout-title')) $('loadout-title').textContent = 'Starting position';
+    if ($('loadout-blurb')) {
+      $('loadout-blurb').textContent = 'Place your army on the two home ranks and pick a king. Fights use this line.';
     }
+    if ($('enemy-roster')) $('enemy-roster').textContent = '';
+    if ($('btn-loadout-fight')) {
+      $('btn-loadout-fight').textContent = 'Done';
+      $('btn-loadout-fight').disabled = false;
+    }
+    $('screen-loadout')?.classList.add('setup-line');
+    showScreen('screen-loadout');
+    if (!deployView) {
+      deployView = new BoardView($('deploy-board'), {
+        onAttemptMove: onDeployDrop,
+        canPickUp: canDeployPick,
+        legalTargets: deployTargets,
+        onPickUp: () => audio.lift(),
+      });
+    }
+    rebuildDeploy();
+    renderBag();
+    paintSupply();
+    paintMoveDiagram(null);
+    paintRunHud();
+    audio.click();
   }
 
-  function crewTargets(sq) {
-    const homes = freeHomeSquares(CREW_BOARD);
-    const taken = new Set(crewPlacements().map((p) => p.sq));
-    return homes.filter((h) => !taken.has(h) || h === sq).map((to) => ({ to, captured: null }));
-  }
-
-  function onCrewDrop(from, to) {
-    const piece = crewPlacements().find((p) => p.sq === from);
-    if (!piece) return;
-    const homes = freeHomeSquares(CREW_BOARD);
-    if (!homes.includes(to) || crewPlacements().some((p) => p.sq === to)) {
-      audio.illegal();
-      crewView.reject(to);
-      return;
+  function closeCrewSetup() {
+    if (setupMode && state.run) {
+      state.run.formation = placements.map((p) => ({ uid: p.uid, type: p.type, sq: p.sq }));
+      pruneFormation(state.run);
+      toast('Starting position set', 'good');
     }
-    piece.sq = to;
-    audio.place();
-    paintCrew();
+    setupMode = false;
+    $('screen-loadout')?.classList.remove('setup-line');
+    if ($('btn-loadout-fight')) {
+      $('btn-loadout-fight').textContent = 'Fight';
+      $('btn-loadout-fight').disabled = false;
+    }
+    showMap();
   }
 
   function paintCrewRoster() {
@@ -411,8 +401,7 @@ export function initCampaign(ctx) {
       const activeItem = allPlaced ? g.items.find((it) => used.has(it.uid)) : freeItems[0];
       const btn = document.createElement('button');
       btn.className = `bag-tile rarity-${def.rarity}`
-        + (allPlaced ? ' used' : '')
-        + (activeItem && crewSelectedUid === activeItem.uid ? ' on' : '');
+        + (allPlaced ? ' used' : '');
       const hue = pieceHue(g.type);
       const countBadge = g.items.length > 1
         ? `${freeItems.length}/${g.items.length}`
@@ -423,44 +412,11 @@ export function initCampaign(ctx) {
         + (g.trained ? '<span class="bag-trained">⛨</span>' : '')
         + `<span class="bag-tile-name">${def.name}</span>`;
       btn.addEventListener('click', () => {
-        if (allPlaced) {
-          state.run.formation = crewPlacements().filter((p) => p.uid !== activeItem.uid);
-          crewSelectedUid = activeItem.uid;
-          audio.lift();
-          paintCrew();
-          return;
-        }
-        crewSelectedUid = crewSelectedUid === activeItem.uid ? null : activeItem.uid;
         audio.click();
-        paintCrewRoster();
+        openCrewSetup();
       });
       btn.addEventListener('pointerenter', () => audio.hover());
       piecesHost.appendChild(btn);
-    }
-  }
-
-  function placeCrewSelected(sq) {
-    if (!crewSelectedUid) return false;
-    const homes = freeHomeSquares(CREW_BOARD);
-    if (!homes.includes(sq) || crewPlacements().some((p) => p.sq === sq)) return false;
-    const item = state.run.bag.find((p) => p.uid === crewSelectedUid);
-    if (!item) return false;
-    state.run.formation = [...crewPlacements(), { uid: item.uid, type: item.type, sq }];
-    crewSelectedUid = null;
-    audio.place();
-    paintCrew();
-    return true;
-  }
-
-  function onCrewClick(event) {
-    if (event.target.closest('.piece')) return;
-    const sq = crewView?.squareFromEvent(event);
-    if (sq == null) return;
-    if (crewSelectedUid) {
-      if (!placeCrewSelected(sq)) {
-        audio.illegal();
-        crewView.reject(sq);
-      }
     }
   }
 
@@ -571,6 +527,9 @@ export function initCampaign(ctx) {
   }
 
   function openLoadout(encounter) {
+    setupMode = false;
+    $('screen-loadout')?.classList.remove('setup-line');
+    if ($('btn-loadout-fight')) $('btn-loadout-fight').textContent = 'Fight';
     state.encounter = encounter;
     selectedUid = null;
     const homes = freeHomeSquares(encounter);
@@ -759,6 +718,36 @@ export function initCampaign(ctx) {
       .map(([r, n]) => `${r} ${slots[r] || 0}/${n === Infinity ? '∞' : n}`)
       .join('  ·  ') + '  ·  commons uncapped';
     renderSelected();
+    paintLoadoutKings();
+  }
+
+  function paintLoadoutKings() {
+    const host = $('loadout-kings');
+    if (!host || !state.run) return;
+    host.innerHTML = '';
+    const summary = bagSummary(state.run);
+    for (const id of summary.kings) {
+      const def = kingDef(id);
+      const on = summary.equipped === id;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bag-tile king-tile' + (on ? ' on' : ' idle');
+      const kingFilter = kingHue(id) ? ` filter:hue-rotate(${kingHue(id)}deg);` : '';
+      btn.innerHTML =
+        `<i style="background-image:url('${pieceImage('k', WHITE, kingSkin(id))}');${kingFilter}"></i>`
+        + `<span class="bag-tile-name">${def.name}</span>`;
+      btn.title = def.blurb;
+      btn.addEventListener('click', () => {
+        if (!equipKing(state.run, id)) { audio.illegal(); return; }
+        audio.click();
+        paintRunHud();
+        rebuildDeploy();
+        paintLoadoutKings();
+        toast(`${def.name} king is active`, 'good');
+      });
+      btn.addEventListener('pointerenter', () => audio.hover());
+      host.appendChild(btn);
+    }
   }
 
   function paintMoveDiagram(type, ids = {
@@ -984,7 +973,7 @@ export function initCampaign(ctx) {
       $('deploy-fill').style.width = `${deploy ? Math.min(100, (count / deploy) * 100) : 0}%`;
       $('deploy-fill').classList.toggle('over', count > deploy);
     }
-    $('btn-loadout-fight').disabled = !check.ok;
+    $('btn-loadout-fight').disabled = setupMode ? false : !check.ok;
   }
 
   function canDeployPick(sq) {
@@ -1040,6 +1029,7 @@ export function initCampaign(ctx) {
    * Sentinel opts out — the one king built around opening on the attack.
    */
   function placementChecksEnemy(enc, next) {
+    if (setupMode) return false;
     if (state.run.king === 'sentinel') return false;
     const game = buildFight(state.run, enc, next);
     return game.kingAttacked(BLACK);
@@ -1086,6 +1076,7 @@ export function initCampaign(ctx) {
   }
 
   function beginFight() {
+    if (setupMode) { closeCrewSetup(); return; }
     const enc = state.encounter;
     const items = placements.filter((p) => p.uid !== 'king');
     const check = validateLoadout(state.run, enc, items.map((p) => p.uid));
@@ -1704,7 +1695,7 @@ export function initCampaign(ctx) {
   });
   $('btn-loadout-fight').addEventListener('click', beginFight);
   $('deploy-board').addEventListener('click', onDeployClick);
-  if ($('crew-board')) $('crew-board').addEventListener('click', onCrewClick);
+  if ($('btn-crew-setup')) $('btn-crew-setup').addEventListener('click', openCrewSetup);
   if ($('btn-go-again')) {
     $('btn-go-again').addEventListener('click', () => {
       audio.setMusicStyle('ambient');

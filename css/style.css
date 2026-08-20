@@ -1209,6 +1209,7 @@ kbd {
      bag list so it scrolls internally instead of pushing the board and the
      Fight button off the bottom of the screen. */
   #screen-loadout .board-wrap { --board: min(66vw, 25vh); }
+  #screen-loadout.setup-line .board-wrap { --board: min(86vw, 48vh, 560px); }
 
   /* On a phone the bag reads better as an actual inventory grid — square
      slots, icon only, rarity-tinted border, count/cost as corner badges —
@@ -1470,31 +1471,12 @@ kbd {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 .map-crew .rail-title { margin: 0.25rem 0 0.15rem; }
-.map-crew .crew-hint {
-  margin: 0 0 0.35rem;
-  color: var(--ink-dim);
-  font-size: 0.76rem;
-  line-height: 1.35;
-}
+.map-crew .btn-wide { width: 100%; margin-top: 0.55rem; padding: 0.7rem 0.6rem; }
 .crew-kings { margin-bottom: 0.2rem; }
 .crew-pieces {
   max-height: 28vh;
   overflow: auto;
   margin-bottom: 0.25rem;
-}
-.crew-board-wrap {
-  --board: min(100%, 272px);
-  --files: 8;
-  --ranks: 8;
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
-  width: var(--board);
-  margin: 0.15rem auto 0;
-}
-.crew-board-wrap .board {
-  grid-column: 1;
-  grid-row: 1;
 }
 .crew-kings.bag-grid {
   display: grid;
@@ -1712,14 +1694,20 @@ kbd {
   bottom: auto;
   top: calc(100% + 10px);
 }
-#screen-map .map-blurb {
-  flex: none;
-  z-index: 5;
-  width: calc(100% - 1.2rem);
-  max-width: none;
-  margin: 0.35rem 0.6rem 0.55rem;
-  padding: 0.45rem 0.7rem;
-  white-space: normal;
+#screen-loadout.setup-line .loadout-grid {
+  grid-template-columns: minmax(180px, 250px) auto minmax(170px, 220px);
+  align-items: start;
+}
+#screen-loadout.setup-line .board-wrap {
+  --board: min(64vh, 56vw, 620px);
+}
+#screen-loadout.setup-line .supply-meter,
+#screen-loadout.setup-line #enemy-roster,
+#screen-loadout.setup-line #loadout-slots,
+#screen-loadout.setup-line #loadout-selected,
+#screen-loadout.setup-line .bag-tile-cost,
+#screen-loadout.setup-line .bag-tile-meta {
+  display: none;
 }
 .map-ico-mark {
   display: grid;

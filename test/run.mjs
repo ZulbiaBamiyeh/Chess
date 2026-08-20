@@ -40,6 +40,11 @@ const alley = ENCOUNTERS.alley;
   assert('start rooms are fights', run.choices.every((n) => n.kind === 'fight'));
   const form = ensureFormation(run);
   assert('a new run has a line of march', form.some((p) => p.uid === 'king') && form.filter((p) => p.type === 'p').length === 3);
+  const homes = freeHomeSquares(CREW_BOARD);
+  assert('line of march has two home ranks', homes.length === 16);
+  const setupGame = buildFight(run, CREW_BOARD, form);
+  assert('setup board fields the king and three pawns',
+    setupGame.pieces().length === 4, String(setupGame.pieces().length));
 }
 
 {

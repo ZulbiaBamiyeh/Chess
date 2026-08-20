@@ -873,7 +873,7 @@ export function suggestLoadout(run, encounter) {
 
 /** 8×8 line-of-march board used to set the army before a fight. */
 export const CREW_BOARD = {
-  files: 8, ranks: 8, supply: 40, deploy: 16, enemy: [],
+  files: 8, ranks: 8, supply: 99, deploy: 15, enemy: [],
   name: 'Line of March', blurb: 'Who walks, and where.',
 };
 
