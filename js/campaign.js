@@ -316,12 +316,7 @@ export function initCampaign(ctx) {
   function startMappedFight(encounter) {
     state.encounter = encounter;
     placements = placementsFromFormation(state.run, encounter);
-    const wanted = (state.run.formation || []).filter((p) => p.uid !== 'king').length;
-    const brought = placements.filter((p) => p.uid !== 'king').length;
-    if (brought < wanted) {
-      toast('Some of the line would not fit this field.', 'danger');
-    }
-    beginFight();
+    beginFight({ fromLine: true });
   }
 
   function crewPlacements() {
@@ -1118,14 +1113,16 @@ export function initCampaign(ctx) {
     }
   }
 
-  function beginFight() {
+  function beginFight({ fromLine = false } = {}) {
     if (setupMode) { closeCrewSetup(); return; }
     const enc = state.encounter;
     const items = placements.filter((p) => p.uid !== 'king');
-    const check = validateLoadout(state.run, enc, items.map((p) => p.uid));
-    if (!check.ok) {
-      toast(check.reason || 'Check your supply', 'danger');
-      return;
+    if (!fromLine) {
+      const check = validateLoadout(state.run, enc, items.map((p) => p.uid));
+      if (!check.ok) {
+        toast(check.reason || 'Check your supply', 'danger');
+        return;
+      }
     }
     const game = buildFight(state.run, enc, placements);
     if (state.run.king !== 'sentinel' && game.kingAttacked(BLACK)) {

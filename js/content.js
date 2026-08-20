@@ -1811,6 +1811,33 @@ export function freeHomeSquares(encounter) {
     .filter((sq) => !blocked.has(sq) && !taken.has(sq));
 }
 
+/**
+ * Every empty square a friendly piece can stand on at the start, home ranks
+ * first, then toward the enemy. A wide line of march still has somewhere to
+ * land on a 6-file field.
+ */
+export function deploySeats(encounter) {
+  const blocked = new Set();
+  if (encounter.terrain) {
+    for (const [name, tile] of Object.entries(encounter.terrain)) {
+      if (tile === TILE.BLOCK) blocked.add(parseSquare(name, encounter.ranks));
+    }
+  }
+  const taken = new Set(
+    (encounter.enemy || []).map((p) => parseSquare(p.at, encounter.ranks)),
+  );
+  const seats = [];
+  for (let back = 0; back < encounter.ranks; back++) {
+    const r = encounter.ranks - 1 - back;
+    for (let f = 0; f < encounter.files; f++) {
+      const sq = r * 16 + f;
+      if (blocked.has(sq) || taken.has(sq)) continue;
+      seats.push(sq);
+    }
+  }
+  return seats;
+}
+
 export function weightedPiece(rng, allowed, act = 1) {
   const weights = SHOP_WEIGHTS[act] || SHOP_WEIGHTS[1];
   const pool = shopPool().filter((p) => !allowed || allowed.has(p.rarity));

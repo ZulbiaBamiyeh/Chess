@@ -10,7 +10,7 @@ import {
   FORAGE_GOLD, TRAIN_COST,
   TURN_CLOCK, CLOCK_WARN, CLOCK_PANIC, THEME_DROPS, SPOIL_GOLD, SPOIL_PIECE_WEIGHT,
   generateMap, findNode, encounterFor, firstRooms, freeHomeSquares, homeSquares,
-  weightedPiece,
+  deploySeats, weightedPiece,
 } from './content.js';
 
 let nextUid = 1;
@@ -983,7 +983,8 @@ export function pruneFormation(run) {
 
 /**
  * Stamp one file-shift of the saved line onto this encounter's home ranks.
- * `shift` is added to every file; pieces that still miss the board are dropped.
+ * `shift` is added to every file. Pieces that miss this shift are left out
+ * of the return so the caller can seat them on leftover squares.
  */
 function stampLine(run, encounter, shift) {
   const files = encounter.files;
@@ -1008,11 +1009,15 @@ function stampLine(run, encounter, shift) {
   return mapped;
 }
 
+function pieceTypeInLine(run, p) {
+  return p.uid === 'king' ? 'k' : run.bag.find((b) => b.uid === p.uid)?.type;
+}
+
 /**
- * Stamp the saved line of march onto this encounter's home ranks. If the
- * line hangs off a narrower field, slide it left or right (the smallest
- * shift that keeps the king and as much of the army as possible) instead
- * of dropping whoever sat on the a- or h-file.
+ * Stamp the saved line of march onto this encounter. A narrower field slides
+ * left or right to keep the shape; anyone who still has no square is seated
+ * on the next free rank toward the enemy. The line is the army — supply and
+ * deploy caps do not strip it.
  */
 export function placementsFromFormation(run, encounter) {
   ensureFormation(run);
@@ -1027,18 +1032,23 @@ export function placementsFromFormation(run, encounter) {
     best = mapped;
     if (mapped.length === wanted) break;
   }
+  const seats = deploySeats(encounter);
   if (!best.some((p) => p.uid === 'king')) {
-    const homes = freeHomeSquares(encounter);
-    if (homes[0] != null) best = [{ uid: 'king', type: 'k', sq: homes[0] }];
+    if (seats[0] != null) best = [{ uid: 'king', type: 'k', sq: seats[0] }];
   }
-  const king = best.find((p) => p.uid === 'king');
-  let items = best.filter((p) => p.uid !== 'king');
-  while (items.length && !validateLoadout(run, encounter, items.map((i) => i.uid)).ok) {
-    items.sort((a, b) => (a.sq >> 4) - (b.sq >> 4) || (a.sq & 15) - (b.sq & 15));
-    items.shift();
+  const have = new Set(best.map((p) => p.uid));
+  const used = new Set(best.map((p) => p.sq));
+  for (const p of run.formation) {
+    if (have.has(p.uid)) continue;
+    const type = pieceTypeInLine(run, p);
+    if (!type) continue;
+    const dest = seats.find((sq) => !used.has(sq));
+    if (dest == null) continue;
+    used.add(dest);
+    have.add(p.uid);
+    best.push({ uid: p.uid, type, sq: dest });
   }
-  const placements = king ? [king, ...items] : items;
-  return legalizeSetup(run, encounter, placements);
+  return legalizeSetup(run, encounter, best);
 }
 
 function legalizeSetup(run, encounter, placements) {
@@ -1079,7 +1089,7 @@ function legalizeSetup(run, encounter, placements) {
 }
 
 export function autoPlace(encounter, selectedItems) {
-  const free = freeHomeSquares(encounter);
+  const free = deploySeats(encounter);
   const withKing = [{ uid: 'king', type: 'k' }, ...selectedItems];
   const placements = [];
   for (let i = 0; i < withKing.length && i < free.length; i++) {

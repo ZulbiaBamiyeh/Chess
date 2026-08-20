@@ -76,6 +76,43 @@ const alley = ENCOUNTERS.alley;
 }
 
 {
+  // A line that is wider than the field still arrives in full — extras sit
+  // on the next free square rather than being left behind.
+  const run = createRun(1);
+  const pawns = run.bag.filter((p) => p.type === 'p');
+  run.formation = [
+    { uid: 'king', type: 'k', sq: 7 * 16 + 7 },
+    { uid: pawns[0].uid, type: 'p', sq: 6 * 16 + 0 },
+    { uid: pawns[1].uid, type: 'p', sq: 6 * 16 + 7 },
+    { uid: pawns[2].uid, type: 'p', sq: 6 * 16 + 6 },
+  ];
+  const mapped = placementsFromFormation(run, gate);
+  const ids = new Set(mapped.map((p) => p.uid));
+  assert('every piece in the line reaches a 6-file field',
+    ids.has('king') && ids.has(pawns[0].uid) && ids.has(pawns[1].uid) && ids.has(pawns[2].uid)
+    && mapped.every((p) => (p.sq & 15) < 6),
+    JSON.stringify(mapped));
+}
+
+{
+  // The saved line is the army. A fight's supply and deploy caps do not
+  // strip it down before the first ply.
+  const run = createRun(1);
+  addToBag(run, 'q');
+  const queen = run.bag.find((p) => p.type === 'q');
+  const pawns = run.bag.filter((p) => p.type === 'p');
+  run.formation = [
+    { uid: 'king', type: 'k', sq: 7 * 16 + 4 },
+    { uid: queen.uid, type: 'q', sq: 7 * 16 + 0 },
+    ...pawns.map((p, i) => ({ uid: p.uid, type: 'p', sq: 6 * 16 + (1 + i) })),
+  ];
+  const mapped = placementsFromFormation(run, gate);
+  assert('the line is not trimmed to the fight\'s supply',
+    mapped.some((p) => p.type === 'q') && mapped.length === 5,
+    JSON.stringify({ mapped, supply: gate.supply, cost: mapped.filter((p) => p.uid !== 'king').map((p) => p.type) }));
+}
+
+{
   // A rook staring up the enemy king's file would open in check — the mapper
   // has to break that line rather than let the fight start illegal.
   const run = createRun(1);
