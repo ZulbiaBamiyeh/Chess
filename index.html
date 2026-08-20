@@ -42,6 +42,7 @@
 
     <div class="menu-buttons">
       <button id="btn-embark" class="btn btn-gold btn-big">EMBARK</button>
+      <button id="btn-voyage" class="btn btn-ghost" type="button">The Open World</button>
       <button id="btn-classic" class="btn btn-ghost">Classic chess</button>
       <button id="btn-sandbox" class="btn btn-ghost" type="button">Sandbox</button>
       <button id="btn-howto" class="btn btn-ghost">How to Play</button>
@@ -235,6 +236,39 @@
       <div id="promotion-picker" class="promotion-picker"></div>
     </div>
   </div>
+
+  <!-- ===================== MAP (THE OLD ROAD) ===================== -->
+  <section id="screen-map" class="screen hidden">
+    <header class="topbar map-top">
+      <span class="brand">GAM<span class="title-knight">♞</span>BIT</span>
+      <div class="run-hud">
+        <button id="map-king" class="hud-chip hud-king" type="button" title="Active king">
+          <i id="map-king-art"></i><span id="map-king-name">Plain King</span>
+        </button>
+        <span id="map-hp" class="hud-chip hud-hp"><svg class="chip-ico"><use href="#icon-heart"></use></svg><span class="chip-num">0/0</span></span>
+        <span id="map-gold" class="hud-chip hud-gold"><svg class="chip-ico"><use href="#icon-coin"></use></svg><span class="chip-num">0g</span></span>
+        <span id="map-relics" class="relic-tray hidden"></span>
+        <span id="map-supply" class="hud-chip hud-army">Supply +0</span>
+      </div>
+      <div class="topbar-controls">
+        <button id="btn-map-bag" class="btn btn-ghost btn-bag" title="Open the bag">Bag</button>
+        <button id="btn-map-quit" class="icon-btn" title="Abandon the run">✕</button>
+      </div>
+    </header>
+    <div id="map-stage" class="map-stage">
+      <div id="map-scroll" class="map-scroll">
+        <div id="map-art" class="map-art act-0"></div>
+        <div class="map-fog"></div>
+        <p id="map-act-label" class="map-act-label">ACT I</p>
+        <div id="map-climb" class="map-climb"></div>
+      </div>
+      <p id="map-blurb" class="map-blurb"></p>
+    </div>
+    <div id="map-guard-note" class="map-guard-note hidden">
+      <p>You can't deploy with their king already in check — get your pieces onto the board first, then go looking for the opening.</p>
+      <button id="btn-map-guard-note-close" class="btn btn-ghost">Got It</button>
+    </div>
+  </section>
 
   <!-- ===================== OVERWORLD ===================== -->
   <section id="screen-overworld" class="screen hidden">

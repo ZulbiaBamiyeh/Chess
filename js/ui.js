@@ -199,12 +199,6 @@ export class BoardView {
   syncStatuses(game) {
     for (const [sq, el] of this.pieceEls) {
       this.applyStatus(el, game.statusAt(sq));
-      // A guarded king cannot be taken, so the player has to be able to see
-      // that at a glance — otherwise the rule reads as "my move was rejected
-      // for no reason".
-      const piece = game.board[sq];
-      const guarded = Boolean(piece && piece.type === 'k' && game.kingGuarded?.(sq));
-      el.classList.toggle('guarded', guarded);
     }
     this.paintTerrain(game);
   }

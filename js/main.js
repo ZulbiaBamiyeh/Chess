@@ -213,7 +213,9 @@ function reactTo(move) {
 
   if (state.mode === 'run') state.campaign.paintRunHud();
 
-  if (mate || (state.mode === 'run' && state.game.outcome().over && state.game.outcome().winner)) {
+  if (state.mode === 'run' && state.game.outcome().reason === 'opponent fled') {
+    setTimeout(() => { toast('THEY FLEE!', 'danger'); }, 160);
+  } else if (mate || (state.mode === 'run' && state.game.outcome().over && state.game.outcome().winner)) {
     setTimeout(() => { shake(2); state.background?.pulse(); }, 160);
   } else if (inCheck) {
     setTimeout(() => {
@@ -402,12 +404,6 @@ function onAttemptMove(from, to) {
   if (options.length === 0) {
     audio.illegal();
     state.view.reject(to);
-    // Say why, when the reason is a rule the player has just met. A capture
-    // that looks legal and is silently refused reads as a bug.
-    const target = state.game.board[to];
-    if (target && target.type === 'k' && state.game.kingGuarded(to)) {
-      toast('Their king is guarded', 'danger');
-    }
     return;
   }
   if (options[0].promotion) {
@@ -652,6 +648,12 @@ function init() {
   $('btn-sandbox')?.addEventListener('click', () => sandbox?.open());
 
   $('btn-embark').addEventListener('click', async () => {
+    await audio.resume();
+    if (state.settings.music) audio.startMusic();
+    state.campaign.startRun();
+  });
+
+  $('btn-voyage')?.addEventListener('click', async () => {
     await audio.resume();
     if (state.settings.music) audio.startMusic();
     state.voyage.start();

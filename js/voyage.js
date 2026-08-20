@@ -5,7 +5,6 @@ import { WHITE } from './chess.js';
 import { pieceById } from './pieces.js';
 import { pieceImage, kingSkin, kingHue, pieceHue, toast, tip } from './ui.js';
 import { createVoyageRun, addToBag, removeFromBag, bagSummary } from './run.js';
-import { RELICS } from './relics.js';
 import { EVENTS, kingDef } from './content.js';
 import {
   generateWorld, generateTown, playerMoves, movePlayer, clashEncounter, bagMaterial,
@@ -52,13 +51,6 @@ const OW_ICON = {
     '<path d="M13 10c0-2 1.3-3.4 3-3.4s3 1.4 3 3.4" fill="none" stroke="#c9a24a" stroke-width="1.6"/>'
     + '<path d="M11 11h10l2.4 12.6a2 2 0 0 1-2 2.4H10.6a2 2 0 0 1-2-2.4z" fill="rgba(120,80,30,0.9)" stroke="#e0b84f" stroke-width="1.8"/>'
     + '<text x="16" y="22" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="13" fill="#ffd76a">$</text>'),
-  loot: owBadge('#ffcf3f', 'rgba(42,28,14,0.92)',
-    '<path d="M8 14a8 6 0 0 1 16 0" fill="none" stroke="#ffcf3f" stroke-width="2"/>'
-    + '<rect x="8" y="14" width="16" height="9" rx="1.5" fill="rgba(255,207,63,0.14)" stroke="#ffcf3f" stroke-width="2"/>'
-    + '<circle cx="16" cy="18.3" r="1.7" fill="#ffcf3f"/>'),
-  skull: owBadge('#ff5470', 'rgba(42,16,20,0.92)',
-    '<path d="M16 8c-4.4 0-7.5 3.2-7.5 7.3 0 2.9 1.5 4.9 3 6.1v2.4h2.2v-2h4.6v2h2.2v-2.4c1.5-1.2 3-3.2 3-6.1C23.5 11.2 20.4 8 16 8z" fill="none" stroke="#ff5470" stroke-width="2" stroke-linejoin="round"/>'
-    + '<circle cx="12.6" cy="15.2" r="1.6" fill="#ff5470"/><circle cx="19.4" cy="15.2" r="1.6" fill="#ff5470"/>'),
 };
 
 // Town NPCs stand in for roles with no bespoke art of their own yet, borrowing
@@ -170,11 +162,6 @@ export function initVoyage(ctx) {
         toast(`${state.encounter?.name || 'They'} fall. The ramp is open.`, 'good');
         climbRamp();
         return;
-      }
-      if (cell?.poi === 'loot' && cell.loot) {
-        takeLoot(cell.loot);
-        cell.loot = null;
-        cell.poi = null;
       }
     }
     show();
@@ -330,9 +317,6 @@ export function initVoyage(ctx) {
             sq.insertAdjacentHTML('beforeend', `<i class="ow-loot ow-event">${OW_ICON.event}</i>`);
           } else if (cell.poi === 'exit') {
             sq.classList.add('ow-exit');
-          } else if (cell.poi === 'loot') {
-            const skull = cell.loot?.skull;
-            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot${skull ? ' skull' : ''}">${skull ? OW_ICON.skull : OW_ICON.loot}</i>`);
           }
         }
 
@@ -576,14 +560,6 @@ export function initVoyage(ctx) {
       centerOnPlayer();
       return;
     }
-    if (event.type === 'loot') {
-      takeLoot(event.loot);
-      paintBoard();
-      paintBlurb();
-      campaign.paintRunHud();
-      centerOnPlayer();
-      return;
-    }
     if (event.type === 'ramp') {
       climbRamp();
       return;
@@ -609,25 +585,6 @@ export function initVoyage(ctx) {
     paintBoard();
     paintBlurb();
     centerOnPlayer();
-  }
-
-  function takeLoot(loot) {
-    if (!loot) return;
-    state.run.gold += loot.gold || 0;
-    let line = loot.skull ? `A skull cache. +${loot.gold}g` : `A cache. +${loot.gold}g`;
-    if (loot.piece) {
-      const added = addToBag(state.run, loot.piece);
-      const def = pieceById(loot.piece);
-      line += added
-        ? `. A ${def?.name || loot.piece} joins the bag.`
-        : `. A ${def?.name || loot.piece} — no slot, left behind.`;
-    }
-    if (loot.relic && !state.run.relics.includes(loot.relic)) {
-      state.run.relics.push(loot.relic);
-      line += ` Relic: ${RELICS[loot.relic]?.name || loot.relic}.`;
-    }
-    toast(line, loot.skull ? 'danger' : 'good');
-    audio.victory();
   }
 
   function enterTown(event) {

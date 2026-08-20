@@ -231,17 +231,6 @@ export function rulesFor(run) {
     kingCapture: true,
     castling: false,
     royalLeaps: null,
-    // BLACK only — the enemy king needs an escort or a rook on an open line
-    // wins the fight on the first ply (the bug this rule exists to fix).
-    // The player's own king does not: a free guard made it as safe to push
-    // forward as to keep it home, and left the Aegis king's shield with
-    // nothing to do (the guard always spent itself first). Now Aegis is the
-    // only thing standing between a pushed king and a lost run.
-    //
-    // Sentinel opts back in: it is a purchase, not the default, so a player
-    // who wants the escort back — instead of Aegis's unconditional block —
-    // can choose it, and the two remain genuinely different kings.
-    royalGuard: run.king === 'sentinel' ? true : BLACK,
     // Duck Chess is normally its own encounter-level rule (see the pond and
     // flock rooms); the Duck king just turns it on everywhere, for both
     // sides, the way any other duckChess room already works.
@@ -392,6 +381,10 @@ export function turnClock(encounter, run = null) {
 export function settleFight(run, game, encounter, { forfeit = false, timeout = false, clockLeft = 0 } = {}) {
   const outcome = game.outcome();
   const won = !forfeit && !timeout && outcome.over && outcome.winner === WHITE;
+  // Neither side could ever finish the other off, and the player was clearly
+  // ahead — the opponent breaks and runs. It still counts as won for the
+  // purposes of moving the run along, but nothing was actually earned.
+  const fled = won && outcome.reason === 'opponent fled';
   const army = remainingArmy(game, WHITE);
   const maxArmy = startingArmy(run);
   const tier = encounter.tier || (encounter.boss ? 'boss' : 'trash');
@@ -405,7 +398,10 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
   const lost = Math.max(0, (run.deployed || []).length - countDeployedSurvivors(game, run));
   let martyrGold = 0;
 
-  if (won) {
+  if (won && fled) {
+    // No gold, no drop, no relic, no heal — a fight that ended because it
+    // could never be finished isn't a fight that pays out.
+  } else if (won) {
     // Paying full army value in gold, plus an uncapped turns-remaining speed
     // bonus, meant a player who actually plays well earned far more than any
     // shop asked for — simulating a fast clean act 1 (win every room in ~40%
@@ -466,6 +462,7 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
 
   run.lastReward = {
     won,
+    fled,
     forfeit,
     timeout,
     reason: timeout ? 'too slow' : forfeit ? 'forfeit' : outcome.reason,
@@ -478,7 +475,7 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
     martyrGold,
     hpLost,
     relicChoices: run.pendingRelics || [],
-    healed: won ? relics.healPerFight : 0,
+    healed: won && !fled ? relics.healPerFight : 0,
     secondWind: Boolean(run.survived),
   };
   run.survived = false;

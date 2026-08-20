@@ -1,5 +1,6 @@
 // Chess-Vania overworld: a tall branching board, fog of war, roaming packs,
-// shops, villages, greed pockets and a creeping decay that eats the south.
+// shops, villages, and a creeping decay that eats the south. Gold and pieces
+// come from winning fights, not from picking things up off the map.
 // Pure logic. voyage.js paints it; campaign.js still runs the fights.
 
 import { pieceById } from './pieces.js';
@@ -134,19 +135,6 @@ function setTerrain(world, file, rank, terrain) {
   cell.terrain = terrain;
 }
 
-/** Wall off every side of (f, r) except the one kept open, so it has exactly one entrance. */
-function sealApproach(world, f, r, keepF, keepR) {
-  for (const [df, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    const nf = f + df;
-    const nr = r + dr;
-    if (nf === keepF && nr === keepR) continue;
-    const cell = cellAt(world, nf, nr);
-    if (!cell || !WALKABLE.has(cell.terrain)) continue;
-    cell.terrain = TERRAIN.WALL;
-    cell.poi = null;
-  }
-}
-
 function carve(world, file, rank, radius = 0) {
   for (let dr = -radius; dr <= radius; dr++) {
     for (let df = -radius; df <= radius; df++) {
@@ -183,15 +171,6 @@ function themeFor(biome) {
   if (biome === 'gate') return 'court';
   return 'court';
 }
-
-const LOOT_COMMON = ['p', 'f', 'w', 'n', 'b'];
-const LOOT_RARE = ['c', 'h', 'g', 'r', 'i', 'l', 'd', 'x', 'v', 'squirrel'];
-const LOOT_EPIC = ['s', 't', 'm', 'y', 'crossbow', 'reaper', 'lodestone', 'q'];
-const LOOT_LEGEND = ['a', 'basilisk', 'colossus'];
-const RELIC_CACHE = [
-  'muster', 'cavalry', 'brand', 'deepfreeze', 'surgeon', 'secondwind',
-  'quiver', 'filings', 'ironcrown', 'prospector',
-];
 
 const ARCHETYPES = {
   levy: {
@@ -254,12 +233,6 @@ const ARCHETYPES = {
     roam: 'k', hunt: 5, stance: 'hostile',
     pool: ['r', 'q', 'h', 'n', 'b'],
   },
-  watch: {
-    names: ['A Hired Watch', 'Chest Wardens', 'Keepers of the Hole', 'A Quiet Guard'],
-    blurb: 'Paid to sit on a cache. They will not chase you, and they will not strike first.',
-    roam: 'k', hunt: 0, stance: 'docile',
-    pool: ['p', 'p', 'w', 'f', 'n'],
-  },
   caravan: {
     names: ['A Merchant Guard', 'Caravan Watch', 'A Toll Camp'],
     blurb: 'They hold a stretch of road, not a grudge. Walk around, or make it a fight.',
@@ -272,20 +245,13 @@ function pick(rng, list) {
   return list[Math.floor(rng() * list.length)];
 }
 
-function pickArchetype(biome, tier, danger, rng, role = 'road') {
+function pickArchetype(biome, tier, danger, rng) {
   if (tier === 'boss') {
     if (biome === 'frost') return 'frost';
     if (biome === 'peak') return 'pyre';
     return 'gate';
   }
-  if (role === 'cache') {
-    if (danger < 0.4) return 'watch';
-    const r = rng();
-    if (r < 0.68) return 'watch';
-    if (r < 0.86) return 'thieves';
-    return 'skull';
-  }
-  if (role === 'road' && danger < 0.55 && rng() < 0.14) return 'caravan';
+  if (danger < 0.55 && rng() < 0.14) return 'caravan';
   // The south is levy-and-pawns country. Scouts and thieves wait until the
   // board has actually climbed.
   if (danger < 0.4) return 'levy';
@@ -422,10 +388,6 @@ const ELITE_PERSONAS = {
     { name: 'Khan Ozgul', blurb: 'Rides at the front, because nobody else in his host is fast enough to stop him first.' },
     { name: 'The Tribute Rider', blurb: 'Collects what the road owes. The road, in her accounting, owes quite a lot.' },
   ],
-  watch: [
-    { name: 'Old Ferrin', blurb: 'Paid well enough not to ask what he is guarding, or why.' },
-    { name: 'The Idle Halberd', blurb: 'Has not drawn it in years. Would rather not start today.' },
-  ],
   thieves: [
     { name: 'Six-Finger Sal', blurb: 'Miscounted once, badly. The name stuck.' },
     { name: 'The Quiet Cutter', blurb: 'You will not hear her coming. That is rather the point.' },
@@ -457,8 +419,7 @@ function placePack(world, file, rank, power, tier, opts = {}) {
   if (occupier(world, file, rank)) return null;
   const biome = cell.biome;
   const danger = combinedDanger(world, file, rank);
-  const role = opts.role || 'road';
-  const arch = opts.arch || pickArchetype(biome, tier, danger, world.rng, role);
+  const arch = opts.arch || pickArchetype(biome, tier, danger, world.rng);
   const spec = ARCHETYPES[arch] || ARCHETYPES.levy;
   const stance = spec.stance || 'hostile';
   const persona = packPersona(arch, tier, world.rng);
@@ -466,7 +427,6 @@ function placePack(world, file, rank, power, tier, opts = {}) {
     id: `pack-${world.packs.length}`,
     file,
     rank,
-    role,
     roam: spec.roam,
     huntRange: stance === 'docile' ? 0 : spec.hunt,
     tier,
@@ -518,30 +478,6 @@ export function packCard(pack, playerMat) {
   };
 }
 
-function rollLoot(rng, danger, act) {
-  const gold = 5 + Math.floor(rng() * 5) + Math.floor(danger * (14 + act * 6));
-  const roll = rng();
-  let piece = null;
-  let relic = null;
-  if (danger > 0.78 && roll < 0.22) {
-    relic = pick(rng, RELIC_CACHE);
-  } else if (danger > 0.7 && roll < 0.38) {
-    piece = pick(rng, LOOT_LEGEND);
-  } else if (danger > 0.5 && roll < 0.55) {
-    piece = pick(rng, LOOT_EPIC);
-  } else if (danger > 0.28 && roll < 0.7) {
-    piece = pick(rng, roll < 0.35 ? LOOT_RARE : LOOT_COMMON);
-  } else if (roll < 0.75) {
-    piece = pick(rng, danger > 0.35 ? LOOT_RARE : LOOT_COMMON);
-  }
-  return {
-    gold,
-    piece,
-    relic,
-    skull: danger > 0.58 || Boolean(relic) || LOOT_EPIC.includes(piece) || LOOT_LEGEND.includes(piece),
-  };
-}
-
 function emptyFloor(world, pred) {
   const hits = [];
   for (let r = 0; r < world.ranks; r++) {
@@ -558,8 +494,9 @@ function emptyFloor(world, pred) {
 }
 
 /**
- * A tall strip with a northward spine and branching greed pockets.
- * Rank 0 is south (the start); high ranks are north (the ramp).
+ * A tall strip with a northward spine, branching side alleys, and the
+ * occasional dead end. Rank 0 is south (the start); high ranks are north
+ * (the ramp).
  */
 export function generateWorld(rng, act = 1) {
   const files = OW.FILES;
@@ -573,7 +510,6 @@ export function generateWorld(rng, act = 1) {
         terrain: TERRAIN.WALL,
         biome: biomeAt(r, ranks, biomeOrder),
         poi: null,
-        loot: null,
       });
     }
     cells.push(row);
@@ -602,7 +538,6 @@ export function generateWorld(rng, act = 1) {
   // choke down to a single file — you should not be able to walk around the gate.
   let x = Math.floor(files / 2);
   const spine = new Array(ranks);
-  const pockets = [];
   for (let y = 0; y < ranks; y++) {
     if (rng() < 0.42) x += rng() < 0.5 ? -1 : 1;
     x = Math.max(2, Math.min(files - 3, x));
@@ -610,38 +545,13 @@ export function generateWorld(rng, act = 1) {
     // A wider south so the opening is a glade, not a one-file trench.
     const wide = y > ranks - 9 ? 0 : (y < 12 ? 1 : (rng() < 0.5 ? 1 : 0));
     carve(world, x, y, wide);
-    if (y > 4 && y < ranks - 8 && rng() < 0.36) {
-      const dir = rng() < 0.5 ? -1 : 1;
-      const len = 4 + Math.floor(rng() * 5);
-      let bx = x;
-      let by = y;
-      // Where the loot ends up guarded from: the tile it was reached from,
-      // one step back along the pocket. A guard standing there is the only
-      // way in — the last stretch never widens, so there is no square
-      // beside them to slip past on.
-      let guardFile = x;
-      let guardRank = y;
-      for (let i = 0; i < len; i++) {
-        const fromF = bx;
-        const fromR = by;
-        bx += dir;
-        if (rng() < 0.35) by += 1;
-        if (bx < 1 || bx > files - 2 || by < 1 || by > ranks - 3) break;
-        const isLast = i === len - 1;
-        carve(world, bx, by, isLast ? 0 : (rng() < 0.3 ? 1 : 0));
-        guardFile = fromF;
-        guardRank = fromR;
-      }
-      pockets.push({ file: bx, rank: by, guardFile, guardRank, depth: len, mouth: y });
-    }
   }
   // Danger and pack placement key off distance from the spine, so it has to
   // exist on the world before anything downstream of it runs.
   world.spine = spine;
 
   // Short dead-end alleys, one tile wide, just off the spine — nothing but
-  // a wandering "?" waits at the end of one. Separate from the deeper greed
-  // pockets above: an event is a door off the road, not a resource pocket.
+  // a wandering "?" waits at the end of one.
   const alleys = [];
   for (let y = 5; y < ranks - 8; y++) {
     if (rng() >= 0.22) continue;
@@ -700,7 +610,6 @@ export function generateWorld(rng, act = 1) {
       if (WALKABLE.has(cell.terrain) && cell.poi !== 'ramp') {
         cell.terrain = rng() < 0.7 ? TERRAIN.CHASM : TERRAIN.WALL;
         cell.poi = null;
-        cell.loot = null;
       }
     }
   }
@@ -756,24 +665,6 @@ export function generateWorld(rng, act = 1) {
   // any two, so the road reads as a wilderness rather than a mob.
   const MIN_PACK_SPACING = 4;
 
-  // Greed nodes: every pocket end is a cache, and the deeper/later it is
-  // the more it pays — and the nastier the camp sitting on it. The guard
-  // stands on the one tile the loot is reached from, not on the loot
-  // itself, and every other side of it is sealed — so the cache is not
-  // reachable at all until that fight is actually won, not just an
-  // occupied square you could otherwise dance around.
-  for (const pocket of pockets) {
-    const cell = cellAt(world, pocket.file, pocket.rank);
-    if (!cell || !WALKABLE.has(cell.terrain) || cell.poi) continue;
-    const danger = Math.min(1, pocket.rank / ranks * 0.65 + pocket.depth / 10 * 0.45);
-    cell.poi = 'loot';
-    cell.loot = rollLoot(rng, danger, act);
-    sealApproach(world, pocket.file, pocket.rank, pocket.guardFile, pocket.guardRank);
-    const guardPower = packPower(world, pocket.guardFile, pocket.guardRank, act, rng);
-    const guardTier = danger > 0.7 ? 'elite' : danger > 0.52 ? 'elite' : 'trash';
-    placePack(world, pocket.guardFile, pocket.guardRank, guardPower, guardTier, { role: 'cache' });
-  }
-
   // Patrols, spread across the width rather than lined up on the spine —
   // clumped packs read as a crowd; spaced ones read as a wilderness you
   // actually have to watch for. Each checkpoint tries a handful of squares
@@ -797,7 +688,7 @@ export function generateWorld(rng, act = 1) {
       const t = combinedDanger(world, f, y);
       const power = packPower(world, f, y, act, rng);
       const tier = t > 0.82 ? 'elite' : t > 0.62 ? 'elite' : 'trash';
-      if (placePack(world, f, y, power, tier, { role: 'road' })) {
+      if (placePack(world, f, y, power, tier)) {
         used.add(key(f, y));
         placed = true;
       }
@@ -812,24 +703,6 @@ export function generateWorld(rng, act = 1) {
   world.bossSpot = { file: rampFile, rank: ranks - 2 };
   revealAround(world, rampFile, ranks - 2, 3);
 
-  let caches = 0;
-  for (let r = 0; r < ranks; r++) {
-    for (let f = 0; f < files; f++) {
-      if (cells[r][f].poi === 'loot') caches++;
-    }
-  }
-  if (caches < 3) {
-    const spots = emptyFloor(world, (_c, f, r) => r >= 8 && r < ranks - 4 && Math.abs(f - (spine[r] ?? x)) >= 2);
-    for (const s of spots) {
-      if (caches >= 4) break;
-      const danger = Math.max(0.4, s.rank / ranks);
-      s.cell.poi = 'loot';
-      s.cell.loot = rollLoot(rng, danger, act);
-      caches++;
-      placePack(world, s.file, s.rank, packPower(world, s.file, s.rank, act, rng), danger > 0.62 ? 'elite' : 'trash', { role: 'cache' });
-    }
-  }
-
   // Fill any thin maps so the road is never empty — still spread out, still
   // spaced from whatever is already standing.
   let extra = 0;
@@ -839,7 +712,7 @@ export function generateWorld(rng, act = 1) {
     if (used.has(key(f, y))) continue;
     if (chebyshev({ file: f, rank: y }, world.player) < 5) continue;
     if (!isWalkable(world, f, y) || !spacedOut(world, f, y, MIN_PACK_SPACING)) continue;
-    const placed = placePack(world, f, y, packPower(world, f, y, act, rng), y / ranks > 0.62 ? 'elite' : 'trash', { role: 'road' });
+    const placed = placePack(world, f, y, packPower(world, f, y, act, rng), y / ranks > 0.62 ? 'elite' : 'trash');
     if (placed) {
       used.add(key(f, y));
       extra++;
@@ -947,12 +820,6 @@ function applyPoi(world, file, rank) {
   if (cell.poi === 'event') { cell.poi = null; return { type: 'event' }; }
   if (cell.poi === 'exit') return { type: 'exit' };
   if (cell.poi === 'ramp') return { type: 'ramp' };
-  if (cell.poi === 'loot' && cell.loot) {
-    const loot = cell.loot;
-    cell.loot = null;
-    cell.poi = null;
-    return { type: 'loot', loot };
-  }
   return null;
 }
 
@@ -1152,7 +1019,6 @@ export function generateTown(rng, biome, act, name, leader = 'k') {
         terrain: southGate ? TERRAIN.FLOOR : (edge ? TERRAIN.WALL : TERRAIN.FLOOR),
         biome,
         poi: southGate ? 'exit' : null,
-        loot: null,
       });
     }
     cells.push(row);
@@ -1489,10 +1355,6 @@ export function clashEncounter(world, pack, run, aggressor) {
     theme: pack.theme,
     tier: pack.tier || 'trash',
     firstMover: aggressor === 'enemy' ? 'b' : 'w',
-    // Embark is already a hard enough road. The escort-soak that stops a
-    // first-ply king capture on the Old Road stays there; here the king dies
-    // if you can reach it.
-    rules: { royalGuard: false },
     ai: pack.tier === 'boss' ? { depth: 5, slip: 0, budget: 1400 }
       : pack.tier === 'elite' ? { depth: 4, slip: 0.04, budget: 800 }
       : { depth: 3, slip: 0.1, budget: 450 },

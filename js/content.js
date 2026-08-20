@@ -21,9 +21,8 @@ const REST_NAMES = [
   { name: 'The Last Mile Marker', blurb: 'Someone carved a name into it. Rest, forage, or train.' },
 ];
 // The clock only started ending fights in this pass (tickClock never used to
-// return true), and the Royal Guard means a fight is now "take the escort
-// apart, then the king" rather than one good move. Both push the numbers up:
-// these are meant to be felt on a slow, careful line, not on a normal one.
+// return true), which pushed the numbers up: these are meant to be felt on a
+// slow, careful line, not on a normal one.
 export const TURN_CLOCK = { trash: 24, elite: 30, boss: 38 };
 
 export const STARTING_BAG = ['p', 'p', 'p', 'n', 'f', 'w'];
@@ -92,8 +91,7 @@ export const KING_PASSIVES = {
   sentinel: {
     id: 'sentinel',
     name: 'Sentinel',
-    blurb: 'Your king gets the same escort the enemy king already has — a blow '
-      + 'meant for it falls on whoever stands beside it instead, once.',
+    blurb: 'You may deploy with their king already in check — everyone else has to leave it be.',
     cost: 7,
     sprite: 'king-sentinel',
   },

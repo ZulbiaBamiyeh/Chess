@@ -105,10 +105,7 @@ function world(seed = 1, act = 1) {
     }
   }
   assert(names.size >= 6, `band names ${[...names].join(', ')}`);
-  // Treasure is guarded almost always now, watches included, so docile no
-  // longer has to stay a minority the way it did when caches sometimes went
-  // unwatched — just confirm the wilderness still fields real hostiles too.
-  assert(docile > 0, 'some watches are docile');
+  assert(docile > 0, 'some caravans are docile');
   assert(hostile > 0, 'some packs are still hostile');
   const roster = packRoster([{ type: 'k' }, { type: 'p' }, { type: 'p' }, { type: 'n' }]);
   assert(roster.includes('King') && roster.includes('Pawn') && roster.includes('×2'), roster);
@@ -132,16 +129,19 @@ function world(seed = 1, act = 1) {
   const run = createVoyageRun(9);
   run.voyage = w;
   const enc = clashEncounter(w, south[0], run, 'player');
-  assert(enc.rules?.royalGuard === false, 'embark fights drop the enemy guard');
   const game = buildFight(run, enc, [{ uid: 'king', type: 'k', sq: 5 * 16 + 2 }]);
-  assert(!game.kingGuarded(game.kings.b), 'their king is not escorted');
-  console.log('PASS  the south is king-and-pawns, and their king has no guard');
+  assert(game.kings.b >= 0, 'the enemy king is on the board');
+  console.log('PASS  the south is king-and-pawns');
 }
 
 {
-  const w = world(7);
-  const guard = w.packs.find((p) => p.stance === 'docile');
-  assert(guard, 'a docile pack exists');
+  let w = null;
+  let guard = null;
+  for (let seed = 0; seed < 60 && !guard; seed++) {
+    w = world(seed);
+    guard = w.packs.find((p) => p.stance === 'docile');
+  }
+  assert(guard, 'a docile pack exists across 60 seeds');
   for (const p of w.packs) if (p !== guard) p.dead = true;
   w.player.file = Math.max(0, guard.file - 1);
   w.player.rank = guard.rank;
@@ -374,21 +374,16 @@ function pawnLaneOpen(enc) {
 }
 
 {
-  const rare = new Set(['c', 'h', 'g', 'r', 'i', 'l', 'd', 'x', 'v', 'squirrel',
-    's', 't', 'm', 'y', 'crossbow', 'reaper', 'lodestone', 'q', 'a', 'basilisk', 'colossus']);
   let blocked = 0;
-  let prizes = 0;
   let bosses = 0;
   let kinds = new Set();
   for (const seed of [1, 2, 7, 9, 11, 13, 21, 42]) {
     const w = world(seed);
     const ramp = [];
-    const loot = [];
     for (let r = 0; r < w.ranks; r++) {
       for (let f = 0; f < w.files; f++) {
         const c = w.cells[r][f];
         if (c.poi === 'ramp') ramp.push({ f, r });
-        if (c.loot && (c.loot.skull || rare.has(c.loot.piece) || c.loot.relic)) prizes++;
       }
     }
     assert(ramp.length === 1, `ramp seed ${seed}`);
@@ -419,10 +414,9 @@ function pawnLaneOpen(enc) {
     if (!reach) blocked++;
   }
   assert(bosses >= 6, `gate bosses ${bosses}/8`);
-  assert(prizes >= 6, `wildy prizes ${prizes}`);
   assert(blocked >= 6, `must fight to leave ${blocked}/8`);
   assert(kinds.size >= 4, `archetypes ${[...kinds].join(',')}`);
-  console.log('PASS  act 1 is gated, scavenged, and not a free walk north');
+  console.log('PASS  act 1 is gated and not a free walk north');
 }
 
 {
@@ -519,15 +513,11 @@ function pawnLaneOpen(enc) {
 {
   // Packs should read as a spread wilderness, not a crowd — nothing placed
   // closer than the minimum spacing to anything else, across many seeds.
-  // Cache guards are exempt: a treasure guard always gets placed now, even
-  // if that lands it closer than usual to another pack, because an
-  // unguarded cache is worse than a slightly tighter map.
   let worst = Infinity;
   for (let seed = 0; seed < 40; seed++) {
     const w = world(seed);
     for (let i = 0; i < w.packs.length; i++) {
       for (let j = i + 1; j < w.packs.length; j++) {
-        if (w.packs[i].role === 'cache' || w.packs[j].role === 'cache') continue;
         const d = chebyshev(w.packs[i], w.packs[j]);
         if (d < worst) worst = d;
       }
@@ -594,38 +584,6 @@ function pawnLaneOpen(enc) {
   assert(bossPersonal === bossTotal, `some bosses got a generic name: ${bossPersonal}/${bossTotal}`);
   assert(elitePersonal === eliteTotal, `some elites got a generic name: ${elitePersonal}/${eliteTotal}`);
   console.log('PASS  bosses and elites are named individuals');
-}
-
-{
-  // Guarded treasure should not be reachable except through the guard: a
-  // pocket-cache loot square with exactly one open side should have a live
-  // pack standing on that one side, and nowhere else to get in from.
-  const walkableTerrains = new Set([TERRAIN.FLOOR, TERRAIN.FROST, TERRAIN.EMBER, TERRAIN.FORT, TERRAIN.RAMP]);
-  let sealedCaches = 0;
-  let guardedSealedCaches = 0;
-  for (let seed = 0; seed < 40; seed++) {
-    const w = world(seed);
-    for (let r = 0; r < w.ranks; r++) {
-      for (let f = 0; f < w.files; f++) {
-        if (w.cells[r][f].poi !== 'loot') continue;
-        const open = [[1, 0], [-1, 0], [0, 1], [0, -1]]
-          .map(([df, dr]) => ({ f: f + df, r: r + dr }))
-          .filter(({ f: nf, r: nr }) => {
-            const c = w.cells[nr]?.[nf];
-            return c && walkableTerrains.has(c.terrain);
-          });
-        if (open.length !== 1) continue; // not a sealed-approach cache (e.g. the open-floor fallback)
-        sealedCaches++;
-        const guardSpot = open[0];
-        const guard = w.packs.find((p) => !p.dead && p.file === guardSpot.f && p.rank === guardSpot.r);
-        if (guard) guardedSealedCaches++;
-      }
-    }
-  }
-  assert(sealedCaches >= 10, `too few sealed caches to judge: ${sealedCaches}`);
-  assert(guardedSealedCaches === sealedCaches,
-    `${sealedCaches - guardedSealedCaches}/${sealedCaches} sealed caches had no guard on their one entrance`);
-  console.log('PASS  guarded treasure has exactly one way in, and a guard stands on it');
 }
 
 console.log('\nOverworld clean.');

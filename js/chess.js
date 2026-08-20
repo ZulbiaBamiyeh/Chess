@@ -41,8 +41,6 @@ export const FLAG = {
   SHOOT: 512,
   /** Two friendly pieces trade squares. No capture. */
   SWAP: 1024,
-  /** A blow aimed at a king that an escort died to absorb. */
-  GUARD_FALLS: 2048,
 };
 
 export const TILE = {
@@ -64,6 +62,10 @@ export const TILE_ID = {
 
 export const ST_FROZEN = 1;
 export const ST_SHIELD = 2;
+
+// How far ahead on army value the player must be, in a dead king-capture
+// position, before the opponent flees instead of the fight ending unresolved.
+const SUFFICIENT_MATERIAL_EDGE = 3;
 
 const KNIGHT_OFFSETS = [-18, -33, -31, -14, 18, 33, 31, 14];
 const KING_OFFSETS = [-17, -16, -15, -1, 1, 15, 16, 17];
@@ -123,7 +125,6 @@ export function defaultRules() {
     castling: true,
     royalLeaps: null,
     duckChess: false,
-    royalGuard: false,
   };
 }
 
@@ -556,61 +557,6 @@ export class Chess {
     return false;
   }
 
-  /**
-   * A blow aimed at a guarded king kills a guard instead — he does not die
-   * while someone is standing next to him to die for him.
-   *
-   * Without any rule here the whole game was one move long: you deploy knowing
-   * exactly where their king stands, so any slider dropped on an open line to
-   * it won on the first ply, in 76 of the 78 encounters in the book.
-   *
-   * The first attempt at a fix simply forbade the capture while a guard stood
-   * there. That version did not terminate: the king shuffles along its own
-   * line and always finds another neighbour, so taking it required killing the
-   * entire army first. Measured over eight act-1 rooms it produced zero wins —
-   * three losses and four fights that ran out the clock untouched.
-   *
-   * Spending the guard fixes that. Escorts are a finite resource, so a fight
-   * always ends, but a king with three friends around it costs four blows
-   * instead of one — which is the part that wants an army rather than one
-   * well-placed piece.
-   *
-   * Two pieces deliberately cannot be spent as guards:
-   *  - anything uncapturable, or a Drake parked next to a king would soak
-   *    every blow forever and we are back to a fight that cannot end;
-   *  - anything frozen, which is what gives frost its answer to a dug-in king.
-   *
-   * `rules.royalGuard` names which side it protects — `true` for both,
-   * `WHITE`/`BLACK` for one. The run only ever guards BLACK: guarding both
-   * meant the player's own king was just as safe as the enemy's for free,
-   * which made pushing it forward costless and made the Aegis king's own
-   * shield redundant (it never got the chance to matter — the free guard
-   * absorbed the blow first). The enemy still needs it, or the original bug
-   * this rule exists for — a king taken on the first ply — comes right back.
-   */
-  guardFor(sq) {
-    const king = this.board[sq];
-    if (!king) return -1;
-    const rule = this.rules.royalGuard;
-    if (!rule || (rule !== true && rule !== king.color)) return -1;
-    for (const off of KING_OFFSETS) {
-      const n = sq + off;
-      if (!this.inBounds(n)) continue;
-      const friend = this.board[n];
-      if (!friend || friend.color !== king.color) continue;
-      if (friend.type === KING) continue;
-      if (PIECES[friend.type]?.uncapturable) continue;
-      if (this.status[n] & ST_FROZEN) continue;
-      return n;
-    }
-    return -1;
-  }
-
-  /** True while a blow aimed at this king would be soaked by an escort. */
-  kingGuarded(sq) {
-    return this.guardFor(sq) >= 0;
-  }
-
   /** True when a friendly banner stands next to `sq`, lending it a king step. */
   auraAt(sq, color) {
     // Phalanx widens the banner's reach to everything within two squares,
@@ -919,19 +865,6 @@ export class Chess {
       }
       if (PIECES[mover.type]?.cannotCapture) return false;
       if (PIECES[target.type]?.uncapturable) return false;
-      if (target.type === KING) {
-        // An escort throws itself in the way. The attacker stays where it is,
-        // so this is a blow struck at range rather than a square won.
-        const guard = this.guardFor(to);
-        if (guard >= 0) {
-          out.push({
-            from, to, color: us, piece: mover.type,
-            captured: board[guard].type, promotion: null,
-            flags: FLAG.GUARD_FALLS, rebound: -1, guard,
-          });
-          return false;
-        }
-      }
       if (target.color === us) {
         // A courier is not blocked by its own side — it trades places with it.
         // That turns a friendly body from an obstacle into a tool: haul a slow
@@ -1024,18 +957,6 @@ export class Chess {
           const target = board[to];
           if (!target || target.color === us) continue;
           if (PIECES[target.type]?.uncapturable) continue;
-          // A shot is a blow like any other: an escort soaks it.
-          if (target.type === KING) {
-            const guard = this.guardFor(to);
-            if (guard >= 0) {
-              out.push({
-                from, to, color: us, piece: piece.type,
-                captured: board[guard].type, promotion: null,
-                flags: FLAG.GUARD_FALLS | FLAG.SHOOT, rebound: -1, guard,
-              });
-              continue;
-            }
-          }
           if (this.status[to] & ST_SHIELD) {
             const rebound = this.findRebound(to, from);
             out.push({
@@ -1213,21 +1134,10 @@ export class Chess {
       extra.thawed = thawed;
     }
 
-    const guardFalls = Boolean(move.flags & FLAG.GUARD_FALLS);
-    const shooting = Boolean(move.flags & FLAG.SHOOT) && !guardFalls;
+    const shooting = Boolean(move.flags & FLAG.SHOOT);
     const swapping = Boolean(move.flags & FLAG.SWAP);
     const moving = board[move.from];
-    if (guardFalls) {
-      // The escort dies where it stood; the king and the attacker both stay.
-      const sq = move.guard;
-      if (extra) {
-        extra.guardSq = sq;
-        extra.guardPiece = board[sq];
-        extra.guardStatus = this.status[sq];
-      }
-      board[sq] = null;
-      this.status[sq] = 0;
-    } else if (shooting) {
+    if (shooting) {
       // The shooter never leaves its square: the victim simply stops existing.
       // Everything below that keys off "the mover is now on `to`" has to be
       // skipped, which is why the dest-effect block is guarded too.
@@ -1314,7 +1224,7 @@ export class Chess {
       ? move.from + (us === WHITE ? -16 : 16)
       : -1;
 
-    if (extra && !shooting && !guardFalls) {
+    if (extra && !shooting) {
       const dest = move.to;
       if (this.terrain[dest] === TILE.FROST && !this.freezeImmune(board[dest])) {
         this.markFrozen(dest);
@@ -1525,7 +1435,7 @@ export class Chess {
     if (extra && this.bossScript) this.envTick(extra);
 
     this.halfMoves = (move.piece === PAWN
-      || (move.flags & (FLAG.CAPTURE | FLAG.EP_CAPTURE | FLAG.GUARD_FALLS)))
+      || (move.flags & (FLAG.CAPTURE | FLAG.EP_CAPTURE)))
       ? 0
       : this.halfMoves + 1;
     if (us === BLACK) this.moveNumber++;
@@ -1747,13 +1657,7 @@ export class Chess {
         this.status[extra.iced[i]] = extra.iced[i + 1];
       }
     }
-    if (move.flags & FLAG.GUARD_FALLS) {
-      // Nobody moved; only the escort needs standing back up.
-      if (extra?.guardPiece) {
-        board[extra.guardSq] = extra.guardPiece;
-        this.status[extra.guardSq] = extra.guardStatus;
-      }
-    } else if (move.flags & FLAG.SHOOT) {
+    if (move.flags & FLAG.SHOOT) {
       // The shooter never left `from`, so there is nothing to walk back —
       // only the victim below needs putting back on its square.
     } else if (move.flags & FLAG.SWAP) {
@@ -1785,7 +1689,7 @@ export class Chess {
     }
 
     if (!(extra?.wispCapturer || extra?.burned)
-      && !(move.flags & (FLAG.SWAP | FLAG.GUARD_FALLS))) {
+      && !(move.flags & FLAG.SWAP)) {
       if (move.flags & FLAG.EP_CAPTURE) {
         board[move.to + (us === WHITE ? 16 : -16)] = { type: PAWN, color: swap(us) };
       } else if (move.captured && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved)) {
@@ -1909,8 +1813,7 @@ export class Chess {
       }
       // A shot is written `@` — it takes without going anywhere. A swap is
       // written `<>`, because neither square is being won or lost.
-      if (move.flags & FLAG.GUARD_FALLS) san += '\u2020';
-      else if (move.flags & FLAG.SHOOT) san += '@';
+      if (move.flags & FLAG.SHOOT) san += '@';
       else if (move.flags & FLAG.SWAP) san += '<>';
       else if (move.flags & (FLAG.CAPTURE | FLAG.SHIELD_BREAK)) san += 'x';
     }
@@ -2043,7 +1946,18 @@ export class Chess {
       if (this.moves().length === 0) {
         return { over: true, winner: swap(this.turn), reason: 'no moves' };
       }
-      if (!this.canTakeKing(WHITE)) {
+      const whiteCan = this.canTakeKing(WHITE);
+      if (!whiteCan && !this.canTakeKing(BLACK)) {
+        // A dead position: neither side can ever force a king capture. If
+        // the player is clearly ahead on material, the fight was never
+        // really a contest — the opponent flees instead of the two of you
+        // shuffling toward a draw. No real win, so this earns no loot.
+        if (this.armyValue(WHITE) >= this.armyValue(BLACK) + SUFFICIENT_MATERIAL_EDGE) {
+          return { over: true, winner: WHITE, reason: 'opponent fled' };
+        }
+        return { over: true, winner: BLACK, reason: 'unwinnable' };
+      }
+      if (!whiteCan) {
         return { over: true, winner: BLACK, reason: 'unwinnable' };
       }
       if (this.isThreefoldRepetition() || this.isFiftyMoveDraw()) {

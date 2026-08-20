@@ -1442,6 +1442,231 @@ kbd {
   background: var(--chip);
   border: 1px solid var(--line);
 }
+#screen-map {
+  justify-content: flex-start;
+  padding-top: 0.4rem;
+  background: #120c08;
+}
+.map-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: min(100%, 560px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #1a120c;
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.55);
+}
+.map-guard-note {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: min(100%, 560px);
+  margin: 0.5rem 0 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: 6px;
+  background: rgba(20, 12, 8, 0.9);
+  border: 1px solid var(--gold);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+}
+.map-guard-note p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #e8dcc0;
+}
+.map-guard-note .btn { flex: none; }
+.map-scroll {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: auto;
+}
+.map-art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+}
+.map-art.act-0 { background-image: url('../assets/map-act1.jpg'); }
+.map-art.act-1 { background-image: url('../assets/map-act2.jpg'); }
+.map-art.act-2 { background-image: url('../assets/map-act3.jpg'); }
+.map-fog {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at 50% 42%, transparent 46%, rgba(18, 10, 6, 0.42) 100%);
+  opacity: 1;
+}
+.map-act-label {
+  position: relative;
+  z-index: 2;
+  margin: 1.05rem 0 0.1rem;
+  font-family: var(--font-pixel);
+  font-size: 1.05rem;
+  letter-spacing: 0.32em;
+  color: #f3e2b8;
+  text-shadow: 0 2px 0 #2a1a0c, 0 0 18px rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.map-act-label::before,
+.map-act-label::after {
+  content: '';
+  width: 42px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(243, 226, 184, 0.7), transparent);
+}
+.map-climb {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  margin: 0 auto;
+}
+.map-ink {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.map-edge-under {
+  fill: none;
+  stroke: rgba(28, 16, 8, 0.55);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+.map-edge {
+  fill: none;
+  stroke: rgba(42, 24, 12, 0.72);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 0.8 8;
+  filter: url(#map-wobble);
+}
+.map-edge.ahead {
+  stroke: #e8c56a;
+  stroke-dasharray: 0.8 7;
+}
+.map-edge.walked {
+  stroke: #f0d48a;
+  stroke-dasharray: none;
+  stroke-width: 2.6;
+}
+.map-edge-under.walked { stroke: rgba(70, 38, 8, 0.8); }
+.map-edge-under.ahead { stroke: rgba(50, 28, 8, 0.7); }
+.map-dot {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border: 0;
+  border-radius: 50%;
+  background: url('../assets/map-ring.png') center / contain no-repeat;
+  color: var(--ink-dim);
+  cursor: default;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.55));
+  transition: transform 0.16s ease, filter 0.16s ease;
+  z-index: 2;
+}
+.map-dot .map-ico {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+}
+.map-dot.done { opacity: 0.48; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4)) saturate(0.7); }
+.map-dot.done .map-ico { filter: grayscale(0.3) brightness(0.85); }
+.map-dot.current {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 12px rgba(255, 207, 63, 0.75)) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.5));
+  animation: map-pulse 1.8s ease-in-out infinite;
+  z-index: 4;
+}
+.map-dot.open { cursor: pointer; }
+.map-dot.open:hover { transform: scale(1.14); }
+.map-dot.boss {
+  width: 84px;
+  height: 84px;
+  margin: -42px 0 0 -42px;
+}
+.map-dot.boss .map-ico { width: 38px; height: 38px; }
+.map-dot.boss.current, .map-dot.boss.open {
+  animation: map-pulse-boss 1.8s ease-in-out infinite;
+}
+@keyframes map-pulse {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 207, 63, 0.5)) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.45)); }
+  50% { filter: drop-shadow(0 0 18px rgba(255, 207, 63, 0.9)) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.45)); }
+}
+@keyframes map-pulse-boss {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 84, 112, 0.5)) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.45)); }
+  50% { filter: drop-shadow(0 0 20px rgba(255, 84, 112, 0.85)) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.45)); }
+}
+.map-tip {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  translate: -50% 0;
+  width: max-content;
+  max-width: 160px;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(7, 10, 22, 0.94);
+  border: 1px solid rgba(255, 207, 63, 0.28);
+  color: var(--ink-dim);
+  font-size: 0.74rem;
+  line-height: 1.25;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  z-index: 8;
+  text-align: center;
+}
+.map-tip b { display: block; color: var(--gold); font-family: var(--font-pixel); font-size: 0.68rem; letter-spacing: 0.06em; margin-bottom: 0.15rem; }
+.map-dot:hover { z-index: 12; }
+.map-dot:hover .map-tip { opacity: 1; transform: translateY(0); }
+.map-dot.tip-below .map-tip {
+  bottom: auto;
+  top: calc(100% + 10px);
+}
+#screen-map .map-blurb {
+  flex: none;
+  z-index: 5;
+  width: calc(100% - 1.2rem);
+  max-width: none;
+  margin: 0.35rem 0.6rem 0.55rem;
+  padding: 0.45rem 0.7rem;
+  white-space: normal;
+}
+.map-ico-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  font-family: var(--font-pixel);
+  font-size: 1.35rem;
+  color: var(--violet);
+  text-shadow: 0 0 12px rgba(192, 140, 255, 0.85);
+}
+.map-dot.event { border-color: rgba(192, 140, 255, 0.6); }
+
 /* ---------- loadout ---------- */
 
 #screen-loadout { justify-content: flex-start; gap: 0.6rem; }
@@ -2133,21 +2358,6 @@ kbd {
   .piece.shielded::after { animation: none; }
 }
 
-/* A guarded king cannot be taken while a friend stands beside it. Without a
-   mark for it, the rule just reads as the game refusing a legal-looking
-   capture, so it gets its own ring — cooler and heavier than a shield's. */
-.piece.guarded::before {
-  content: '';
-  position: absolute;
-  inset: -2%;
-  border-radius: 50%;
-  border: 2px dashed rgba(67, 217, 255, 0.75);
-  box-shadow: 0 0 14px rgba(67, 217, 255, 0.35), inset 0 0 10px rgba(67, 217, 255, 0.18);
-  pointer-events: none;
-  animation: guard-turn 9s linear infinite;
-}
-@keyframes guard-turn { to { rotate: 360deg; } }
-@media (prefers-reduced-motion: reduce) { .piece.guarded::before { animation: none; } }
 .piece.rebounds { animation: land 0.3s cubic-bezier(.2, .9, .3, 1.2); }
 
 @media (max-width: 980px) {
@@ -2827,10 +3037,6 @@ kbd {
   text-shadow: 0 0 10px rgba(255, 207, 63, 0.9);
   pointer-events: none;
   z-index: 2;
-}
-.ow-loot.skull {
-  color: var(--red);
-  text-shadow: 0 0 12px rgba(255, 84, 70, 0.95);
 }
 .ow-loot.ow-event {
   animation: ow-event-pulse 2.2s ease-in-out infinite;
