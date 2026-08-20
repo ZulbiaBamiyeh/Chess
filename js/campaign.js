@@ -2,13 +2,15 @@
 
 import { WHITE, BLACK, FLAG, parseSquare, squareName, TILE } from './chess.js';
 import { pieceById, pieceCost, rarityOf } from './pieces.js';
-import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, toast } from './ui.js';
+import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, toast,
+  gameText, setGameText, setTitleText } from './ui.js';
 import {
   createRun, currentNode, validateLoadout, buildFight, settleFight,
   openShop, buyOffer, rerollShop, closeShop, retryAllowed,
   autoPlace, supplyBudget, deployBudget, occupiedSlots, freeHomeSquares,
   completeNode, pickNode, rest, forage, trainPiece,
   REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, turnClock,
+  restHeal, forageGold, trainCost,
   bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
   suggestLoadout,
 } from './run.js';
@@ -269,14 +271,21 @@ export function initCampaign(ctx) {
     enterNode();
   }
 
-  const REST_CHOICES = [
+  /**
+   * Built per visit, not once at module load. Three kings move these numbers
+   * — Convalescent heals more, Ranger forages more, Provisioner trains for
+   * less — and a fixed list quoted the base figures at anyone carrying one,
+   * promising 7 HP and handing over 10.
+   */
+  const restChoices = (run) => [
     { id: 'rest', label: 'Rest',
-      detail: `Heal ${REST_HEAL} HP, pocket ${REST_GOLD} gold.` },
+      detail: `Heal ${restHeal(run)} HP, pocket ${REST_GOLD} gold.` },
     { id: 'forage', label: 'Forage',
-      detail: `Skip the healing — take ${FORAGE_GOLD} gold instead.` },
+      detail: `Skip the healing — take ${forageGold(run)} gold instead.` },
     { id: 'train', label: 'Train',
-      detail: `Spend ${TRAIN_COST} gold to permanently shield one piece, every fight from now on.` },
+      detail: `Spend ${trainCost(run)} gold to permanently shield one piece, every fight from now on.` },
   ];
+
 
   function openRest() {
     paintRunHud();
@@ -291,7 +300,8 @@ export function initCampaign(ctx) {
   }
 
   function trainGate() {
-    if (state.run.gold < TRAIN_COST) return { ok: false, reason: `Needs ${TRAIN_COST}g` };
+    const cost = trainCost(state.run);
+    if (state.run.gold < cost) return { ok: false, reason: `Needs ${cost}g` };
     if (!state.run.bag.some((p) => p.type !== 'k' && !p.trained)) {
       return { ok: false, reason: 'Nothing left to train' };
     }
@@ -301,14 +311,14 @@ export function initCampaign(ctx) {
   function paintRestChoices() {
     const host = $('rest-choices');
     host.innerHTML = '';
-    for (const choice of REST_CHOICES) {
+    for (const choice of restChoices(state.run)) {
       const gate = choice.id === 'train' ? trainGate() : { ok: true };
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'event-choice';
       btn.disabled = !gate.ok;
       btn.innerHTML = `<span class="ec-label">${choice.label}</span>`
-        + `<span class="ec-detail">${choice.detail}</span>`
+        + `<span class="ec-detail">${gameText(choice.detail)}</span>`
         + (gate.ok ? '' : `<span class="ec-block">${gate.reason}</span>`);
       btn.addEventListener('click', () => takeRestChoice(choice.id));
       btn.addEventListener('pointerenter', () => audio.hover());
@@ -337,7 +347,7 @@ export function initCampaign(ctx) {
       btn.type = 'button';
       btn.className = 'event-choice';
       btn.innerHTML = `<span class="ec-label">${def.name}</span>`
-        + `<span class="ec-detail">${def.cost} supply · ${def.rarity}</span>`;
+        + `<span class="ec-detail">${gameText(`${def.cost} supply · ${def.rarity}`)}</span>`;
       btn.addEventListener('click', () => {
         const result = trainPiece(state.run, item.uid);
         if (!result.ok) { audio.illegal(); toast(result.reason, 'danger'); return; }
@@ -607,7 +617,7 @@ export function initCampaign(ctx) {
 
     if ($(ids.name)) $(ids.name).textContent = def.name;
     if ($(ids.blurb)) $(ids.blurb).textContent = def.blurb || '';
-    if ($(ids.cost)) $(ids.cost).textContent = `${def.cost} supply · ${def.rarity}`;
+    if ($(ids.cost)) setGameText($(ids.cost), `${def.cost} supply · ${def.rarity}`);
     if ($(ids.art)) {
       $(ids.art).style.backgroundImage = `url('${pieceImage(type, WHITE)}')`;
       $(ids.art).style.filter = pieceHue(type) ? `hue-rotate(${pieceHue(type)}deg)` : '';
@@ -943,8 +953,8 @@ export function initCampaign(ctx) {
     setTimeout(() => {
       if (youWon) { audio.victory(); confetti(); }
       else audio.defeat();
-      $('result-title').textContent = title;
-      $('result-detail').textContent = detail;
+      setTitleText($('result-title'), title, youWon ? 'good' : 'bad');
+      setGameText($('result-detail'), detail);
       $('modal-result').classList.remove('hidden');
     }, 650);
     return true;
@@ -994,10 +1004,12 @@ export function initCampaign(ctx) {
     if (!card) { done(); return; }
     card.querySelector('.drop-modal').style.setProperty('--drop-tint', DROP_TINT[def.rarity]);
     $('drop-rarity').textContent = def.rarity;
-    $('drop-title').textContent = drop.sold ? `A ${def.name}, and no room for it` : `A ${def.name}`;
-    $('drop-note').textContent = drop.sold
+    setTitleText($('drop-title'),
+      drop.sold ? `A ${def.name}, and no room for it` : `A ${def.name}`,
+      drop.sold ? 'bad' : 'prize');
+    setGameText($('drop-note'), drop.sold
       ? `Your ${def.rarity} slots are full, so it went for ${drop.sold} gold.`
-      : 'It joins the bag.';
+      : 'It joins the bag.');
     $('btn-drop-take').textContent = drop.sold ? 'Take the gold' : 'Take it';
     paintMoveDiagram(drop.type, DROP_DIAGRAM);
 
@@ -1048,7 +1060,7 @@ export function initCampaign(ctx) {
       btn.className = 'event-choice';
       btn.disabled = !gate.ok;
       btn.innerHTML = `<span class="ec-label">${choice.label}</span>`
-        + `<span class="ec-detail">${choice.detail}</span>`
+        + `<span class="ec-detail">${gameText(choice.detail)}</span>`
         + (gate.ok ? '' : `<span class="ec-block">${gate.reason}</span>`);
       btn.addEventListener('click', () => takeChoice(choice));
       btn.addEventListener('pointerenter', () => audio.hover());
@@ -1074,7 +1086,7 @@ export function initCampaign(ctx) {
       btn.type = 'button';
       btn.className = 'event-choice';
       btn.innerHTML = `<span class="ec-label">${def.name}</span>`
-        + `<span class="ec-detail">${def.cost} supply · ${def.rarity}</span>`;
+        + `<span class="ec-detail">${gameText(`${def.cost} supply · ${def.rarity}`)}</span>`;
       btn.addEventListener('click', () => resolveChoice(choice, item.uid));
       btn.addEventListener('pointerenter', () => audio.hover());
       host.appendChild(btn);
@@ -1093,7 +1105,7 @@ export function initCampaign(ctx) {
     audio.click();
     $('event-choices').classList.add('hidden');
     const lines = result.lines.length ? result.lines : ['Nothing happens.'];
-    $('event-outcome').innerHTML = lines.map((l) => `<div>${l}</div>`).join('');
+    $('event-outcome').innerHTML = lines.map((l) => `<div>${gameText(l)}</div>`).join('');
     $('event-outcome').classList.remove('hidden');
     $('btn-event-leave').classList.remove('hidden');
     paintRunHud();
@@ -1133,7 +1145,7 @@ export function initCampaign(ctx) {
         const chip = document.createElement('span');
         chip.className = `relic-chip rarity-${relic.rarity}`;
         chip.innerHTML = '✦<span class="relic-tip"><b>' + relic.name + '</b>'
-          + relic.blurb + '</span>';
+          + gameText(relic.blurb) + '</span>';
         host.appendChild(chip);
       }
     }
@@ -1152,7 +1164,7 @@ export function initCampaign(ctx) {
       btn.innerHTML = '<span class="relic-mark">✦</span>'
         + `<span class="relic-name">${relic.name}</span>`
         + `<span class="relic-arch">${relic.archetype}</span>`
-        + `<span class="relic-blurb">${relic.blurb}</span>`;
+        + `<span class="relic-blurb">${gameText(relic.blurb)}</span>`;
       btn.addEventListener('click', () => {
         claimRelic(state.run, rid);
         audio.victory();
@@ -1202,7 +1214,7 @@ export function initCampaign(ctx) {
               : `<i class="shop-art shop-art-${offer.kind === 'slot' ? 'slot' : 'purse'}"></i>`;
       card.innerHTML = art
         + `<span class="shop-card-name">${offer.name}</span>`
-        + `<span class="shop-card-blurb">${offer.blurb}</span>`
+        + `<span class="shop-card-blurb">${gameText(offer.blurb)}</span>`
         + `<span class="shop-card-cost">${offer.cost}g</span>`;
       card.addEventListener('click', () => {
         const result = buyOffer(state.run, offer.id);
@@ -1228,8 +1240,9 @@ export function initCampaign(ctx) {
     const run = state.run;
     $('modal-result').classList.add('hidden');
     if (run?.won) {
-      $('result-title').textContent = 'THE THRONE IS YOURS';
-      $('result-detail').textContent = `Gold in pocket ${run.gold}. The bag goes with you into the next telling.`;
+      setTitleText($('result-title'), 'THE THRONE IS YOURS', 'prize');
+      setGameText($('result-detail'),
+        `Gold in pocket ${run.gold} gold. The bag goes with you into the next telling.`);
       $('btn-again').classList.remove('hidden');
       $('btn-again').textContent = 'Embark again';
       $('btn-continue').classList.add('hidden');

@@ -7,7 +7,7 @@ import { LEVELS, levelById, chooseDuck } from './ai.js';
 import { pieceCost, pieceById } from './pieces.js';
 import { ShaderBackground } from './bg.js';
 import { audio } from './audio.js';
-import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, toast } from './ui.js';
+import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, toast, setGameText } from './ui.js';
 import { kingDef } from './content.js';
 import { initCampaign } from './campaign.js';
 import { initSandbox } from './sandbox.js';
@@ -483,7 +483,7 @@ function paintFightDiagram(type, color) {
 
   $('fight-md-name').textContent = isWhiteKing ? kingDef(state.run?.king).name + ' King' : def.name;
   $('fight-md-blurb').textContent = (isWhiteKing ? kingDef(state.run?.king).blurb : def.blurb) || '';
-  $('fight-md-cost').textContent = isWhiteKing ? '' : `${def.cost} supply · ${def.rarity}`;
+  setGameText($('fight-md-cost'), isWhiteKing ? '' : `${def.cost} supply · ${def.rarity}`);
   $('fight-md-art').style.backgroundImage = `url('${pieceImage(type, color, skin)}')`;
   $('fight-md-art').style.filter = hue ? `hue-rotate(${hue}deg)` : '';
 

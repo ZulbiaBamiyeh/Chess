@@ -568,17 +568,25 @@ export function pickNode(run, nodeId) {
  * nothing. With losses now costing HP that left the economy one-directional —
  * HP only ever fell, and a long run could not survive its own difficulty curve.
  */
+/**
+ * What a camp is actually worth to THIS run. Exported because the camp screen
+ * has to quote these numbers before you commit, and computing them a second
+ * time over there is how it ended up promising 7 HP and handing over 10.
+ */
+export const restHeal = (run) => REST_HEAL + (run?.king === 'convalescent' ? 3 : 0);
+export const forageGold = (run) => FORAGE_GOLD + (run?.king === 'ranger' ? 4 : 0);
+export const trainCost = (run) => Math.max(1, TRAIN_COST - (run?.king === 'provisioner' ? 2 : 0));
+
 export function rest(run) {
   const before = run.hp;
-  const heal = REST_HEAL + (run.king === 'convalescent' ? 3 : 0);
-  run.hp = Math.min(run.hpMax, run.hp + heal);
+  run.hp = Math.min(run.hpMax, run.hp + restHeal(run));
   run.gold += REST_GOLD;
   return { healed: run.hp - before, gold: REST_GOLD };
 }
 
 /** Skip the healing and walk off with more coin instead. */
 export function forage(run) {
-  const gold = FORAGE_GOLD + (run.king === 'ranger' ? 4 : 0);
+  const gold = forageGold(run);
   run.gold += gold;
   return { gold };
 }
@@ -593,7 +601,7 @@ export function trainPiece(run, itemUid) {
   const item = run.bag.find((p) => p.uid === itemUid);
   if (!item || item.type === 'k') return { ok: false, reason: 'Can’t train that.' };
   if (item.trained) return { ok: false, reason: 'Already trained.' };
-  const cost = Math.max(1, TRAIN_COST - (run.king === 'provisioner' ? 2 : 0));
+  const cost = trainCost(run);
   if (run.gold < cost) return { ok: false, reason: `Needs ${cost} gold.` };
   run.gold -= cost;
   item.trained = true;

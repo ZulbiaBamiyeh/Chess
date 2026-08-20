@@ -584,4 +584,81 @@ export function toast(text, kind = '') {
   setTimeout(() => el.remove(), 1500);
 }
 
+// ---- game text -------------------------------------------------------------
+
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
+/**
+ * One alternation, matched left to right in a single pass, so nothing this
+ * inserts can be re-matched by a later rule. The replacer classifies from the
+ * matched text itself rather than from group indices — with this many
+ * branches, counting groups is how you end up colouring the wrong half of
+ * "−3 maximum HP".
+ *
+ * Deliberately generous about the minus sign: the content file is written
+ * with a real U+2212 MINUS, but plenty of strings are built in code with a
+ * plain hyphen, and a rule that only knew one of them would colour half the
+ * numbers in the game and silently skip the rest.
+ */
+const MINUS = '[+\\u2212\\u2013-]';
+const KEYWORD_RE = new RegExp([
+  `${MINUS}?\\s?\\d+\\s?(?:maximum HP|max HP|HP)`,
+  `${MINUS}?\\s?\\d+\\s?(?:gold\\b|g\\b)`,
+  `${MINUS}?\\s?\\d+\\s?(?:supply|pieces?\\b)`,
+  '\\b(?:legendary|epic|rare|common)\\b',
+].join('|'), 'gi');
+
+function classifyKeyword(match) {
+  const s = match.toLowerCase();
+  if (/^(?:legendary|epic|rare|common)$/.test(s)) return `kw-${s}`;
+  // A leading minus is the only thing that makes a line bad news, and it is
+  // the thing that should move on screen.
+  const negative = /^[−–-]/.test(s.trim());
+  if (/hp/.test(s)) return negative ? 'kw-hp kw-bad' : 'kw-hp';
+  if (/gold|\dg$/.test(s)) return negative ? 'kw-gold kw-spend' : 'kw-gold';
+  return negative ? 'kw-supply kw-spend' : 'kw-supply';
+}
+
+/**
+ * Marks up one line of game copy: HP red, gold gold, supply blue, rarity in
+ * its own colour, and anything you are losing set moving so a cost reads as
+ * a cost at a glance. Returns HTML — the input is escaped first, because
+ * this is the one place authored copy becomes markup.
+ */
+export function gameText(text) {
+  return escapeHtml(text).replace(KEYWORD_RE, (m) => {
+    // Keep any leading space outside the span so the colour does not bleed
+    // into the gap before the number.
+    const lead = m.match(/^\s*/)[0];
+    const body = m.slice(lead.length);
+    return `${lead}<span class="${classifyKeyword(body)}">${body}</span>`;
+  });
+}
+
+/** Writes marked-up game copy into an element. */
+export function setGameText(el, text) {
+  if (el) el.innerHTML = gameText(text);
+}
+
+/**
+ * The big beats — a result title, a fight lost. Splits into one span per
+ * glyph so the whole line can ripple rather than blink: a defeat should
+ * wobble like something came loose, which a single element cannot do.
+ */
+export function setTitleText(el, text, kind = '') {
+  if (!el) return;
+  el.className = `title-fx ${kind}`;
+  el.textContent = '';
+  [...String(text)].forEach((ch, i) => {
+    const span = document.createElement('span');
+    span.textContent = ch;
+    // Space needs a width of its own once every glyph is its own box.
+    if (ch === ' ') span.style.width = '0.4em';
+    span.style.animationDelay = `${i * 0.045}s`;
+    el.appendChild(span);
+  });
+}
+
 export { squareName, parseSquare };

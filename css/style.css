@@ -1019,6 +1019,85 @@ kbd {
 }
 .board-toast.danger { color: var(--red); text-shadow: 0 4px 0 var(--outline), 0 0 44px rgba(255, 84, 112, 0.9); }
 .board-toast.good { color: var(--gold); text-shadow: 0 4px 0 var(--outline), 0 0 44px rgba(255, 207, 63, 0.9); }
+
+/* ---------- game text ----------
+   One vocabulary for every number the game shows you, so a cost reads as a
+   cost wherever it appears — an event outcome, a shop card, a results line.
+   HP is always red and gold is always gold, the way they are in the genre
+   this borrows from; what changes is whether the number is moving. Anything
+   you are LOSING wobbles, which is the whole tell: you can see a bad line
+   before you have finished reading it. */
+.kw-hp { color: var(--red); font-weight: 700; }
+.kw-gold { color: var(--gold); font-weight: 700; }
+.kw-supply { color: var(--blue); font-weight: 700; }
+.kw-common { color: var(--ink-dim); }
+.kw-rare { color: var(--blue); font-weight: 700; }
+.kw-epic { color: var(--violet); font-weight: 700; }
+/* Legendary is the one that should stop you reading for a beat. */
+.kw-legendary {
+  color: var(--gold);
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(255, 207, 63, 0.55);
+  background: linear-gradient(100deg, var(--gold-deep) 20%, #fff6cf 46%, var(--gold) 62%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: kw-shine 3.4s linear infinite;
+}
+@keyframes kw-shine {
+  0% { background-position: 120% 0; }
+  100% { background-position: -60% 0; }
+}
+/* The wobble. Small — this sits inside body copy, so it has to register
+   without making the sentence hard to read. */
+.kw-bad { animation: kw-wave 1.5s ease-in-out infinite; display: inline-block; }
+@keyframes kw-wave {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-1.5px) rotate(-1.6deg); }
+  75% { transform: translateY(1.5px) rotate(1.6deg); }
+}
+/* Spending is not the same as being hurt: gold you hand over dims rather
+   than thrashes, so the only thing shaking on screen is damage. */
+.kw-spend { opacity: 0.78; }
+
+/* ---------- big beats ----------
+   Per-glyph so a title can ripple rather than blink. */
+.title-fx span { display: inline-block; white-space: pre; }
+.title-fx.bad span {
+  color: var(--red);
+  text-shadow: 0 3px 0 var(--outline), 0 0 26px rgba(255, 84, 112, 0.55);
+  animation: title-wave 1.15s ease-in-out infinite;
+}
+.title-fx.good span {
+  color: var(--gold);
+  text-shadow: 0 3px 0 var(--outline), 0 0 26px rgba(255, 207, 63, 0.5);
+  animation: title-rise 0.5s cubic-bezier(.2, .9, .3, 1.3) both;
+}
+.title-fx.prize span {
+  color: var(--gold);
+  text-shadow: 0 3px 0 var(--outline), 0 0 30px rgba(255, 207, 63, 0.7);
+  animation: title-rise 0.5s cubic-bezier(.2, .9, .3, 1.3) both,
+             title-wave 2.6s ease-in-out 0.5s infinite;
+}
+@keyframes title-wave {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30% { transform: translateY(-4px) rotate(-2.5deg); }
+  70% { transform: translateY(4px) rotate(2.5deg); }
+}
+@keyframes title-rise {
+  from { transform: translateY(14px) scale(0.85); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kw-bad, .kw-legendary, .title-fx span { animation: none; }
+  /* The shine is a background trick; without the animation the text would
+     be stuck mid-gradient, so hand it back a flat colour. */
+  .kw-legendary {
+    background: none;
+    -webkit-text-fill-color: var(--gold);
+  }
+}
 @keyframes toast {
   0% { scale: 0.4; opacity: 0; }
   16% { scale: 1.14; opacity: 1; }
@@ -1152,7 +1231,7 @@ kbd {
   #screen-loadout .move-diagram.empty { padding: 0.3rem 0.5rem; }
   #screen-loadout .move-diagram.empty .md-head { margin-bottom: 0; grid-template-columns: 1fr; }
   #screen-loadout .move-diagram.empty .md-head i { display: none; }
-  #screen-loadout .move-diagram.empty .md-head span { font-size: 0.68rem; }
+  #screen-loadout .move-diagram.empty .md-head > div > span { font-size: 0.68rem; }
   #screen-loadout .loadout-actions {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -1175,7 +1254,7 @@ kbd {
   }
   #screen-game .md-head { flex: 1; margin-bottom: 0; grid-template-columns: 30px 1fr; gap: 0.35rem; }
   #screen-game .md-head b { font-size: 0.62rem; }
-  #screen-game .md-head span { font-size: 0.62rem; }
+  #screen-game .md-head > div > span { font-size: 0.62rem; }
   #screen-game .md-board { width: 64px; flex: none; }
   #screen-game .move-diagram.empty .md-head { grid-template-columns: 1fr; }
   #screen-game .move-diagram.empty .md-head i { display: none; }
@@ -1778,7 +1857,10 @@ kbd {
   margin-bottom: 0.45rem;
 }
 .md-head b { display: block; color: var(--gold); font-family: var(--font-pixel); font-size: 0.72rem; }
-.md-head span { display: block; color: var(--ink-faint); font-size: 0.72rem; line-height: 1.25; }
+/* Direct children only — the cost/blurb lines are stacked, but the keyword
+   spans nested inside them have to stay inline or a marked-up cost line
+   breaks into one word per row. */
+.md-head > div > span { display: block; color: var(--ink-faint); font-size: 0.72rem; line-height: 1.25; }
 .md-board {
   --md: 7;
   display: grid;

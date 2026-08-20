@@ -8,6 +8,7 @@ import {
   completeNode, pickNode, rest, forage, trainPiece, currentEncounter,
   bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
   costFor, claimRelic, RELIC_SHIELD_CAP, TRAIN_COST, FORAGE_GOLD, freeHomeSquares,
+  restHeal, forageGold, trainCost,
 } from '../js/run.js';
 import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
@@ -760,6 +761,34 @@ function courtyardOrGate() {
   }
   assert('a boss always drops, and drops its best piece',
     rarities.size === 1 && !rarities.has(RARITY.COMMON), [...rarities].join(','));
+}
+
+{
+  // The camp screen quotes these before you commit, so what it promises has
+  // to be what the run layer actually hands over. They lived as separate
+  // copies for a while and the screen offered 7 HP while rest() gave 10.
+  const cases = [
+    ['convalescent', (r) => { const before = (r.hp = 1); rest(r); return r.hp - before; }, restHeal],
+    ['ranger', (r) => forage(r).gold, forageGold],
+  ];
+  for (const [king, act, quoted] of cases) {
+    for (const who of [null, king]) {
+      const run = createRun(1);
+      run.king = who;
+      assert(`camp quotes what it pays (${king}: ${who || 'plain'})`,
+        act(run) === quoted(run), `${act(createRun(1))} vs ${quoted(run)}`);
+    }
+  }
+  for (const who of [null, 'provisioner']) {
+    const run = createRun(1);
+    run.king = who;
+    run.gold = 100;
+    addToBag(run, 'n');
+    const before = run.gold;
+    trainPiece(run, run.bag.find((p) => p.type === 'n').uid);
+    assert(`training charges what the camp quotes (${who || 'plain'})`,
+      before - run.gold === trainCost(run), `${before - run.gold} vs ${trainCost(run)}`);
+  }
 }
 
 console.log(failures ? `\n${failures} run failure(s)` : '\nAll run tests passed.');

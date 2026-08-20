@@ -4,7 +4,7 @@
 import { Chess, WHITE, BLACK, TILE, ST_FROZEN, ST_SHIELD } from './chess.js';
 import { PIECES } from './pieces.js';
 import { KING_PASSIVES, PLAIN_KING, kingDef } from './content.js';
-import { BoardView, pieceImage, pieceHue, kingSkin, kingHue } from './ui.js';
+import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, setGameText } from './ui.js';
 
 const KING_STEPS = [-17, -16, -15, -1, 1, 15, 16, 17];
 
@@ -325,7 +325,7 @@ export function initSandbox({ $, showScreen, audio }) {
       $('sb-md-blurb').textContent = (king && king.id !== 'plain' ? king.blurb : def.blurb) || '';
     }
     if ($('sb-md-cost')) {
-      $('sb-md-cost').textContent = king && king.id !== 'plain' ? '' : `${def.cost} supply · ${def.rarity}`;
+      setGameText($('sb-md-cost'), king && king.id !== 'plain' ? '' : `${def.cost} supply · ${def.rarity}`);
     }
     if ($('sb-md-art')) {
       $('sb-md-art').style.backgroundImage = `url('${pieceImage(type, WHITE, skin)}')`;
