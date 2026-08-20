@@ -17,7 +17,8 @@ import {
   REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, turnClock,
   restHeal, forageGold, trainCost,
   bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
-  suggestLoadout, runStats,
+  suggestLoadout, runStats, ensureFormation, placementsFromFormation, CREW_BOARD,
+  pruneFormation,
 } from './run.js';
 import { kingDef, EVENTS, encounterFor } from './content.js';
 import { relicById } from './relics.js';
@@ -40,6 +41,8 @@ export function initCampaign(ctx) {
   let selectedUid = null;
   let placements = []; // { uid, type, sq }
   let shopSelectedId = null;
+  let crewView = null;
+  let crewSelectedUid = null;
 
   /**
    * Gold and HP used to be a bare number in the pixel font, same weight as
@@ -155,6 +158,9 @@ export function initCampaign(ctx) {
       $('map-art').classList.add(`act-${run.act}`);
     }
 
+    showScreen('screen-map');
+    paintCrew();
+
     const climb = $('map-climb');
     climb.innerHTML = '';
 
@@ -164,18 +170,20 @@ export function initCampaign(ctx) {
       (floors[node.col] ||= []).push(node);
       if (node.col > maxCol) maxCol = node.col;
     }
-    const W = 420;
-    const step = 152;
-    const H = 168 + (maxCol + 1) * step;
+    const scroll = $('map-scroll');
+    const W = Math.max(520, (scroll?.clientWidth || 640) - 8);
+    const viewH = Math.max(scroll?.clientHeight || 720, 640);
+    const step = Math.max(210, Math.floor((viewH * 1.25) / Math.max(1, maxCol + 1)));
+    const H = 160 + (maxCol + 1) * step;
     climb.style.width = `${W}px`;
     climb.style.height = `${H}px`;
-    if ($('map-art')) $('map-art').style.height = `${Math.max(H, 800)}px`;
+    if ($('map-art')) $('map-art').style.height = `${Math.max(H, viewH)}px`;
 
     const pos = {};
     for (const node of act.nodes) {
       const onFloor = floors[node.col];
-      const jx = (hash01(node.id) - 0.5) * 14;
-      const jy = (hash01(node.id + 'y') - 0.5) * 8;
+      const jx = (hash01(node.id) - 0.5) * 36;
+      const jy = (hash01(node.id + 'y') - 0.5) * 18;
       const x = ((node.row + 1) / (onFloor.length + 1)) * W + jx;
       const y = H - 86 - node.col * step + jy;
       pos[node.id] = { x, y };
@@ -265,7 +273,6 @@ export function initCampaign(ctx) {
     } else {
       $('map-blurb').textContent = 'Choose a path.';
     }
-    showScreen('screen-map');
     requestAnimationFrame(() => {
       const scroll = $('map-scroll');
       if (!scroll) return;
@@ -286,7 +293,174 @@ export function initCampaign(ctx) {
       openEvent(node.eventId);
     } else {
       const enc = encounterFor(node);
-      if (enc) openLoadout(enc);
+      if (enc) {
+        if (state.world === 'voyage') openLoadout(enc);
+        else startMappedFight(enc);
+      }
+    }
+  }
+
+  function startMappedFight(encounter) {
+    state.encounter = encounter;
+    placements = placementsFromFormation(state.run, encounter);
+    const wanted = (state.run.formation || []).filter((p) => p.uid !== 'king').length;
+    const brought = placements.filter((p) => p.uid !== 'king').length;
+    if (brought < wanted) {
+      toast('Some of the line would not fit this field.', 'danger');
+    }
+    beginFight();
+  }
+
+  function crewPlacements() {
+    return ensureFormation(state.run);
+  }
+
+  function paintCrew() {
+    if (!$('crew-board') || !state.run) return;
+    ensureFormation(state.run);
+    if (!crewView) {
+      crewView = new BoardView($('crew-board'), {
+        onAttemptMove: onCrewDrop,
+        canPickUp: (sq) => crewPlacements().some((p) => p.sq === sq),
+        legalTargets: crewTargets,
+        onPickUp: () => audio.lift(),
+      });
+    }
+    const { Chess } = ctx;
+    const game = buildFight(state.run, CREW_BOARD, crewPlacements());
+    crewView.setWhiteKingSkin(kingSkin(state.run.king), kingHue(state.run.king));
+    crewView.setFlipped(false);
+    crewView.syncFromGame(game);
+    crewView.setInteractive(true);
+    paintCrewHomes();
+    paintCrewRoster();
+  }
+
+  function paintCrewHomes() {
+    if (!crewView) return;
+    const free = new Set(freeHomeSquares(CREW_BOARD));
+    const taken = new Set(crewPlacements().map((p) => p.sq));
+    for (const [sq, el] of crewView.squares) {
+      el.classList.toggle('home-free', free.has(sq) && !taken.has(sq));
+      el.classList.toggle('home', free.has(sq) && taken.has(sq));
+      el.classList.toggle('no-place', !free.has(sq) && !taken.has(sq));
+    }
+  }
+
+  function crewTargets(sq) {
+    const homes = freeHomeSquares(CREW_BOARD);
+    const taken = new Set(crewPlacements().map((p) => p.sq));
+    return homes.filter((h) => !taken.has(h) || h === sq).map((to) => ({ to, captured: null }));
+  }
+
+  function onCrewDrop(from, to) {
+    const piece = crewPlacements().find((p) => p.sq === from);
+    if (!piece) return;
+    const homes = freeHomeSquares(CREW_BOARD);
+    if (!homes.includes(to) || crewPlacements().some((p) => p.sq === to)) {
+      audio.illegal();
+      crewView.reject(to);
+      return;
+    }
+    piece.sq = to;
+    audio.place();
+    paintCrew();
+  }
+
+  function paintCrewRoster() {
+    const kingsHost = $('crew-kings');
+    const piecesHost = $('crew-pieces');
+    if (!kingsHost || !piecesHost) return;
+    const summary = bagSummary(state.run);
+    kingsHost.innerHTML = '';
+    for (const id of summary.kings) {
+      const def = kingDef(id);
+      const on = summary.equipped === id;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bag-tile king-tile' + (on ? ' on' : ' idle');
+      const kingFilter = kingHue(id) ? ` filter:hue-rotate(${kingHue(id)}deg);` : '';
+      btn.innerHTML =
+        `<i style="background-image:url('${pieceImage('k', WHITE, kingSkin(id))}');${kingFilter}"></i>`
+        + `<span class="bag-tile-name">${def.name}</span>`;
+      btn.title = def.blurb;
+      btn.addEventListener('click', () => {
+        if (!equipKing(state.run, id)) { audio.illegal(); return; }
+        audio.click();
+        paintRunHud();
+        paintCrew();
+        toast(`${def.name} king is active`, 'good');
+      });
+      btn.addEventListener('pointerenter', () => audio.hover());
+      kingsHost.appendChild(btn);
+    }
+
+    piecesHost.innerHTML = '';
+    const used = new Set(crewPlacements().map((p) => p.uid));
+    const groups = new Map();
+    for (const item of state.run.bag) {
+      const key = `${item.type}|${item.trained ? 1 : 0}`;
+      const g = groups.get(key) || { type: item.type, trained: Boolean(item.trained), items: [] };
+      g.items.push(item);
+      groups.set(key, g);
+    }
+    for (const g of groups.values()) {
+      const def = pieceById(g.type);
+      const freeItems = g.items.filter((it) => !used.has(it.uid));
+      const allPlaced = freeItems.length === 0;
+      const activeItem = allPlaced ? g.items.find((it) => used.has(it.uid)) : freeItems[0];
+      const btn = document.createElement('button');
+      btn.className = `bag-tile rarity-${def.rarity}`
+        + (allPlaced ? ' used' : '')
+        + (activeItem && crewSelectedUid === activeItem.uid ? ' on' : '');
+      const hue = pieceHue(g.type);
+      const countBadge = g.items.length > 1
+        ? `${freeItems.length}/${g.items.length}`
+        : '';
+      btn.innerHTML =
+        `<i style="background-image:url('${pieceImage(g.type, WHITE)}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`
+        + (countBadge ? `<span class="bag-tile-count">${countBadge}</span>` : '')
+        + (g.trained ? '<span class="bag-trained">⛨</span>' : '')
+        + `<span class="bag-tile-name">${def.name}</span>`;
+      btn.addEventListener('click', () => {
+        if (allPlaced) {
+          state.run.formation = crewPlacements().filter((p) => p.uid !== activeItem.uid);
+          crewSelectedUid = activeItem.uid;
+          audio.lift();
+          paintCrew();
+          return;
+        }
+        crewSelectedUid = crewSelectedUid === activeItem.uid ? null : activeItem.uid;
+        audio.click();
+        paintCrewRoster();
+      });
+      btn.addEventListener('pointerenter', () => audio.hover());
+      piecesHost.appendChild(btn);
+    }
+  }
+
+  function placeCrewSelected(sq) {
+    if (!crewSelectedUid) return false;
+    const homes = freeHomeSquares(CREW_BOARD);
+    if (!homes.includes(sq) || crewPlacements().some((p) => p.sq === sq)) return false;
+    const item = state.run.bag.find((p) => p.uid === crewSelectedUid);
+    if (!item) return false;
+    state.run.formation = [...crewPlacements(), { uid: item.uid, type: item.type, sq }];
+    crewSelectedUid = null;
+    audio.place();
+    paintCrew();
+    return true;
+  }
+
+  function onCrewClick(event) {
+    if (event.target.closest('.piece')) return;
+    const sq = crewView?.squareFromEvent(event);
+    if (sq == null) return;
+    if (crewSelectedUid) {
+      if (!placeCrewSelected(sq)) {
+        audio.illegal();
+        crewView.reject(sq);
+      }
     }
   }
 
@@ -1104,7 +1278,8 @@ export function initCampaign(ctx) {
 
   function retryFight() {
     $('modal-result').classList.add('hidden');
-    openLoadout(state.encounter);
+    if (state.world === 'voyage') openLoadout(state.encounter);
+    else startMappedFight(state.encounter);
   }
 
   function forfeitFight() {
@@ -1529,6 +1704,7 @@ export function initCampaign(ctx) {
   });
   $('btn-loadout-fight').addEventListener('click', beginFight);
   $('deploy-board').addEventListener('click', onDeployClick);
+  if ($('crew-board')) $('crew-board').addEventListener('click', onCrewClick);
   if ($('btn-go-again')) {
     $('btn-go-again').addEventListener('click', () => {
       audio.setMusicStyle('ambient');

@@ -254,14 +254,31 @@
         <button id="btn-map-quit" class="icon-btn" title="Abandon the run">✕</button>
       </div>
     </header>
-    <div id="map-stage" class="map-stage">
-      <div id="map-scroll" class="map-scroll">
-        <div id="map-art" class="map-art act-0"></div>
-        <div class="map-fog"></div>
-        <p id="map-act-label" class="map-act-label">ACT I</p>
-        <div id="map-climb" class="map-climb"></div>
+    <div class="map-shell">
+      <div id="map-stage" class="map-stage">
+        <div id="map-scroll" class="map-scroll">
+          <div id="map-art" class="map-art act-0"></div>
+          <div class="map-fog"></div>
+          <p id="map-act-label" class="map-act-label">ACT I</p>
+          <div id="map-climb" class="map-climb"></div>
+        </div>
+        <p id="map-blurb" class="map-blurb"></p>
       </div>
-      <p id="map-blurb" class="map-blurb"></p>
+      <aside id="map-crew" class="map-crew">
+        <h3 class="rail-title">Kings</h3>
+        <div id="crew-kings" class="bag-grid crew-kings"></div>
+        <h3 class="rail-title">Crew</h3>
+        <div id="crew-pieces" class="bag-list crew-pieces"></div>
+        <h3 class="rail-title">Line of march</h3>
+        <p class="crew-hint">Set your line here. Fights use this as it stands.</p>
+        <div id="crew-board-wrap" class="board-wrap crew-board-wrap">
+          <div id="crew-board" class="board">
+            <div class="squares"></div>
+            <div class="pieces"></div>
+            <div class="board-fx"></div>
+          </div>
+        </div>
+      </aside>
     </div>
   </section>
 

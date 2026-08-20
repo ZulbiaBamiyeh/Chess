@@ -51,7 +51,7 @@ export function createRun(seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>>
   const rng = mulberry32(seed);
   const map = generateMap(rng);
   const opening = firstRooms(map.acts[0]);
-  return {
+  const run = {
     seed,
     rng,
     hp: START_HP,
@@ -80,7 +80,10 @@ export function createRun(seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>>
     won: false,
     goldSpent: 0,
     captured: [],
+    formation: null,
   };
+  ensureFormation(run);
+  return run;
 }
 
 export function currentNode(run) {
@@ -169,7 +172,9 @@ export function addToBag(run, type) {
 export function removeFromBag(run, itemUid) {
   const i = run.bag.findIndex((p) => p.uid === itemUid);
   if (i < 0) return null;
-  return run.bag.splice(i, 1)[0];
+  const gone = run.bag.splice(i, 1)[0];
+  pruneFormation(run);
+  return gone;
 }
 
 export function supplyBudget(run, encounter) {
@@ -864,6 +869,115 @@ export function suggestLoadout(run, encounter) {
     if (!improved) break;
   }
   return chosen;
+}
+
+/** 8×8 line-of-march board used to set the army before a fight. */
+export const CREW_BOARD = {
+  files: 8, ranks: 8, supply: 40, deploy: 16, enemy: [],
+  name: 'Line of March', blurb: 'Who walks, and where.',
+};
+
+export function ensureFormation(run) {
+  if (run.formation && run.formation.length) {
+    pruneFormation(run);
+    return run.formation;
+  }
+  const formation = [{ uid: 'king', type: 'k', sq: 7 * 16 + 4 }];
+  const pawnFiles = [3, 4, 5];
+  const pawns = run.bag.filter((p) => p.type === 'p');
+  for (let i = 0; i < pawnFiles.length && i < pawns.length; i++) {
+    formation.push({ uid: pawns[i].uid, type: 'p', sq: 6 * 16 + pawnFiles[i] });
+  }
+  run.formation = formation;
+  return formation;
+}
+
+export function pruneFormation(run) {
+  const have = new Set((run.bag || []).map((p) => p.uid));
+  have.add('king');
+  run.formation = (run.formation || []).filter((p) => have.has(p.uid));
+  if (!run.formation.some((p) => p.uid === 'king')) {
+    const taken = new Set(run.formation.map((p) => p.sq));
+    const kingSq = [7 * 16 + 4, 7 * 16 + 3, 7 * 16 + 5, 7 * 16]
+      .find((sq) => !taken.has(sq)) ?? (7 * 16 + 4);
+    run.formation.unshift({ uid: 'king', type: 'k', sq: kingSq });
+  }
+}
+
+/**
+ * Stamp the saved line of march onto this encounter's home ranks, dropping
+ * anyone who will not fit, then nudge the line if it already checks their king.
+ */
+export function placementsFromFormation(run, encounter) {
+  ensureFormation(run);
+  const files = encounter.files;
+  const ranks = encounter.ranks;
+  const homeRows = ranks <= 4 ? 1 : 2;
+  const homes = new Set(freeHomeSquares(encounter));
+  const used = new Set();
+  const mapped = [];
+  for (const p of run.formation) {
+    const f = p.sq & 15;
+    const r = p.sq >> 4;
+    const back = 7 - r;
+    if (back < 0 || back >= homeRows) continue;
+    if (f < 0 || f >= files) continue;
+    const dest = (ranks - 1 - back) * 16 + f;
+    if (!homes.has(dest) || used.has(dest)) continue;
+    const type = p.uid === 'king' ? 'k' : run.bag.find((b) => b.uid === p.uid)?.type;
+    if (!type) continue;
+    used.add(dest);
+    mapped.push({ uid: p.uid, type, sq: dest });
+  }
+  if (!mapped.some((p) => p.uid === 'king')) {
+    const sq = [...homes].find((h) => !used.has(h));
+    if (sq != null) mapped.unshift({ uid: 'king', type: 'k', sq });
+  }
+  const king = mapped.find((p) => p.uid === 'king');
+  let items = mapped.filter((p) => p.uid !== 'king');
+  while (items.length && !validateLoadout(run, encounter, items.map((i) => i.uid)).ok) {
+    items.sort((a, b) => (a.sq >> 4) - (b.sq >> 4) || (a.sq & 15) - (b.sq & 15));
+    items.shift();
+  }
+  const placements = king ? [king, ...items] : items;
+  return legalizeSetup(run, encounter, placements);
+}
+
+function legalizeSetup(run, encounter, placements) {
+  if (run.king === 'sentinel') return placements;
+  const checks = (pls) => {
+    const g = buildFight(run, encounter, pls);
+    return g.kings.b >= 0 && g.kingAttacked(BLACK);
+  };
+  if (!checks(placements)) return placements;
+
+  const bagItems = placements
+    .filter((p) => p.uid !== 'king')
+    .map((p) => run.bag.find((b) => b.uid === p.uid))
+    .filter(Boolean);
+  const auto = autoPlace(encounter, bagItems);
+  if (!checks(auto)) return auto;
+
+  const g = buildFight(run, encounter, placements);
+  const bk = g.kings.b;
+  const offenders = new Set();
+  for (const p of placements) {
+    if (p.uid === 'king') continue;
+    const piece = g.board[p.sq];
+    if (piece && typeof g.attacksFrom === 'function' && g.attacksFrom(p.sq, piece, bk)) {
+      offenders.add(p.uid);
+    }
+  }
+  const stripped = placements.filter((p) => p.uid === 'king' || !offenders.has(p.uid));
+  if (!checks(stripped)) return stripped;
+
+  const keep = bagItems.slice();
+  while (keep.length) {
+    keep.pop();
+    const trial = autoPlace(encounter, keep);
+    if (!checks(trial)) return trial;
+  }
+  return autoPlace(encounter, []);
 }
 
 export function autoPlace(encounter, selectedItems) {

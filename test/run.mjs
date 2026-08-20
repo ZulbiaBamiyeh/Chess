@@ -4,6 +4,7 @@
 import { WHITE } from '../js/chess.js';
 import {
   createRun, validateLoadout, buildFight, settleFight, addToBag, hasSlot, runStats,
+  ensureFormation, placementsFromFormation, CREW_BOARD,
   occupiedSlots, supplyBudget, deployBudget, openShop, buyOffer, autoPlace, currentNode,
   completeNode, pickNode, rest, forage, trainPiece, currentEncounter,
   bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
@@ -37,6 +38,39 @@ const alley = ENCOUNTERS.alley;
   assert('map has three acts', run.map.acts.length === 3);
   assert('start offers a fork', run.choices.length >= 2, String(run.choices.length));
   assert('start rooms are fights', run.choices.every((n) => n.kind === 'fight'));
+  const form = ensureFormation(run);
+  assert('a new run has a line of march', form.some((p) => p.uid === 'king') && form.filter((p) => p.type === 'p').length === 3);
+}
+
+{
+  const run = createRun(1);
+  const mapped = placementsFromFormation(run, gate);
+  assert('formation maps onto the first fight', mapped.some((p) => p.uid === 'king') && mapped.length >= 2);
+  const game = buildFight(run, gate, mapped);
+  assert('mapped line does not open checking their king',
+    !game.kingAttacked('b'), JSON.stringify(game.pieces()));
+}
+
+{
+  // A rook staring up the enemy king's file would open in check — the mapper
+  // has to break that line rather than let the fight start illegal.
+  const run = createRun(1);
+  addToBag(run, 'r');
+  const rook = run.bag.find((p) => p.type === 'r');
+  run.formation = [
+    { uid: 'king', type: 'k', sq: 7 * 16 + 3 },
+    { uid: rook.uid, type: 'r', sq: 7 * 16 + 3 },
+  ];
+  const enc = {
+    ...gate,
+    files: 6, ranks: 6,
+    enemy: [{ type: 'k', at: 'd6' }],
+    terrain: {},
+  };
+  const mapped = placementsFromFormation(run, enc);
+  const game = buildFight(run, enc, mapped);
+  assert('an opening check is broken before the fight',
+    !game.kingAttacked('b'), 'still checking');
 }
 
 {
