@@ -461,11 +461,11 @@ export function initCampaign(ctx) {
    */
   const restChoices = (run) => [
     { id: 'rest', label: 'Rest',
-      detail: `Heal ${restHeal(run)} HP, pocket ${REST_GOLD} gold.` },
+      detail: `Heal ${restHeal(run)} HP.` },
     { id: 'forage', label: 'Forage',
       detail: `Skip the healing — take ${forageGold(run)} gold instead.` },
     { id: 'train', label: 'Train',
-      detail: `Spend ${trainCost(run)} gold to permanently shield one piece, every fight from now on.` },
+      detail: `Spend ${trainCost(run)} gold to permanently shield one common piece, every fight from now on.` },
   ];
 
 
@@ -486,8 +486,8 @@ export function initCampaign(ctx) {
   function trainGate() {
     const cost = trainCost(state.run);
     if (state.run.gold < cost) return { ok: false, reason: `Needs ${cost}g` };
-    if (!state.run.bag.some((p) => p.type !== 'k' && !p.trained)) {
-      return { ok: false, reason: 'Nothing left to train' };
+    if (!state.run.bag.some((p) => p.type !== 'k' && !p.trained && rarityOf(p.type) === 'common')) {
+      return { ok: false, reason: 'No untrained commons' };
     }
     return { ok: true };
   }
@@ -518,14 +518,14 @@ export function initCampaign(ctx) {
       finishRest([`+${result.gold} gold`]);
     } else {
       const result = rest(state.run);
-      finishRest([`+${result.healed} HP`, `+${result.gold} gold`]);
+      finishRest([`+${result.healed} HP`]);
     }
   }
 
   function askWhichPieceToTrain() {
     const host = $('rest-choices');
     host.innerHTML = '<div class="ec-detail" style="padding:0 0 .4rem">Which piece learns to hold?</div>';
-    for (const item of state.run.bag.filter((p) => p.type !== 'k' && !p.trained)) {
+    for (const item of state.run.bag.filter((p) => p.type !== 'k' && !p.trained && rarityOf(item.type) === 'common')) {
       const def = pieceById(item.type);
       const btn = document.createElement('button');
       btn.type = 'button';

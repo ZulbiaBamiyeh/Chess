@@ -614,8 +614,7 @@ export const trainCost = (run) => TRAIN_COST;
 export function rest(run) {
   const before = run.hp;
   run.hp = Math.min(run.hpMax, run.hp + restHeal(run));
-  run.gold += REST_GOLD;
-  return { healed: run.hp - before, gold: REST_GOLD };
+  return { healed: run.hp - before, gold: 0 };
 }
 
 /** Skip the healing and walk off with more coin instead. */
@@ -634,6 +633,9 @@ export function forage(run) {
 export function trainPiece(run, itemUid) {
   const item = run.bag.find((p) => p.uid === itemUid);
   if (!item || item.type === 'k') return { ok: false, reason: 'Can’t train that.' };
+  if (rarityOf(item.type) !== RARITY.COMMON) {
+    return { ok: false, reason: 'Only commons can be trained.' };
+  }
   if (item.trained) return { ok: false, reason: 'Already trained.' };
   const cost = trainCost(run);
   if (run.gold < cost) return { ok: false, reason: `Needs ${cost} gold.` };
