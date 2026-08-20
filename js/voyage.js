@@ -4,12 +4,13 @@
 import { WHITE } from './chess.js';
 import { pieceById } from './pieces.js';
 import { pieceImage, kingSkin, toast } from './ui.js';
-import { createVoyageRun, addToBag, REST_HEAL } from './run.js';
+import { createVoyageRun, addToBag, removeFromBag, REST_HEAL } from './run.js';
 import { RELICS } from './relics.js';
 import {
-  generateWorld, playerMoves, movePlayer, clashEncounter, bagMaterial,
-  armyMaterial, threatTint, leadersInBag, setLeader, villageRecruit,
-  bumpFromPack, cellAt, TERRAIN, OW, key, packCard,
+  generateWorld, generateTown, playerMoves, movePlayer, clashEncounter, bagMaterial,
+  armyMaterial, threatTint, leadersInBag, setLeader,
+  bumpFromPack, cellAt, TERRAIN, OW, key, packCard, chebyshev,
+  revealMapFragment, questProgress, mulberry32,
 } from './overworld.js';
 
 export function initVoyage(ctx) {
@@ -24,8 +25,12 @@ export function initVoyage(ctx) {
   let fogFiles = 0;
   let fogRanks = 0;
 
-  function world() {
+  function overworld() {
     return state.run?.voyage;
+  }
+
+  function world() {
+    return state.run?.town || state.run?.voyage;
   }
 
   function start() {
@@ -59,7 +64,7 @@ export function initVoyage(ctx) {
   }
 
   function onFightSettled(reward) {
-    const w = world();
+    const w = overworld();
     const packId = state.encounter?.packId;
     const pack = w?.packs.find((p) => p.id === packId);
     if (reward?.won && pack) pack.dead = true;
@@ -69,6 +74,7 @@ export function initVoyage(ctx) {
       return;
     }
     if (reward?.won) {
+      state.run.packsKilled = (state.run.packsKilled || 0) + 1;
       const cell = cellAt(w, w.player.file, w.player.rank);
       if (cell?.poi === 'ramp') {
         toast(`${state.encounter?.name || 'They'} fall. The ramp is open.`, 'good');
@@ -88,6 +94,10 @@ export function initVoyage(ctx) {
   function paintBlurb() {
     const w = world();
     if (!$('ow-blurb') || !w) return;
+    if (w.scene === 'town') {
+      $('ow-blurb').textContent = `${w.name}. Talk to the pieces. South is the road.`;
+      return;
+    }
     const south = w.player.rank - (w.decayRank + 1);
     const turnsLeft = Math.max(0, w.grace - w.turns);
     let line;
@@ -143,7 +153,10 @@ export function initVoyage(ctx) {
     if (w.visible.has(k)) bits.push('fog-visible');
     else if (w.explored.has(k)) bits.push('fog-seen');
     else bits.push('fog-hidden');
-    if (cell.terrain === TERRAIN.CHASM || cell.terrain === TERRAIN.WALL) bits.push('chasm');
+    if (cell.terrain === TERRAIN.CHASM || (cell.terrain === TERRAIN.WALL && w.scene !== 'town')) {
+      bits.push('chasm');
+    }
+    if (w.scene === 'town' && cell.terrain === TERRAIN.WALL) bits.push('town-wall');
     if (cell.terrain === TERRAIN.FROST) bits.push('frost-tile');
     if (cell.terrain === TERRAIN.EMBER) bits.push('ember-tile');
     if (cell.terrain === TERRAIN.FORT) bits.push('fort-tile');
@@ -159,6 +172,7 @@ export function initVoyage(ctx) {
     const host = stack || board;
     host.style.setProperty('--ow-files', w.files);
     host.style.setProperty('--ow-ranks', w.ranks);
+    host.classList.toggle('town', w.scene === 'town');
     legal = playerMoves(w);
     const legalSet = new Set(legal.map((m) => key(m.file, m.rank)));
     const playerMat = bagMaterial(state.run);
@@ -184,6 +198,12 @@ export function initVoyage(ctx) {
             sq.insertAdjacentHTML('beforeend', `<i class="ow-poi" style="background-image:url('assets/ow-shop.png')"></i>`);
           } else if (cell.poi === 'ramp') {
             sq.insertAdjacentHTML('beforeend', `<i class="ow-poi" style="background-image:url('assets/ow-ramp.png')"></i>`);
+          } else if (cell.poi === 'shrine') {
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">✝</i>`);
+          } else if (cell.poi === 'sign') {
+            sq.insertAdjacentHTML('beforeend', `<i class="ow-loot">☰</i>`);
+          } else if (cell.poi === 'exit') {
+            sq.classList.add('ow-exit');
           } else if (cell.poi === 'loot') {
             const skull = cell.loot?.skull;
             sq.insertAdjacentHTML('beforeend', `<i class="ow-loot${skull ? ' skull' : ''}">${skull ? '☠' : '✦'}</i>`);
@@ -205,6 +225,17 @@ export function initVoyage(ctx) {
             badge.textContent = String(mat);
             badge.title = `${pack.name} · ${pack.stance === 'docile' ? 'docile' : 'hostile'} · ${mat}`;
             sq.appendChild(badge);
+          }
+          const npc = (w.npcs || []).find((n) => n.file === file && n.rank === rank);
+          if (npc) {
+            const fig = document.createElement('i');
+            fig.className = 'ow-piece ow-npc';
+            fig.style.backgroundImage = `url('${pieceImage(npc.type, WHITE)}')`;
+            sq.appendChild(fig);
+            const tag = document.createElement('span');
+            tag.className = 'ow-npc-tag';
+            tag.textContent = npc.title;
+            sq.appendChild(tag);
           }
           if (w.player.file === file && w.player.rank === rank) {
             const fig = document.createElement('i');
@@ -237,7 +268,13 @@ export function initVoyage(ctx) {
     const w = world();
     if (!w || state.run.over) return;
     const vis = w.visible.has(key(file, rank));
-    const pack = vis && w.packs.find((p) => !p.dead && p.file === file && p.rank === rank);
+    const npc = vis && (w.npcs || []).find((n) => n.file === file && n.rank === rank);
+    if (npc) {
+      const canTalk = chebyshev(w.player, npc) === 1;
+      openNpcSheet(npc, canTalk);
+      return;
+    }
+    const pack = vis && (w.packs || []).find((p) => !p.dead && p.file === file && p.rank === rank);
     if (pack) {
       const canStep = legal.some((m) => m.file === file && m.rank === rank);
       openPackSheet(pack, { canStep });
@@ -356,7 +393,42 @@ export function initVoyage(ctx) {
       return;
     }
     if (event.type === 'village') {
-      openVillage(event.biome);
+      enterTown(event);
+      return;
+    }
+    if (event.type === 'exit') {
+      leaveTown();
+      return;
+    }
+    if (event.type === 'shrine') {
+      const cell = cellAt(overworld(), overworld().player.file, overworld().player.rank);
+      if (cell?.spent) {
+        toast('The shrine is cold.', '');
+      } else {
+        if (cell) cell.spent = true;
+        state.run.hp = Math.min(state.run.hpMax, state.run.hp + 5);
+        toast('The shrine mends you. +5 HP.', 'good');
+        audio.victory();
+        campaign.paintRunHud();
+      }
+      paintBoard();
+      paintBlurb();
+      centerOnPlayer();
+      return;
+    }
+    if (event.type === 'sign') {
+      const ow = overworld();
+      const cell = cellAt(ow, ow.player.file, ow.player.rank);
+      if (!cell?.spent) {
+        cell.spent = true;
+        const n = revealMapFragment(ow, ow.rng, 14);
+        toast(`A sign. ${n} scraps of the road north come into view.`, 'good');
+      } else {
+        toast('You already read it.', '');
+      }
+      paintBoard();
+      paintBlurb();
+      centerOnPlayer();
       return;
     }
     if (event.type === 'loot') {
@@ -413,43 +485,142 @@ export function initVoyage(ctx) {
     audio.victory();
   }
 
-  function openVillage(biome) {
-    const offer = villageRecruit(biome);
+  function enterTown(event) {
+    const ow = overworld();
+    const seed = event.seed || 1;
+    state.run.town = generateTown(mulberry32(seed), event.biome || 'wood', ow.act, event.name, ow.player.leader);
+    toast(`${state.run.town.name}.`, 'good');
+    audio.place();
+    show();
+  }
+
+  function leaveTown() {
+    state.run.town = null;
+    toast('Back to the road.', '');
+    audio.place();
+    show();
+  }
+
+  function grantQuestReward(reward) {
+    if (!reward) return;
+    if (reward.gold) {
+      state.run.gold += reward.gold;
+      toast(`+${reward.gold}g`, 'good');
+    }
+    if (reward.piece) {
+      const added = addToBag(state.run, reward.piece);
+      const def = pieceById(reward.piece);
+      toast(added ? `${def?.name || reward.piece} joins the bag` : 'No slot for the gift', added ? 'good' : 'danger');
+    }
+    if (reward.map) {
+      const n = revealMapFragment(overworld(), overworld().rng, 16);
+      toast(`${n} scraps of map.`, 'good');
+    }
+    campaign.paintRunHud();
+  }
+
+  function openNpcSheet(npc, canTalk) {
     const host = $('ow-modal');
     if (!host) return;
-    const def = pieceById(offer.type);
+    const run = state.run;
+    const live = (run.quests || []).find((q) => q.npcId === npc.id);
+    const quest = live || npc.quest;
+    const prog = quest ? questProgress(run, quest) : null;
+    let body = `<p class="pack-blurb">${npc.blurb}</p>`;
+    const actions = [];
+    if (!canTalk) {
+      body += `<p class="pack-reach">Walk next to them.</p>`;
+    } else if (npc.role === 'inn') {
+      const town = world();
+      actions.push(`<button class="btn btn-gold" data-act="rest" type="button" ${town.rested ? 'disabled' : ''}>Rest · +${REST_HEAL} HP</button>`);
+    } else if (npc.role === 'merchant') {
+      actions.push(`<button class="btn btn-gold" data-act="shop" type="button">See the stall</button>`);
+    } else if (npc.role === 'cartographer') {
+      const cost = 3;
+      actions.push(`<button class="btn btn-gold" data-act="map" type="button" ${run.gold < cost ? 'disabled' : ''}>Buy a fragment · ${cost}g</button>`);
+    } else if (npc.role === 'quest' && quest) {
+      if (quest.status === 'done') {
+        body += `<p>They have nothing more for you.</p>`;
+      } else if (quest.status === 'offer') {
+        body += `<p class="pack-roster">${quest.title}</p><p>${quest.detail}</p>`;
+        actions.push(`<button class="btn btn-gold" data-act="accept" type="button">Take the work</button>`);
+      } else if (prog?.ready) {
+        body += `<p class="pack-roster">${quest.title}</p><p>They nod. The work is done.</p>`;
+        actions.push(`<button class="btn btn-gold" data-act="turnin" type="button">Collect</button>`);
+      } else {
+        body += `<p class="pack-roster">${quest.title}</p><p>${quest.detail}</p>`;
+      }
+    }
+    actions.push(`<button class="btn btn-ghost" data-act="leave" type="button">Back</button>`);
     host.classList.remove('hidden');
     host.innerHTML = `
-      <div class="ow-card">
-        <h2>${biome === 'frost' ? 'A frost hamlet' : biome === 'peak' ? 'A cinder camp' : 'A quiet village'}</h2>
-        <p>They will house you for a night, or send someone with you.</p>
-        <button class="btn btn-gold" data-act="heal">Rest · +${REST_HEAL} HP</button>
-        <button class="btn btn-gold" data-act="hire" ${state.run.gold < offer.gold ? 'disabled' : ''}>
-          Hire ${def?.name || offer.name} · ${offer.gold}g
-        </button>
-        <button class="btn btn-ghost" data-act="leave">Move on</button>
+      <div class="ow-card pack-card">
+        <span class="pack-stance docile">${npc.title}</span>
+        <h2>${npc.name}</h2>
+        ${body}
+        ${actions.join('')}
       </div>`;
     host.onclick = (e) => {
       const act = e.target?.dataset?.act;
       if (!act) return;
-      if (act === 'heal') {
+      if (act === 'leave') { closePackSheet(); return; }
+      if (!canTalk) { audio.illegal(); return; }
+      if (act === 'rest') {
+        const town = world();
+        if (town.rested) { audio.illegal(); return; }
+        town.rested = true;
         state.run.hp = Math.min(state.run.hpMax, state.run.hp + REST_HEAL);
         toast('You sleep. The bag is still there in the morning.', 'good');
         audio.victory();
-      } else if (act === 'hire') {
-        if (state.run.gold < offer.gold) { audio.illegal(); return; }
-        const added = addToBag(state.run, offer.type);
-        if (!added) { toast('No slot for them', 'danger'); audio.illegal(); return; }
-        state.run.gold -= offer.gold;
-        toast(`${def.name} joins you`, 'good');
-        audio.victory();
+        campaign.paintRunHud();
+        closePackSheet();
+        return;
       }
-      host.classList.add('hidden');
-      host.onclick = null;
-      campaign.paintRunHud();
-      paintLeaders();
-      paintBoard();
-      paintBlurb();
+      if (act === 'shop') {
+        closePackSheet();
+        campaign.openWorldShop({
+          name: `${world().name} stall`,
+          blurb: 'Gold for steel.',
+        });
+        return;
+      }
+      if (act === 'map') {
+        const cost = 3;
+        if (state.run.gold < cost) { audio.illegal(); return; }
+        state.run.gold -= cost;
+        const n = revealMapFragment(overworld(), overworld().rng, 18);
+        toast(`${n} scraps of the north. −${cost}g`, 'good');
+        audio.place();
+        campaign.paintRunHud();
+        closePackSheet();
+        return;
+      }
+      if (act === 'accept' && npc.quest) {
+        const q = { ...npc.quest, status: 'open' };
+        if (q.kind === 'bounty') q.needKills = (state.run.packsKilled || 0) + 1;
+        state.run.quests = state.run.quests || [];
+        state.run.quests.push(q);
+        npc.quest = q;
+        toast('The work is yours.', 'good');
+        audio.click();
+        closePackSheet();
+        return;
+      }
+      if (act === 'turnin') {
+        const q = (state.run.quests || []).find((x) => x.npcId === npc.id);
+        if (!q || !questProgress(state.run, q).ready) { audio.illegal(); return; }
+        if (q.kind === 'tribute') {
+          const pawn = (state.run.bag || []).find((p) => p.type === 'p');
+          if (!pawn) { audio.illegal(); return; }
+          removeFromBag(state.run, pawn.uid);
+        }
+        q.status = 'done';
+        if (npc.quest) npc.quest.status = 'done';
+        grantQuestReward(q.reward);
+        audio.victory();
+        closePackSheet();
+        paintLeaders();
+      }
     };
   }
 

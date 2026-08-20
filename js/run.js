@@ -32,6 +32,8 @@ export function createVoyageRun(seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF
   run.bag = ['p', 'p', 'p'].map((type) => ({ uid: uid(), type }));
   run.gold = 2;
   run.world = 'voyage';
+  run.quests = [];
+  run.packsKilled = 0;
   return run;
 }
 

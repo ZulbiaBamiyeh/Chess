@@ -100,7 +100,9 @@ export function isWalkable(world, file, rank) {
 
 function occupier(world, file, rank) {
   if (world.player.file === file && world.player.rank === rank) return 'player';
-  return world.packs.find((p) => !p.dead && p.file === file && p.rank === rank) || null;
+  const pack = (world.packs || []).find((p) => !p.dead && p.file === file && p.rank === rank);
+  if (pack) return pack;
+  return (world.npcs || []).find((n) => n.file === file && n.rank === rank) || null;
 }
 
 function setTerrain(world, file, rank, terrain) {
@@ -241,7 +243,7 @@ function pickArchetype(biome, tier, danger, rng, role = 'road') {
     return 'gate';
   }
   if (role === 'cache') {
-    if (danger < 0.34) return 'watch';
+    if (danger < 0.4) return 'watch';
     const r = rng();
     if (r < 0.68) return 'watch';
     if (r < 0.86) return 'thieves';
@@ -250,7 +252,7 @@ function pickArchetype(biome, tier, danger, rng, role = 'road') {
   if (role === 'road' && danger < 0.55 && rng() < 0.14) return 'caravan';
   // The south is levy-and-pawns country. Scouts and thieves wait until the
   // board has actually climbed.
-  if (danger < 0.34) return 'levy';
+  if (danger < 0.4) return 'levy';
   if (danger > 0.74) {
     if (biome === 'frost' || biome === 'gate') return 'skull';
     if (biome === 'peak') return 'pyre';
@@ -272,8 +274,8 @@ function pickArchetype(biome, tier, danger, rng, role = 'road') {
 function packPower(rank, ranks, act, rng) {
   const t = rank / Math.max(1, ranks - 1);
   // Until well up the board, they field what you field: two or three pawns.
-  if (t < 0.34) return rng() < 0.55 ? 2 : 3;
-  if (t < 0.52) return 4 + Math.floor(rng() * 3);
+  if (t < 0.4) return rng() < 0.55 ? 2 : 3;
+  if (t < 0.55) return 4 + Math.floor(rng() * 3);
   return Math.round(6 + t * (12 + act * 5) + rng() * 3);
 }
 
@@ -445,6 +447,9 @@ export function generateWorld(rng, act = 1) {
     rng,
     cells,
     packs: [],
+    npcs: [],
+    scene: 'overworld',
+    furthestRank: 1,
     player: { file: Math.floor(files / 2), rank: 1, leader: 'k' },
     explored: new Set(),
     visible: new Set(),
@@ -523,23 +528,21 @@ export function generateWorld(rng, act = 1) {
   rampCell.terrain = TERRAIN.RAMP;
   rampCell.poi = 'ramp';
 
-  const villageSpots = emptyFloor(world, (_c, _f, r) => r >= 2 && r <= 6);
-  if (villageSpots.length) {
-    const v = pick(rng, villageSpots);
-    v.cell.poi = 'village';
-    v.cell.terrain = TERRAIN.FORT;
-  }
-  const shopSpots = emptyFloor(world, (_c, _f, r) => r >= 9 && r <= ranks - 10);
+  placeTown(world, rng, (_c, _f, r) => r >= 2 && r <= 7, 'wood');
+  placeTown(world, rng, (c, _f, r) => (c.biome === 'frost' || c.biome === 'peak') && r > 12 && r < ranks - 10);
+  const shopSpots = emptyFloor(world, (_c, _f, r) => r >= 10 && r <= ranks - 10);
   if (shopSpots.length) {
     const s = pick(rng, shopSpots);
     s.cell.poi = 'shop';
     s.cell.terrain = TERRAIN.FORT;
   }
-  const midVillage = emptyFloor(world, (c, _f, r) => (c.biome === 'frost' || c.biome === 'peak') && r > 10 && r < ranks - 10);
-  if (midVillage.length) {
-    const v = pick(rng, midVillage);
-    v.cell.poi = 'village';
-    v.cell.terrain = TERRAIN.FORT;
+  const shrineSpots = emptyFloor(world, (_c, _f, r) => r >= 3 && r <= 9);
+  if (shrineSpots.length) {
+    pick(rng, shrineSpots).cell.poi = 'shrine';
+  }
+  const signSpots = emptyFloor(world, (_c, _f, r) => r >= 4 && r <= 12);
+  if (signSpots.length) {
+    pick(rng, signSpots).cell.poi = 'sign';
   }
 
   // Greed nodes: every pocket end is a cache, and the deeper/later it is
@@ -558,12 +561,12 @@ export function generateWorld(rng, act = 1) {
   // Spine patrols. These are the wilderness — they hunt, they sit on the
   // road, and walking north means meeting them.
   const used = new Set(world.packs.map((p) => key(p.file, p.rank)));
-  const patrolRanks = [6, 10, 14, 18, 22, 26, ranks - 10, ranks - 6];
+  const patrolRanks = [12, 16, 20, 24, 28, ranks - 10, ranks - 6];
   for (const ry of patrolRanks) {
-    const y = Math.max(5, Math.min(ranks - 4, ry + (rng() < 0.5 ? 0 : 1)));
+    const y = Math.max(11, Math.min(ranks - 4, ry + (rng() < 0.5 ? 0 : 1)));
     const f = spine[y] ?? x;
     if (used.has(key(f, y))) continue;
-    if (chebyshev({ file: f, rank: y }, world.player) < 5) continue;
+    if (chebyshev({ file: f, rank: y }, world.player) < 8) continue;
     used.add(key(f, y));
     const t = y / ranks;
     const power = packPower(y, ranks, act, rng);
@@ -645,9 +648,10 @@ export function movesFor(world, file, rank, type, {
     if (who === 'player') {
       if (!capturePlayer) return false;
     } else if (who && who !== selfPack) {
-      if (!attackPacks) return false;
-      seen.add(k);
-      dest.push({ file: f, rank: r });
+      if (attackPacks && who.army) {
+        seen.add(k);
+        dest.push({ file: f, rank: r });
+      }
       return false;
     }
     seen.add(k);
@@ -678,7 +682,7 @@ export function movesFor(world, file, rank, type, {
           break;
         }
         if (who && who !== selfPack) {
-          if (attackPacks) add(f, r);
+          if (attackPacks && who.army) add(f, r);
           break;
         }
         if (!add(f, r)) break;
@@ -699,10 +703,11 @@ function applyPoi(world, file, rank) {
   if (!cell?.poi) return null;
   if (cell.poi === 'shop') return { type: 'shop' };
   if (cell.poi === 'village') {
-    if (cell.spent) return null;
-    cell.spent = true;
-    return { type: 'village', biome: cell.biome };
+    return { type: 'village', biome: cell.biome, name: cell.townName, seed: cell.townSeed };
   }
+  if (cell.poi === 'shrine') return { type: 'shrine', spent: Boolean(cell.spent) };
+  if (cell.poi === 'sign') return { type: 'sign', spent: Boolean(cell.spent) };
+  if (cell.poi === 'exit') return { type: 'exit' };
   if (cell.poi === 'ramp') return { type: 'ramp' };
   if (cell.poi === 'loot' && cell.loot) {
     const loot = cell.loot;
@@ -787,7 +792,10 @@ export function movePlayer(world, file, rank, opts = {}) {
   world.player.file = file;
   world.player.rank = rank;
   world.turns += 1;
-  revealAround(world, file, rank, OW.VISION);
+  if (world.scene !== 'town') {
+    world.furthestRank = Math.max(world.furthestRank || 0, world.player.rank);
+  }
+  revealAround(world, file, rank, world.scene === 'town' ? 16 : OW.VISION);
 
   if (pack) {
     if (pack.stance === 'docile' && !opts.fight) {
@@ -824,6 +832,185 @@ export function villageRecruit(biome) {
   if (biome === 'peak') return { type: 'l', gold: 5, name: 'a Flame' };
   if (biome === 'gate') return { type: 'h', gold: 6, name: 'a Champion' };
   return { type: 'w', gold: 3, name: 'a Wazir' };
+}
+
+const TOWN_NAMES = {
+  wood: ['Ashford', 'Millcross', 'The Lower March', 'Palisade'],
+  frost: ['Rimewell', 'Hoar Hamlet', 'Whitegate'],
+  peak: ['Cinderrow', 'The Brand', 'Emberstow'],
+  gate: ['Bannerhold', 'The March'],
+};
+
+function placeTown(world, rng, pred, biomeHint) {
+  const spots = emptyFloor(world, pred);
+  if (!spots.length) return null;
+  const s = pick(rng, spots);
+  const biome = biomeHint || s.cell.biome || 'wood';
+  s.cell.poi = 'village';
+  s.cell.terrain = TERRAIN.FORT;
+  s.cell.townName = pick(rng, TOWN_NAMES[biome] || TOWN_NAMES.wood);
+  s.cell.townSeed = (rng() * 0xFFFFFFFF) >>> 0;
+  return s;
+}
+
+function makeQuest(rng, npcId, act) {
+  const kind = pick(rng, ['scout', 'bounty', 'tribute']);
+  if (kind === 'scout') {
+    return {
+      id: `${npcId}-scout`, npcId, kind, status: 'offer',
+      title: 'Walk the north',
+      detail: 'Come back when you have seen further up the road.',
+      needRank: 12 + act * 4,
+      reward: { gold: 4 + act, map: true },
+    };
+  }
+  if (kind === 'bounty') {
+    return {
+      id: `${npcId}-bounty`, npcId, kind, status: 'offer',
+      title: 'Scatter a band',
+      detail: 'Put down one hostile company and return.',
+      needKills: 1,
+      reward: { gold: 5 + act, piece: pick(rng, ['n', 'f', 'w']) },
+    };
+  }
+  return {
+    id: `${npcId}-tribute`, npcId, kind, status: 'offer',
+    title: 'A mouth to feed',
+    detail: 'Leave a pawn with me. I will make it worth your while.',
+    reward: { gold: 4, map: true },
+  };
+}
+
+/**
+ * A small plaza you walk. The people are pieces: a merchant, a courier
+ * who sells map scraps, an inn, and one or two with work for you.
+ */
+export function generateTown(rng, biome, act, name, leader = 'k') {
+  const files = 9;
+  const ranks = 7;
+  const cells = [];
+  for (let r = 0; r < ranks; r++) {
+    const row = [];
+    for (let f = 0; f < files; f++) {
+      const edge = r === ranks - 1 || f === 0 || f === files - 1;
+      const southGate = r === 0 && f >= 3 && f <= 5;
+      row.push({
+        terrain: southGate ? TERRAIN.FLOOR : (edge ? TERRAIN.WALL : TERRAIN.FLOOR),
+        biome,
+        poi: southGate ? 'exit' : null,
+        loot: null,
+      });
+    }
+    cells.push(row);
+  }
+  // A couple of stalls as short walls, leaving a plaza.
+  const stalls = [[2, 4], [6, 4], [1, 2], [7, 2]];
+  for (const [f, r] of stalls) {
+    if (cells[r]?.[f]) cells[r][f].terrain = TERRAIN.WALL;
+  }
+  const npcs = [
+    {
+      id: 'inn', role: 'inn', type: 'guard', file: 4, rank: 5,
+      title: 'Inn',
+      name: biome === 'frost' ? 'A Hoarfrost Host' : biome === 'peak' ? 'A Cinder Host' : 'The March Host',
+      blurb: 'A bed and a bowl. The road will still be there in the morning.',
+    },
+    {
+      id: 'merchant', role: 'merchant', type: 'w', file: 2, rank: 3,
+      title: 'Merchant',
+      name: 'The Stall',
+      blurb: 'Steel, bone, and the odd fairy. Gold talks.',
+    },
+    {
+      id: 'cartographer', role: 'cartographer', type: 'courier', file: 6, rank: 3,
+      title: 'Maps',
+      name: 'The Courier',
+      blurb: 'Fragments of the road north. Four gold a scrap.',
+    },
+    {
+      id: 'quest-a', role: 'quest', type: 'banner', file: 3, rank: 2,
+      title: 'Banner',
+      name: 'The Banner',
+      blurb: 'They have work, if you have a king to spend.',
+    },
+  ];
+  if (rng() < 0.7) {
+    npcs.push({
+      id: 'quest-b', role: 'quest', type: 'f', file: 5, rank: 2,
+      title: 'Priest',
+      name: 'The Ferz',
+      blurb: 'A quieter kind of errand.',
+    });
+  }
+  for (const npc of npcs) {
+    if (npc.role === 'quest') npc.quest = makeQuest(rng, npc.id, act);
+  }
+
+  const explored = new Set();
+  const visible = new Set();
+  for (let r = 0; r < ranks; r++) {
+    for (let f = 0; f < files; f++) {
+      const k = key(f, r);
+      explored.add(k);
+      visible.add(k);
+    }
+  }
+  return {
+    scene: 'town',
+    name: name || pick(rng, TOWN_NAMES[biome] || TOWN_NAMES.wood),
+    biome,
+    files,
+    ranks,
+    act,
+    rng,
+    cells,
+    packs: [],
+    npcs,
+    player: { file: 4, rank: 1, leader },
+    explored,
+    visible,
+    decayRank: -1,
+    turns: 0,
+    grace: 9999,
+    rested: false,
+  };
+}
+
+/** Paint a handful of unexplored floors onto the overworld as "seen". */
+export function revealMapFragment(world, rng, count = 18) {
+  const candidates = [];
+  for (let r = 0; r < world.ranks; r++) {
+    for (let f = 0; f < world.files; f++) {
+      if (world.explored.has(key(f, r))) continue;
+      if (!WALKABLE.has(world.cells[r][f].terrain) && world.cells[r][f].poi == null) continue;
+      candidates.push({ f, r });
+    }
+  }
+  let n = 0;
+  while (candidates.length && n < count) {
+    const i = Math.floor(rng() * candidates.length);
+    const [c] = candidates.splice(i, 1);
+    world.explored.add(key(c.f, c.r));
+    n++;
+  }
+  return n;
+}
+
+export function questProgress(run, quest) {
+  if (!quest || quest.status === 'done') return { ready: false };
+  if (quest.kind === 'scout') {
+    const have = run.voyage?.furthestRank || 0;
+    return { ready: have >= quest.needRank, have, need: quest.needRank };
+  }
+  if (quest.kind === 'bounty') {
+    const have = run.packsKilled || 0;
+    const need = quest.needKills || 1;
+    return { ready: have >= need, have, need };
+  }
+  if (quest.kind === 'tribute') {
+    return { ready: (run.bag || []).some((p) => p.type === 'p') };
+  }
+  return { ready: false };
 }
 
 function squareNameOn(file, rank1) {

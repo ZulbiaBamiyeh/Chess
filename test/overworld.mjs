@@ -1,6 +1,7 @@
 import {
-  generateWorld, mulberry32, playerMoves, movePlayer, materialOf, armyMaterial,
+  generateWorld, generateTown, mulberry32, playerMoves, movePlayer, materialOf, armyMaterial,
   clashEncounter, OW, TERRAIN, revealAround, packRoster, packCard, stepEnemies,
+  revealMapFragment,
 } from '../js/overworld.js';
 import { buildFight, createVoyageRun } from '../js/run.js';
 import { BLACK } from '../js/chess.js';
@@ -118,7 +119,7 @@ function world(seed = 1, act = 1) {
 
 {
   const w = world(9);
-  const south = w.packs.filter((p) => p.rank / w.ranks < 0.32 && p.tier !== 'boss');
+  const south = w.packs.filter((p) => p.rank / Math.max(1, w.ranks - 1) < 0.4 && p.tier !== 'boss');
   assert(south.length >= 1, 'south packs exist');
   for (const p of south) {
     const bodies = (p.army || []).filter((x) => x.type !== 'k');
@@ -299,6 +300,29 @@ function pawnLaneOpen(enc) {
   assert(blocked >= 6, `must fight to leave ${blocked}/8`);
   assert(kinds.size >= 4, `archetypes ${[...kinds].join(',')}`);
   console.log('PASS  act 1 is gated, scavenged, and not a free walk north');
+}
+
+{
+  const w = world(3);
+  const towns = [];
+  for (let r = 0; r < w.ranks; r++) {
+    for (let f = 0; f < w.files; f++) {
+      if (w.cells[r][f].poi === 'village') towns.push(w.cells[r][f]);
+    }
+  }
+  assert(towns.length >= 1, `towns ${towns.length}`);
+  const t = generateTown(mulberry32(towns[0].townSeed || 1), towns[0].biome || 'wood', 1, towns[0].townName);
+  assert(t.scene === 'town', 'scene');
+  assert(t.npcs.length >= 4, `npcs ${t.npcs.length}`);
+  const roles = new Set(t.npcs.map((n) => n.role));
+  assert(roles.has('merchant') && roles.has('cartographer') && roles.has('quest') && roles.has('inn'), [...roles].join());
+  const n = revealMapFragment(w, w.rng, 12);
+  assert(n >= 1, `fragment ${n}`);
+  const firstHostile = w.packs.filter((p) => p.stance === 'hostile' && p.tier !== 'boss').sort((a, b) => a.rank - b.rank)[0];
+  if (firstHostile) {
+    assert(firstHostile.rank >= 8, `first fight at rank ${firstHostile.rank}`);
+  }
+  console.log('PASS  towns have a merchant, a courier, and work');
 }
 
 console.log('\nOverworld clean.');
