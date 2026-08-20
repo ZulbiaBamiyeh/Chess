@@ -6,7 +6,7 @@ import { TILE, parseSquare } from './chess.js';
 
 export const START_HP = 18;
 export const START_GOLD = 3;
-export const REST_HEAL = 7;
+export const REST_HEAL = 12;
 export const REST_GOLD = 1;
 export const FORAGE_GOLD = 3;
 export const TRAIN_COST = 6;
@@ -489,7 +489,7 @@ export const ENCOUNTERS = {
   },
   shallows: {
     id: 'shallows', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
-    name: 'The Shallows', blurb: 'A drake in the doorway. You cannot take it.',
+    name: 'The Shallows', blurb: 'A drake in the doorway. Only a king can take it.',
     files: 6, ranks: 6, supply: 13, ai: AI.mid, theme: 'duck',
     enemy: [{ type: 'k', at: 'c6' }, { type: 'd', at: 'c5' }, { type: 'p', at: 'b6' }, { type: 'p', at: 'd6' }],
   },
@@ -1609,12 +1609,12 @@ export const DROP_CHANCE = { trash: 0.18, elite: 0.42, boss: 1 };
 
 const ACT_LAYOUT = [
   { col: 0, rows: ['trash', 'trash', 'trash'] },
-  { col: 1, rows: ['trash', 'shop', 'event'] },
-  { col: 2, rows: ['elite', 'rest', 'event', 'shop'] },
-  { col: 3, rows: ['event', 'rest', 'trash'] },
+  { col: 1, rows: ['trash', 'event', 'trash'] },
+  { col: 2, rows: ['elite', 'event', 'trash'] },
+  { col: 3, rows: ['event', 'elite', 'trash'] },
   { col: 4, rows: ['shop', 'elite', 'event'] },
-  { col: 5, rows: ['rest', 'event', 'shop'] },
-  { col: 6, rows: ['elite', 'rest'] },
+  { col: 5, rows: ['rest', 'event'] },
+  { col: 6, rows: ['shop', 'elite'] },
   { col: 7, rows: ['boss'] },
 ];
 

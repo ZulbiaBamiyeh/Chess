@@ -449,6 +449,15 @@ const alley = ENCOUNTERS.alley;
   assert('each act ends on a boss', map.acts.every((a) => a.nodes.some((n) => n.boss)));
   assert('each act opens with a fork', map.acts.every((a) => firstRooms(a).length >= 2));
   assert('maps actually branch', map.acts.every((a) => a.nodes.some((n) => n.next.length >= 2)));
+  const act1 = map.acts[0];
+  const shops = act1.nodes.filter((n) => n.kind === 'shop');
+  const rests = act1.nodes.filter((n) => n.kind === 'rest');
+  assert('act 1 has at most two shops', shops.length <= 2, String(shops.length));
+  assert('act 1 shops sit mid or late', shops.every((n) => n.col >= 4), shops.map((n) => n.col).join(','));
+  assert('each act has at most two camps',
+    map.acts.every((a) => a.nodes.filter((n) => n.kind === 'rest').length <= 2));
+  assert('each act has a camp',
+    map.acts.every((a) => a.nodes.some((n) => n.kind === 'rest')), String(rests.length));
   assert('act 1 shop weights have no legendary', SHOP_WEIGHTS[1].legendary === 0);
 }
 
@@ -771,8 +780,10 @@ function courtyardOrGate() {
   // Resting is the other half of that economy.
   const run = createRun(1);
   run.hp = 2;
+  const goldBefore = run.gold;
   const gained = rest(run);
-  assert('camping heals and pays', run.hp > 2 && run.gold > 0, JSON.stringify(gained));
+  assert('camping heals a lot', run.hp === 2 + gained.healed && gained.healed >= 12, JSON.stringify(gained));
+  assert('camping does not pay gold', run.gold === goldBefore && gained.gold === 0, JSON.stringify(gained));
 }
 
 {
@@ -788,6 +799,13 @@ function courtyardOrGate() {
   const target = run.bag.find((p) => p.type !== 'k');
   const trained = trainPiece(run, target.uid);
   assert('training spends gold and marks the piece', trained.ok && run.gold === 0 && target.trained === true);
+
+  const fancy = createRun(4);
+  addToBag(fancy, 'r');
+  fancy.gold = 99;
+  const rook = fancy.bag.find((p) => p.type === 'r');
+  const blocked = trainPiece(fancy, rook.uid);
+  assert('training refuses a non-common', !blocked.ok, JSON.stringify(blocked));
 
   const short = createRun(3);
   short.gold = 0;

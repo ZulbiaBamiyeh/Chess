@@ -317,6 +317,12 @@ export class Chess {
     return this.duck >= 0 && this.duck === sq;
   }
 
+  /** Drakes (uncapturable) can only be taken by a king. */
+  canTakePiece(attackerType, targetType) {
+    if (!PIECES[targetType]?.uncapturable) return true;
+    return attackerType === KING;
+  }
+
   defaultDuckSquare() {
     const cx = (this.files / 2) | 0;
     const cy = (this.ranks / 2) | 0;
@@ -876,7 +882,7 @@ export class Chess {
         return true;
       }
       if (PIECES[mover.type]?.cannotCapture) return false;
-      if (PIECES[target.type]?.uncapturable) return false;
+      if (!this.canTakePiece(mover.type, target.type)) return false;
       if (target.color === us) {
         // A courier is not blocked by its own side — it trades places with it.
         // That turns a friendly body from an obstacle into a tool: haul a slow
@@ -968,7 +974,7 @@ export class Chess {
           if (!this.inBounds(to) || this.isBlocked(to)) continue;
           const target = board[to];
           if (!target || target.color === us) continue;
-          if (PIECES[target.type]?.uncapturable) continue;
+          if (!this.canTakePiece(piece.type, target.type)) continue;
           if (this.status[to] & ST_SHIELD) {
             const rebound = this.findRebound(to, from);
             out.push({
@@ -1939,20 +1945,22 @@ export class Chess {
 
   /**
    * Eventual reachability: can `color` walk a capturing piece onto the
-   * enemy king? Walls and uncapturable units are solid; everything else
-   * (including own pieces) is treated as something that can step aside.
+   * enemy king? Walls and drakes are solid to everyone but a king;
+   * everything else (including own pieces) is treated as something that
+   * can step aside.
    */
   canTakeKing(color) {
     const goal = this.kings[swap(color)];
     if (goal < 0) return true;
 
-    const passable = (sq) => {
+    const passable = (sq, moverType) => {
       if (!this.inBounds(sq) || this.isBlocked(sq)) return false;
       const p = this.board[sq];
-      return !(p && p.color !== color && PIECES[p.type]?.uncapturable);
+      if (!p || p.color === color) return true;
+      return this.canTakePiece(moverType, p.type);
     };
 
-    const flood = (start, steps) => {
+    const flood = (start, steps, moverType) => {
       if (start < 0 || !steps.length) return false;
       const seen = new Uint8Array(128);
       const q = [start];
@@ -1962,7 +1970,7 @@ export class Chess {
         if (sq === goal) return true;
         for (const off of steps) {
           const to = sq + off;
-          if ((to & 0x88) || seen[to] || !passable(to)) continue;
+          if ((to & 0x88) || seen[to] || !passable(to, moverType)) continue;
           seen[to] = 1;
           q.push(to);
         }
@@ -1979,7 +1987,7 @@ export class Chess {
       if (def.slideOff) steps.push(...def.slideOff);
       if (def.hopperOff) steps.push(...def.hopperOff);
       if (def.pawn) steps.push(-17, -16, -15, 15, 16, 17);
-      if (flood(piece.square, steps)) return true;
+      if (flood(piece.square, steps, piece.type)) return true;
     }
     return false;
   }

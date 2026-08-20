@@ -39,6 +39,7 @@ export function initCampaign(ctx) {
   }
 
   let deployView = null;
+  let crewPreview = null;
   let selectedUid = null;
   let placements = []; // { uid, type, sq }
   let shopSelectedId = null;
@@ -117,6 +118,23 @@ export function initCampaign(ctx) {
     showMap();
   }
 
+  function ordinal(n) {
+    const v = n % 100;
+    if (v >= 11 && v <= 13) return `${n}th`;
+    const ones = n % 10;
+    const suf = ones === 1 ? 'st' : ones === 2 ? 'nd' : ones === 3 ? 'rd' : 'th';
+    return `${n}${suf}`;
+  }
+
+  function climbProgressLabel(run) {
+    const romans = ['I', 'II', 'III'];
+    const act = romans[run.act] || String(run.act + 1);
+    const floor = run.choices?.length
+      ? (run.choices[0].col ?? 0) + 1
+      : (currentNode(run)?.col ?? 0) + 1;
+    return `Act ${act} · ${ordinal(floor)} level`;
+  }
+
   function hash01(str) {
     let h = 2166136261;
     for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
@@ -151,8 +169,7 @@ export function initCampaign(ctx) {
     const trail = new Set(run.trail || []);
     paintRunHud();
 
-    const romans = ['I', 'II', 'III'];
-    if ($('map-act-label')) $('map-act-label').textContent = `ACT ${romans[run.act] || run.act + 1}`;
+    if ($('map-act-label')) $('map-act-label').textContent = climbProgressLabel(run);
     if ($('map-art')) {
       $('map-art').classList.remove('act-0', 'act-1', 'act-2');
       $('map-art').classList.add(`act-${run.act}`);
@@ -307,6 +324,24 @@ export function initCampaign(ctx) {
     if (!state.run) return;
     ensureFormation(state.run);
     paintCrewRoster();
+    paintCrewPreview();
+  }
+
+  function paintCrewPreview() {
+    const root = $('crew-preview');
+    if (!root) return;
+    if (!crewPreview) {
+      crewPreview = new BoardView(root, {
+        onAttemptMove: () => {},
+        canPickUp: () => false,
+        legalTargets: () => [],
+      });
+    }
+    const game = buildFight(state.run, CREW_BOARD, crewPlacements());
+    crewPreview.setWhiteKingSkin(kingSkin(state.run.king), kingHue(state.run.king));
+    crewPreview.setFlipped(false);
+    crewPreview.syncFromGame(game);
+    crewPreview.setInteractive(false);
   }
 
   function openCrewSetup() {
@@ -426,11 +461,11 @@ export function initCampaign(ctx) {
    */
   const restChoices = (run) => [
     { id: 'rest', label: 'Rest',
-      detail: `Heal ${restHeal(run)} HP, pocket ${REST_GOLD} gold.` },
+      detail: `Heal ${restHeal(run)} HP.` },
     { id: 'forage', label: 'Forage',
       detail: `Skip the healing — take ${forageGold(run)} gold instead.` },
     { id: 'train', label: 'Train',
-      detail: `Spend ${trainCost(run)} gold to permanently shield one piece, every fight from now on.` },
+      detail: `Spend ${trainCost(run)} gold to permanently shield one common piece, every fight from now on.` },
   ];
 
 
@@ -451,8 +486,8 @@ export function initCampaign(ctx) {
   function trainGate() {
     const cost = trainCost(state.run);
     if (state.run.gold < cost) return { ok: false, reason: `Needs ${cost}g` };
-    if (!state.run.bag.some((p) => p.type !== 'k' && !p.trained)) {
-      return { ok: false, reason: 'Nothing left to train' };
+    if (!state.run.bag.some((p) => p.type !== 'k' && !p.trained && rarityOf(p.type) === 'common')) {
+      return { ok: false, reason: 'No untrained commons' };
     }
     return { ok: true };
   }
@@ -483,14 +518,14 @@ export function initCampaign(ctx) {
       finishRest([`+${result.gold} gold`]);
     } else {
       const result = rest(state.run);
-      finishRest([`+${result.healed} HP`, `+${result.gold} gold`]);
+      finishRest([`+${result.healed} HP`]);
     }
   }
 
   function askWhichPieceToTrain() {
     const host = $('rest-choices');
     host.innerHTML = '<div class="ec-detail" style="padding:0 0 .4rem">Which piece learns to hold?</div>';
-    for (const item of state.run.bag.filter((p) => p.type !== 'k' && !p.trained)) {
+    for (const item of state.run.bag.filter((p) => p.type !== 'k' && !p.trained && rarityOf(item.type) === 'common')) {
       const def = pieceById(item.type);
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -1733,6 +1768,7 @@ export function initCampaign(ctx) {
   $('btn-loadout-fight').addEventListener('click', beginFight);
   $('deploy-board').addEventListener('click', onDeployClick);
   if ($('btn-crew-setup')) $('btn-crew-setup').addEventListener('click', openCrewSetup);
+  if ($('crew-preview-wrap')) $('crew-preview-wrap').addEventListener('click', openCrewSetup);
   if ($('btn-go-again')) {
     $('btn-go-again').addEventListener('click', () => {
       audio.setMusicStyle('ambient');
