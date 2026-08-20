@@ -1452,7 +1452,7 @@ kbd {
   align-items: center;
   overflow: hidden;
   border-radius: 4px;
-  background: #1a120c;
+  background: #0e0c0a;
   box-shadow: 0 22px 56px rgba(0, 0, 0, 0.55);
 }
 .map-crew {
@@ -1547,15 +1547,15 @@ kbd {
   background-position: center top;
   background-repeat: no-repeat;
 }
-.map-art.act-0 { background-image: url('../assets/map-act1.jpg'); }
-.map-art.act-1 { background-image: url('../assets/map-act2.jpg'); }
-.map-art.act-2 { background-image: url('../assets/map-act3.jpg'); }
+.map-art.act-0 { background-image: url('../assets/map-act1.jpg'); background-color: #1a2416; }
+.map-art.act-1 { background-image: url('../assets/map-act2.jpg'); background-color: #2a100c; }
+.map-art.act-2 { background-image: url('../assets/map-act3.jpg'); background-color: #0c0a16; }
 .map-fog {
   pointer-events: none;
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(ellipse at 50% 42%, transparent 46%, rgba(18, 10, 6, 0.42) 100%);
+  background: radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(6, 4, 3, 0.45) 100%);
   opacity: 1;
 }
 .map-act-label {
