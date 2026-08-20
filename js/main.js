@@ -656,6 +656,14 @@ function init() {
     if (state.settings.music) audio.startMusic();
     state.voyage.start();
   });
+  // Bound here next to Embark so a stale campaign.js module cannot
+  // leave the backup mode with a visible button and no handler.
+  $('btn-old-road')?.addEventListener('click', () => {
+    state.campaign.startRun();
+    audio.resume().then(() => {
+      if (state.settings.music) audio.startMusic();
+    });
+  });
 
   $('btn-classic').addEventListener('click', () => showScreen('screen-classic'));
   $('btn-classic-back').addEventListener('click', () => showScreen('screen-start'));

@@ -1314,11 +1314,12 @@ export function initCampaign(ctx) {
     if (e.key === 'Escape') closeBag();
   });
   if ($('btn-old-road')) {
-    $('btn-old-road').addEventListener('click', async () => {
-      await audio.resume();
-      if (state.settings.music) audio.startMusic();
+    $('btn-old-road').addEventListener('click', () => {
       state.world = 'road';
       startRun();
+      audio.resume().then(() => {
+        if (state.settings.music) audio.startMusic();
+      });
     });
   }
   if ($('btn-map-go')) $('btn-map-go').addEventListener('click', goFromMap);

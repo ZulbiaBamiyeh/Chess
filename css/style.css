@@ -2904,7 +2904,7 @@ kbd {
     #05070f;
   overflow: hidden;
 }
-.ow-versus.hidden { display: none; }
+.ow-versus.hidden { display: none !important; pointer-events: none; }
 .ow-versus.ambush {
   background:
     radial-gradient(ellipse at 80% 50%, rgba(255, 84, 40, 0.28), transparent 50%),
