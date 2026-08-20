@@ -1,5 +1,5 @@
 // SFX are synthesized at runtime. Music beds that have a soundtrack file
-// (shop, fight, game over) play those; the map still uses a generative pad.
+// (map, shop, fight, game over) play those.
 //
 // One mixer feeds two buses: SFX (the wooden knocks, captures and stingers) and
 // music. Both run through a procedurally-generated convolution reverb and a bus
@@ -8,6 +8,7 @@
 
 const MUSIC_DIR = 'Music/';
 const TRACK = {
+  map: 'Old RuneScape Soundtrack_ Doorways.mp3',
   shop: 'Wildfrost OST - The Wooly Snail.mp3',
   gameover: 'Wildfrost OST - Trapped Spirits.mp3',
   fightSetup: 'Wildfrost OST - Spirit Call.mp3',
@@ -19,7 +20,7 @@ const TRACK = {
   ],
 };
 const trackUrl = (file) => MUSIC_DIR + encodeURIComponent(file);
-const FILE_STYLES = new Set(['shop', 'fight', 'gameover']);
+const FILE_STYLES = new Set(['ambient', 'shop', 'fight', 'gameover']);
 //
 // The board sounds are built from the same three ingredients a real piece makes
 // when it meets a board: a wooden *body* resonance, a *click* of lacquer on
@@ -239,13 +240,13 @@ export class AudioEngine {
 
   // ---- soundtrack files -------------------------------------------------
   //
-  // Shop, fight setup, combat, and game over play the Wildfrost beds. Fight
-  // starts on the quiet Spirit Call loop; the first capture or hit crossfades
-  // that out and walks a playlist of the full combat tracks.
+  // Map plays Doorways. Shop, fight, and game over play the Wildfrost beds.
+  // Fight starts on Spirit Call; taking an enemy piece walks the combat list.
 
   preloadMusic() {
     if (this.preloadStarted || !this.ctx) return;
     this.preloadStarted = true;
+    this.stem('map', TRACK.map, true);
     this.stem('shop', TRACK.shop, true);
     this.stem('gameover', TRACK.gameover, true);
     this.stem('fight-setup', TRACK.fightSetup, true);
@@ -311,7 +312,8 @@ export class AudioEngine {
   startFileStyle(style) {
     if (this.muted.music) return;
     this.preloadMusic();
-    if (style === 'shop') this.startStem('shop', { volume: 0.92, fade: 0.8 });
+    if (style === 'ambient') this.startStem('map', { volume: 0.9, fade: 1.0 });
+    else if (style === 'shop') this.startStem('shop', { volume: 0.92, fade: 0.8 });
     else if (style === 'gameover') this.startStem('gameover', { volume: 0.95, fade: 1.2 });
     else if (style === 'fight') {
       this.combatHot = false;
