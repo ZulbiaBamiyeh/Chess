@@ -110,6 +110,34 @@ const alley = ENCOUNTERS.alley;
 }
 
 {
+  // Every merchant is the same hooded figure, and every so often — mostly
+  // for the better pieces — an offer is priced partly in blood as well as
+  // gold. Rare across many shops, and never on a common piece.
+  let found = null;
+  for (let seed = 0; seed < 500 && !found; seed++) {
+    const run = createRun(seed);
+    const shop = openShop(run);
+    found = shop.offers.find((o) => o.kind === 'piece' && o.hpCost);
+  }
+  assert('at least one blood-priced offer turns up over many shops', Boolean(found));
+  assert('a blood-priced offer is never common rarity', found.rarity !== 'common');
+  assert('a blood-priced offer still costs gold too', found.cost > 0);
+
+  const run = createRun(3);
+  run.gold = 999;
+  run.hp = found.hpCost;
+  run.shop = { offers: [found], rerollBase: 2, rerollCost: 2 };
+  const blocked = buyOffer(run, found.id);
+  assert('a purchase that would zero hp is refused', !blocked.ok && run.hp === found.hpCost, JSON.stringify(blocked));
+
+  run.hp = found.hpCost + 5;
+  const before = run.hp;
+  const bought = buyOffer(run, found.id);
+  assert('a blood offer spends both gold and hp', bought.ok
+    && run.gold === 999 - found.cost && run.hp === before - found.hpCost, JSON.stringify(bought));
+}
+
+{
   const run = createRun(1);
   const summary = bagSummary(run);
   const pawns = summary.pieces.find((p) => p.type === 'p');

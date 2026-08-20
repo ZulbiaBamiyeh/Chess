@@ -134,6 +134,19 @@ function setTerrain(world, file, rank, terrain) {
   cell.terrain = terrain;
 }
 
+/** Wall off every side of (f, r) except the one kept open, so it has exactly one entrance. */
+function sealApproach(world, f, r, keepF, keepR) {
+  for (const [df, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const nf = f + df;
+    const nr = r + dr;
+    if (nf === keepF && nr === keepR) continue;
+    const cell = cellAt(world, nf, nr);
+    if (!cell || !WALKABLE.has(cell.terrain)) continue;
+    cell.terrain = TERRAIN.WALL;
+    cell.poi = null;
+  }
+}
+
 function carve(world, file, rank, radius = 0) {
   for (let dr = -radius; dr <= radius; dr++) {
     for (let df = -radius; df <= radius; df++) {
@@ -453,6 +466,7 @@ function placePack(world, file, rank, power, tier, opts = {}) {
     id: `pack-${world.packs.length}`,
     file,
     rank,
+    role,
     roam: spec.roam,
     huntRange: stance === 'docile' ? 0 : spec.hunt,
     tier,
@@ -601,13 +615,24 @@ export function generateWorld(rng, act = 1) {
       const len = 4 + Math.floor(rng() * 5);
       let bx = x;
       let by = y;
+      // Where the loot ends up guarded from: the tile it was reached from,
+      // one step back along the pocket. A guard standing there is the only
+      // way in — the last stretch never widens, so there is no square
+      // beside them to slip past on.
+      let guardFile = x;
+      let guardRank = y;
       for (let i = 0; i < len; i++) {
+        const fromF = bx;
+        const fromR = by;
         bx += dir;
         if (rng() < 0.35) by += 1;
         if (bx < 1 || bx > files - 2 || by < 1 || by > ranks - 3) break;
-        carve(world, bx, by, rng() < 0.3 ? 1 : 0);
+        const isLast = i === len - 1;
+        carve(world, bx, by, isLast ? 0 : (rng() < 0.3 ? 1 : 0));
+        guardFile = fromF;
+        guardRank = fromR;
       }
-      pockets.push({ file: bx, rank: by, depth: len, mouth: y });
+      pockets.push({ file: bx, rank: by, guardFile, guardRank, depth: len, mouth: y });
     }
   }
   // Danger and pack placement key off distance from the spine, so it has to
@@ -736,19 +761,21 @@ export function generateWorld(rng, act = 1) {
   const MIN_PACK_SPACING = 4;
 
   // Greed nodes: every pocket end is a cache, and the deeper/later it is
-  // the more it pays — and the nastier the camp sitting on it. A cache too
-  // close to an already-placed guard just goes unwatched — free loot, no
-  // extra body crowding the same corner of the map.
+  // the more it pays — and the nastier the camp sitting on it. The guard
+  // stands on the one tile the loot is reached from, not on the loot
+  // itself, and every other side of it is sealed — so the cache is not
+  // reachable at all until that fight is actually won, not just an
+  // occupied square you could otherwise dance around.
   for (const pocket of pockets) {
     const cell = cellAt(world, pocket.file, pocket.rank);
     if (!cell || !WALKABLE.has(cell.terrain) || cell.poi) continue;
     const danger = Math.min(1, pocket.rank / ranks * 0.65 + pocket.depth / 10 * 0.45);
     cell.poi = 'loot';
     cell.loot = rollLoot(rng, danger, act);
-    if (!spacedOut(world, pocket.file, pocket.rank, MIN_PACK_SPACING)) continue;
-    const guardPower = packPower(world, pocket.file, pocket.rank, act, rng);
+    sealApproach(world, pocket.file, pocket.rank, pocket.guardFile, pocket.guardRank);
+    const guardPower = packPower(world, pocket.guardFile, pocket.guardRank, act, rng);
     const guardTier = danger > 0.7 ? 'elite' : danger > 0.52 ? 'elite' : 'trash';
-    placePack(world, pocket.file, pocket.rank, guardPower, guardTier, { role: 'cache' });
+    placePack(world, pocket.guardFile, pocket.guardRank, guardPower, guardTier, { role: 'cache' });
   }
 
   // Patrols, spread across the width rather than lined up on the spine —
@@ -803,7 +830,6 @@ export function generateWorld(rng, act = 1) {
       s.cell.poi = 'loot';
       s.cell.loot = rollLoot(rng, danger, act);
       caches++;
-      if (!spacedOut(world, s.file, s.rank, MIN_PACK_SPACING)) continue;
       placePack(world, s.file, s.rank, packPower(world, s.file, s.rank, act, rng), danger > 0.62 ? 'elite' : 'trash', { role: 'cache' });
     }
   }
@@ -1381,17 +1407,16 @@ const HOLE_BIOMES = new Set(['peak', 'gate']);
 
 /**
  * Build a fight encounter from the overworld tile the clash happened on.
- * Mountains/chasms become holes only in a biome that fits them; frost and
- * ember come with their biome too — but none of that shows up before act 2.
- * Act 1 is meant to teach the base game; a hole or a frozen square you did
- * not cause yourself has no business being the thing that beats you there.
+ * Holes, frost and fire are reserved for boss fights — they can strand a
+ * king or block a promotion in ways the player didn't cause, which is only
+ * fair when the fight is already a set-piece the player knows is a boss.
  */
 export function clashEncounter(world, pack, run, aggressor) {
   const files = Math.min(8, 6 + Math.min(2, world.act - 1));
   const ranks = Math.min(8, 6 + Math.min(2, world.act - 1));
   const originFile = world.player.file - Math.floor(files / 2);
   const originRank = world.player.rank - Math.floor(ranks / 2);
-  const hazardsOn = world.act >= 2;
+  const hazardsOn = pack.tier === 'boss';
   const holes = hazardsOn && HOLE_BIOMES.has(pack.biome);
   const terrain = {};
   for (let r = 0; r < ranks; r++) {

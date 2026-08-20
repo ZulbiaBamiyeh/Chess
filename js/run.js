@@ -636,7 +636,7 @@ export function openShop(run) {
   const common = weightedPiece(run.rng, new Set(['common']), act);
   if (common) {
     seen.add(common.id);
-    offers.push(pieceOffer(common, 0, act));
+    offers.push(pieceOffer(run, common, 0, act));
   }
 
   // One more, not two. A shop that shows every piece you might want doesn't
@@ -652,7 +652,7 @@ export function openShop(run) {
     }
     if (!pick) continue;
     seen.add(pick.id);
-    offers.push(pieceOffer(pick, i, act));
+    offers.push(pieceOffer(run, pick, i, act));
   }
 
   const ownedKings = new Set(ownedKingIds(run));
@@ -719,8 +719,15 @@ export function openShop(run) {
 
 const RELIC_PRICE = { common: 26, rare: 40, epic: 58, legendary: 75 };
 
-function pieceOffer(pick, i, act) {
-  return {
+// Every merchant on the road is the same hooded figure, and every so often
+// — mostly for the better pieces — he'll deal in blood as well as gold, not
+// instead of it. Common pieces are never priced this way; it's a rare-and-up
+// thing, and it's uncommon even among those.
+const BLOOD_CHANCE = 0.12;
+const BLOOD_HP_COST = { rare: 3, epic: 5, legendary: 8 };
+
+function pieceOffer(run, pick, i, act) {
+  const offer = {
     kind: 'piece',
     id: `piece-${pick.id}-${i}`,
     type: pick.id,
@@ -729,6 +736,12 @@ function pieceOffer(pick, i, act) {
     cost: 2 + pick.cost + (act - 1),
     rarity: pick.rarity,
   };
+  const bloodCost = BLOOD_HP_COST[pick.rarity];
+  if (bloodCost && run.rng() < BLOOD_CHANCE) {
+    offer.hpCost = bloodCost;
+    offer.cost = Math.max(1, Math.round(offer.cost * 0.6));
+  }
+  return offer;
 }
 
 /** Claims one of the relics an elite or boss offered, and clears the rest. */
@@ -749,6 +762,7 @@ export function buyOffer(run, offerId) {
   const offer = shop.offers.find((o) => o.id === offerId);
   if (!offer) return { ok: false, reason: 'That offer is gone.' };
   if (run.gold < offer.cost) return { ok: false, reason: 'Not enough gold.' };
+  if (offer.hpCost && run.hp <= offer.hpCost) return { ok: false, reason: 'Not enough life left.' };
 
   if (offer.kind === 'piece') {
     if (!hasSlot(run, offer.type)) return { ok: false, reason: 'No slot of that rarity.' };
@@ -770,6 +784,7 @@ export function buyOffer(run, offerId) {
   }
 
   run.gold -= offer.cost;
+  if (offer.hpCost) run.hp -= offer.hpCost;
   shop.offers = shop.offers.filter((o) => o.id !== offerId);
   return { ok: true, offer };
 }

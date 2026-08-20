@@ -1854,6 +1854,72 @@ kbd {
 .shop-card.rarity-king { border-color: rgba(255, 207, 63, 0.42); }
 .shop-card.rarity-supply { border-color: rgba(78, 240, 142, 0.35); }
 
+/* ---------- shadow merchant (every shop stall, not just a rare one) ---------- */
+
+#screen-shop .shop-stage {
+  padding-top: 8.5rem;
+  background:
+    radial-gradient(ellipse 60% 40% at 18% 22%, rgba(230, 240, 255, 0.16), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 82% 22%, rgba(230, 240, 255, 0.16), transparent 60%),
+    linear-gradient(180deg, rgba(10, 8, 20, 0.85), rgba(6, 5, 14, 0.92));
+  border-color: rgba(138, 123, 255, 0.32);
+}
+#screen-shop .shop-stage::before {
+  content: '';
+  position: absolute;
+  top: 1.1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 132px;
+  height: 132px;
+  clip-path: polygon(50% 0%, 78% 12%, 92% 46%, 82% 100%, 18% 100%, 8% 46%, 22% 12%);
+  background: linear-gradient(180deg, #1c1730, #0c0a18);
+  box-shadow: 0 0 26px rgba(138, 123, 255, 0.28), inset 0 0 24px rgba(0, 0, 0, 0.6);
+}
+#screen-shop .shop-stage::after {
+  content: '';
+  position: absolute;
+  top: 2.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 46px;
+  height: 14px;
+  background:
+    radial-gradient(circle at 22% 50%, #c9ffe6 0 4px, transparent 5px),
+    radial-gradient(circle at 78% 50%, #c9ffe6 0 4px, transparent 5px);
+  filter: drop-shadow(0 0 6px #9effcf);
+}
+#screen-shop .shop-offers {
+  background: linear-gradient(180deg, #4a3420, #2c1e12);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  padding: 0.9rem 0.8rem;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5), 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+#screen-shop .shop-card {
+  background: rgba(10, 8, 18, 0.85);
+  border-color: rgba(138, 123, 255, 0.4);
+}
+#screen-shop .shop-card:hover:not(:disabled) {
+  border-color: #8a7bff;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.4), 0 0 18px rgba(138, 123, 255, 0.28);
+}
+.shop-card-cost-row { display: inline-flex; align-items: center; gap: 0.35em; }
+.shop-card-cost-hp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22em;
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+  color: #fff;
+  background: linear-gradient(180deg, #ff5470, #b81f3c);
+  padding: 0.18em 0.55em;
+  border-radius: 999px;
+  box-shadow: 0 2px 0 #6e0f22;
+}
+.shop-card.shop-card-blood { border-color: rgba(255, 84, 112, 0.45); }
+.shop-cost-ico { width: 0.85em; height: 0.85em; }
+
 /* ---------- rest ---------- */
 
 .rest-card {

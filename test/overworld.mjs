@@ -105,8 +105,11 @@ function world(seed = 1, act = 1) {
     }
   }
   assert(names.size >= 6, `band names ${[...names].join(', ')}`);
+  // Treasure is guarded almost always now, watches included, so docile no
+  // longer has to stay a minority the way it did when caches sometimes went
+  // unwatched — just confirm the wilderness still fields real hostiles too.
   assert(docile > 0, 'some watches are docile');
-  assert(hostile > docile, `hostile ${hostile} docile ${docile}`);
+  assert(hostile > 0, 'some packs are still hostile');
   const roster = packRoster([{ type: 'k' }, { type: 'p' }, { type: 'p' }, { type: 'n' }]);
   assert(roster.includes('King') && roster.includes('Pawn') && roster.includes('×2'), roster);
   const card = packCard({
@@ -236,7 +239,7 @@ function pawnLaneOpen(enc) {
   // Missing squares are a biome trait, not the default shape of a fight — a
   // clean board should be the norm. The exact same wall-heavy terrain should
   // yield holes in a biome that fits them and none in one that doesn't —
-  // from act 2 on, where hazards are allowed to appear at all.
+  // and only for a boss fight, where hazards are allowed to appear at all.
   const w = world(1, 2);
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < w.files; f++) {
@@ -246,8 +249,8 @@ function pawnLaneOpen(enc) {
   w.player.file = 5;
   w.player.rank = 2;
   const bag = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
-  const woodPack = { id: 'wood-pack', file: 5, rank: 3, army: [{ type: 'k' }], name: 'Levy', biome: 'wood', tier: 'trash' };
-  const peakPack = { id: 'peak-pack', file: 5, rank: 3, army: [{ type: 'k' }], name: 'Cinder Host', biome: 'peak', tier: 'trash' };
+  const woodPack = { id: 'wood-pack', file: 5, rank: 3, army: [{ type: 'k' }], name: 'Levy', biome: 'wood', tier: 'boss' };
+  const peakPack = { id: 'peak-pack', file: 5, rank: 3, army: [{ type: 'k' }], name: 'Cinder Host', biome: 'peak', tier: 'boss' };
   const cleanEnc = clashEncounter(w, woodPack, bag, 'player');
   const holeEnc = clashEncounter(w, peakPack, bag, 'player');
   const blocks = (enc) => Object.values(enc.terrain).filter((t) => t === 'block').length;
@@ -257,10 +260,10 @@ function pawnLaneOpen(enc) {
 }
 
 {
-  // Act 1 teaches the base game: no holes, no frost, no fire, no matter the
-  // biome — the exact same terrain that produces hazards from act 2 on
-  // should come back completely clean in act 1.
-  const w = world(1, 1);
+  // Holes, frost and fire are reserved for boss fights — the exact same
+  // hazard-heavy terrain should come back completely clean for a trash or
+  // elite pack, in any act, in any biome.
+  const w = world(1, 2);
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < w.files; f++) {
       w.cells[r][f].terrain = f === 5 ? TERRAIN.FROST : (f === 4 ? TERRAIN.EMBER : TERRAIN.WALL);
@@ -270,12 +273,14 @@ function pawnLaneOpen(enc) {
   w.player.rank = 2;
   const bag = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
   for (const biome of ['wood', 'frost', 'peak', 'gate']) {
-    const pack = { id: `${biome}-pack`, file: 5, rank: 3, army: [{ type: 'k' }], name: 'Test', biome, tier: 'trash' };
-    const enc = clashEncounter(w, pack, bag, 'player');
-    const hazards = Object.values(enc.terrain).filter((t) => t === 'block' || t === 'frost' || t === 'fire').length;
-    assert(hazards === 0, `act 1 ${biome} board had ${hazards} hazard tile(s)`);
+    for (const tier of ['trash', 'elite']) {
+      const pack = { id: `${biome}-${tier}-pack`, file: 5, rank: 3, army: [{ type: 'k' }], name: 'Test', biome, tier };
+      const enc = clashEncounter(w, pack, bag, 'player');
+      const hazards = Object.values(enc.terrain).filter((t) => t === 'block' || t === 'frost' || t === 'fire').length;
+      assert(hazards === 0, `non-boss ${biome}/${tier} board had ${hazards} hazard tile(s)`);
+    }
   }
-  console.log('PASS  act 1 fights never carry holes, frost or fire');
+  console.log('PASS  non-boss fights never carry holes, frost or fire');
 }
 
 {
@@ -514,11 +519,15 @@ function pawnLaneOpen(enc) {
 {
   // Packs should read as a spread wilderness, not a crowd — nothing placed
   // closer than the minimum spacing to anything else, across many seeds.
+  // Cache guards are exempt: a treasure guard always gets placed now, even
+  // if that lands it closer than usual to another pack, because an
+  // unguarded cache is worse than a slightly tighter map.
   let worst = Infinity;
   for (let seed = 0; seed < 40; seed++) {
     const w = world(seed);
     for (let i = 0; i < w.packs.length; i++) {
       for (let j = i + 1; j < w.packs.length; j++) {
+        if (w.packs[i].role === 'cache' || w.packs[j].role === 'cache') continue;
         const d = chebyshev(w.packs[i], w.packs[j]);
         if (d < worst) worst = d;
       }
@@ -585,6 +594,38 @@ function pawnLaneOpen(enc) {
   assert(bossPersonal === bossTotal, `some bosses got a generic name: ${bossPersonal}/${bossTotal}`);
   assert(elitePersonal === eliteTotal, `some elites got a generic name: ${elitePersonal}/${eliteTotal}`);
   console.log('PASS  bosses and elites are named individuals');
+}
+
+{
+  // Guarded treasure should not be reachable except through the guard: a
+  // pocket-cache loot square with exactly one open side should have a live
+  // pack standing on that one side, and nowhere else to get in from.
+  const walkableTerrains = new Set([TERRAIN.FLOOR, TERRAIN.FROST, TERRAIN.EMBER, TERRAIN.FORT, TERRAIN.RAMP]);
+  let sealedCaches = 0;
+  let guardedSealedCaches = 0;
+  for (let seed = 0; seed < 40; seed++) {
+    const w = world(seed);
+    for (let r = 0; r < w.ranks; r++) {
+      for (let f = 0; f < w.files; f++) {
+        if (w.cells[r][f].poi !== 'loot') continue;
+        const open = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+          .map(([df, dr]) => ({ f: f + df, r: r + dr }))
+          .filter(({ f: nf, r: nr }) => {
+            const c = w.cells[nr]?.[nf];
+            return c && walkableTerrains.has(c.terrain);
+          });
+        if (open.length !== 1) continue; // not a sealed-approach cache (e.g. the open-floor fallback)
+        sealedCaches++;
+        const guardSpot = open[0];
+        const guard = w.packs.find((p) => !p.dead && p.file === guardSpot.f && p.rank === guardSpot.r);
+        if (guard) guardedSealedCaches++;
+      }
+    }
+  }
+  assert(sealedCaches >= 10, `too few sealed caches to judge: ${sealedCaches}`);
+  assert(guardedSealedCaches === sealedCaches,
+    `${sealedCaches - guardedSealedCaches}/${sealedCaches} sealed caches had no guard on their one entrance`);
+  console.log('PASS  guarded treasure has exactly one way in, and a guard stands on it');
 }
 
 console.log('\nOverworld clean.');

@@ -1044,8 +1044,9 @@ export function initCampaign(ctx) {
     root.innerHTML = '';
     for (const offer of shop.offers) {
       const card = document.createElement('button');
-      card.className = 'shop-card rarity-' + (offer.rarity || offer.kind);
-      card.disabled = state.run.gold < offer.cost;
+      card.className = 'shop-card rarity-' + (offer.rarity || offer.kind)
+        + (offer.hpCost ? ' shop-card-blood' : '');
+      card.disabled = state.run.gold < offer.cost || (offer.hpCost && state.run.hp <= offer.hpCost);
       const art = offer.type
         ? `<i class="shop-art" style="background-image:url('${pieceImage(offer.type, WHITE)}');${pieceHue(offer.type) ? `filter:hue-rotate(${pieceHue(offer.type)}deg)` : ''}"></i>`
         : offer.kind === 'king'
@@ -1055,10 +1056,13 @@ export function initCampaign(ctx) {
             : offer.kind === 'relic'
               ? '<i class="shop-art shop-art-relic">✦</i>'
               : '<i class="shop-art shop-art-slot"></i>';
+      const bloodCost = offer.hpCost
+        ? `<span class="shop-card-cost-hp"><svg class="chip-ico shop-cost-ico"><use href="#icon-heart"></use></svg>${offer.hpCost}</span>`
+        : '';
       card.innerHTML = art
         + `<span class="shop-card-name">${offer.name}</span>`
         + `<span class="shop-card-blurb">${gameText(offer.blurb)}</span>`
-        + `<span class="shop-card-cost">${offer.cost}g</span>`;
+        + `<span class="shop-card-cost-row"><span class="shop-card-cost">${offer.cost}g</span>${bloodCost}</span>`;
       card.addEventListener('click', () => {
         const result = buyOffer(state.run, offer.id);
         if (!result.ok) { audio.illegal(); toast(result.reason, 'danger'); return; }
