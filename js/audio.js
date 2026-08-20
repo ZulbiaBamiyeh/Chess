@@ -214,8 +214,8 @@ export class AudioEngine {
       if (typeof document !== 'undefined') document.documentElement.dataset.music = 'menu';
       return;
     }
-    // A new fight always restarts on Spirit Call even if we were already in
-    // a fight — otherwise the previous combat playlist would keep running.
+    // A new fight always picks a fresh battle theme even if we were already
+    // in a fight — otherwise the previous track would keep running.
     if (this.musicStyle === style && style !== 'fight') return;
     const prev = this.musicStyle;
     this.musicStyle = style;
