@@ -1348,13 +1348,74 @@ export class Chess {
         if (extra.iced.length) this.status[dest] |= ST_FROZEN;
       }
 
+      // A lodestone bends the board toward it. Every enemy standing exactly
+      // two squares away in a straight line, with the square between empty,
+      // is dragged into that gap.
+      //
+      // Two away rather than adjacent is the whole design. Pulling from
+      // adjacent would do nothing (they are already there); pulling from any
+      // distance would be a board-wide tractor beam with no counterplay. At
+      // exactly two, the threat is legible — you can see which squares are
+      // unsafe before you step on them — and stepping to distance three, or
+      // parking a friend in the gap, both answer it.
+      //
+      // `board[dest]` guards the case where the mover burned up on arrival:
+      // a lodestone that is no longer standing there pulls nothing.
+      // The Great Attractor gives the pull to the whole army, which is the
+      // relic that turns one good piece into a way of playing.
+      const pulls = def?.pull
+        || (us === WHITE && this.kingPassives.includes('allpull'));
+      if (pulls && board[dest]) {
+        const dragChill = us === WHITE && this.kingPassives.includes('dragchill');
+        extra.pulled = [];
+        for (const off of KING_OFFSETS) {
+          const mid = dest + off;
+          const far = dest + off * 2;
+          if (!this.inBounds(mid) || !this.inBounds(far)) continue;
+          // The gap has to be genuinely open — a piece, a wall or the duck
+          // in the way all mean there is nowhere to drag them to.
+          if (board[mid] || this.isBlocked(mid) || this.isDuck(mid)) continue;
+          const victim = board[far];
+          if (!victim || victim.color !== them) continue;
+          // Frozen holds against the pull. The cold already owns them.
+          if (this.status[far] & ST_FROZEN) continue;
+
+          extra.pulled.push(far, mid, this.status[far], this.status[mid]);
+          board[mid] = victim;
+          board[far] = null;
+          this.status[mid] = this.status[far];
+          this.status[far] = 0;
+          if (victim.type === KING) this.kings[victim.color] = mid;
+
+          // Dragged onto ice, they freeze; dragged into fire, they burn.
+          // Setting up those squares and then hauling someone onto them is
+          // the reason to field a lodestone at all, so it would be strange
+          // for the terrain to only apply to pieces that walked there.
+          if ((dragChill || this.terrain[mid] === TILE.FROST) && !this.freezeImmune(victim)) {
+            this.status[mid] |= ST_FROZEN;
+          }
+          if (this.isFire(mid)) {
+            extra.pullKilled = extra.pullKilled || [];
+            extra.pullKilled.push(mid, victim);
+            if (victim.type === KING) this.kings[victim.color] = -1;
+            board[mid] = null;
+            this.status[mid] = 0;
+          }
+        }
+        if (!extra.pulled.length) extra.pulled = null;
+      }
+
       // A sapper detonates when taken: the captor dies on top of it and
       // everything standing around the blast goes with them.
       if (move.captured && PIECES[move.captured]?.sapper
         && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved)) {
+        // Square, piece AND status, in threes. Recording only the first two
+        // meant a frozen piece caught in a blast came back from undo thawed,
+        // so a search that passed through the explosion mis-scored every
+        // position after it.
         const blast = [];
         if (board[dest]) {
-          blast.push(dest, board[dest]);
+          blast.push(dest, board[dest], this.status[dest]);
           if (board[dest].type === KING) this.kings[us] = -1;
           board[dest] = null;
           this.status[dest] = 0;
@@ -1364,7 +1425,7 @@ export class Chess {
           if (!this.inBounds(sq)) continue;
           const victim = board[sq];
           if (!victim || PIECES[victim.type]?.uncapturable) continue;
-          blast.push(sq, victim);
+          blast.push(sq, victim, this.status[sq]);
           if (victim.type === KING) this.kings[victim.color] = -1;
           board[sq] = null;
           this.status[sq] = 0;
@@ -1467,7 +1528,7 @@ export class Chess {
         this.warnUntil[sq] = 0;
         const victim = this.board[sq];
         if (victim && !PIECES[victim.type]?.uncapturable) {
-          killed.push(sq, victim);
+          killed.push(sq, victim, this.status[sq]);
           if (victim.type === KING) this.kings[victim.color] = -1;
           this.board[sq] = null;
           this.status[sq] = 0;
@@ -1525,7 +1586,7 @@ export class Chess {
             this.terrain[sq] = TILE.BLOCK;
             const p = this.board[sq];
             if (p && !PIECES[p.type]?.uncapturable) {
-              killed.push(sq, p);
+              killed.push(sq, p, this.status[sq]);
               if (p.type === KING) this.kings[p.color] = -1;
               this.board[sq] = null;
               this.status[sq] = 0;
@@ -1559,7 +1620,10 @@ export class Chess {
     this.awaitingDuck = false;
     this.halfMoves = state.halfMoves;
     this.moveNumber = state.moveNumber;
-    this.kings = state.kings;
+    // Copy rather than adopt. Assigning the history entry's own object made
+    // `this.kings` an alias of it, so any later write to this.kings scribbled
+    // on the saved state too — a corruption that outlived the undo.
+    this.kings = { w: state.kings.w, b: state.kings.b };
 
     if (extra && extra.rebound >= 0 && extra.reboundPiece) {
       board[extra.rebound] = null;
@@ -1569,31 +1633,62 @@ export class Chess {
     if (extra?.fireSnap) this.fireUntil = extra.fireSnap;
     if (extra?.warnSnap) this.warnUntil = extra.warnSnap;
     if (extra?.terrainSnap) this.terrain = extra.terrainSnap;
-    if (extra?.iced) {
-      for (let i = 0; i < extra.iced.length; i += 2) {
-        this.status[extra.iced[i]] = extra.iced[i + 1];
-      }
-    }
     if (extra?.envFrozen) {
       for (let i = 0; i < extra.envFrozen.length; i += 2) {
         this.status[extra.envFrozen[i]] = extra.envFrozen[i + 1];
       }
     }
 
+    // These restores put pieces back on the squares they died on, which for
+    // the mover is its DESTINATION, not where it belongs once the move is
+    // fully unwound. They must not touch this.kings: `state.kings` above is
+    // already the authoritative before-the-move answer, and re-deriving it
+    // from a corpse's square left a king recorded on the square it was
+    // blown up on. (Concretely: a king capturing a sapper came back from
+    // undo still standing on the sapper's square, and every search that
+    // visited that position afterwards evaluated a fiction.)
     if (extra?.blast) {
-      for (let i = 0; i < extra.blast.length; i += 2) {
-        const sq = extra.blast[i];
-        const piece = extra.blast[i + 1];
-        board[sq] = piece;
-        if (piece.type === KING) this.kings[piece.color] = sq;
+      for (let i = 0; i < extra.blast.length; i += 3) {
+        board[extra.blast[i]] = extra.blast[i + 1];
+        this.status[extra.blast[i]] = extra.blast[i + 2];
       }
     }
     if (extra?.envKilled) {
-      for (let i = 0; i < extra.envKilled.length; i += 2) {
-        const sq = extra.envKilled[i];
-        const piece = extra.envKilled[i + 1];
-        board[sq] = piece;
-        if (piece.type === KING) this.kings[piece.color] = sq;
+      for (let i = 0; i < extra.envKilled.length; i += 3) {
+        board[extra.envKilled[i]] = extra.envKilled[i + 1];
+        this.status[extra.envKilled[i]] = extra.envKilled[i + 2];
+      }
+    }
+    // Unwind a lodestone's pull. Anything it dragged into fire is stood back
+    // up on the square it was dragged to first, so the walk-back below has
+    // something to move. Both loops have to finish before the mover itself
+    // is put back: a pull can drag someone into the very square the mover
+    // vacated, and that square has to be empty again before the mover
+    // returns to it.
+    if (extra?.pullKilled) {
+      for (let i = 0; i < extra.pullKilled.length; i += 2) {
+        board[extra.pullKilled[i]] = extra.pullKilled[i + 1];
+      }
+    }
+    if (extra?.pulled) {
+      for (let i = extra.pulled.length - 4; i >= 0; i -= 4) {
+        const far = extra.pulled[i];
+        const mid = extra.pulled[i + 1];
+        board[far] = board[mid];
+        board[mid] = null;
+        this.status[far] = extra.pulled[i + 2];
+        this.status[mid] = extra.pulled[i + 3];
+      }
+    }
+    // Last, because the freeze happened FIRST. Undo has to unwind in reverse
+    // chronological order or a later record wins over an earlier one: a
+    // sapper blast records the status of what it kills, and if that piece
+    // was standing in a Basilisk's frost the blast's record is the frozen
+    // one. Restoring the freeze after the blast puts the real pre-move
+    // status back on top.
+    if (extra?.iced) {
+      for (let i = 0; i < extra.iced.length; i += 2) {
+        this.status[extra.iced[i]] = extra.iced[i + 1];
       }
     }
     if (move.flags & FLAG.GUARD_FALLS) {
@@ -1621,6 +1716,16 @@ export class Chess {
         ? { type: PAWN, color: us }
         : board[move.to];
       board[move.to] = null;
+    }
+
+    // Whatever branch put the mover back, a promotion has to walk back as
+    // the pawn it was. `extra.burned` and `extra.wispCapturer` both record
+    // the piece as it stood on the destination — which, on a promoting move,
+    // is already the promoted piece. A pawn that promoted onto a fire tile,
+    // or onto a wisp, therefore came back from undo as a queen, and stayed
+    // one: the search kept a phantom queen on the seventh rank.
+    if (move.promotion && board[move.from]) {
+      board[move.from] = { type: PAWN, color: us };
     }
 
     if (!(extra?.wispCapturer || extra?.burned)

@@ -56,6 +56,7 @@ const DIST2 = [...ALFIL, ...DABBABA, ...N];
  * @property {boolean} [raises]   what it kills rises again on its side
  * @property {boolean} [aura]     lends adjacent friendlies a king step
  * @property {boolean} [swaps]    trades places with friendly pieces
+ * @property {boolean} [pull]     drags enemies two squares away one square closer
  * @property {boolean} [shop]
  */
 
@@ -204,6 +205,47 @@ export const PIECES = {
     id: 'reaper', name: 'Reanimator', san: 'Rn',
     blurb: 'Steps one square any way. Whatever it kills gets up again on your side.',
     cost: 8, rarity: RARITY.EPIC, value: 560, sprite: 'wisp', hue: 120, leaps: K, raises: true,
+  },
+
+  // ---- the pull ---------------------------------------------------------
+  // Every other piece in the book answers "where can I go". This one answers
+  // "where do I make you go", which is a different question and the reason
+  // it exists: it turns every hazard already on the board — fire, ice, a
+  // sapper, your own firing lines — into something you can drag them onto
+  // rather than wait for them to walk into.
+  lodestone: {
+    id: 'lodestone', name: 'Lodestone', san: 'Ld',
+    blurb: 'Steps one square any way. Every enemy two squares off in a straight line, '
+      + 'with the gap between clear, is dragged one square closer.',
+    cost: 7, rarity: RARITY.EPIC, value: 500, sprite: 'hopper', hue: 320, leaps: K, pull: true,
+  },
+
+  // ---- legendaries ------------------------------------------------------
+  // There were two in the whole book (Amazon, Wisp), so "a legendary dropped"
+  // almost always meant the same piece twice. These are built to be worth the
+  // one slot a run gets, and to want completely different armies around them.
+  basilisk: {
+    id: 'basilisk', name: 'Basilisk', san: 'Bs',
+    blurb: 'Slides on the diagonals, and everything orthogonally beside where it stops '
+      + 'freezes — itself included.',
+    cost: 9, rarity: RARITY.LEGENDARY, value: 760, sprite: 'ice', hue: 96,
+    slides: B, ice: true,
+  },
+  colossus: {
+    id: 'colossus', name: 'Colossus', san: 'Cl',
+    blurb: 'A slow, enormous body: one step any way, and it enters the fight shielded. '
+      + 'Whatever takes the shield off is standing next to a Colossus.',
+    cost: 8, rarity: RARITY.LEGENDARY, value: 690, sprite: 'king', hue: 22,
+    leaps: [...K, ...DABBABA], shielded: true,
+  },
+
+  // ---- ranged -----------------------------------------------------------
+  bombard: {
+    id: 'bombard', name: 'Bombard', san: 'Bd',
+    blurb: 'Steps one square orthogonally. Kills anything exactly two squares away '
+      + 'in a straight line, without moving.',
+    cost: 6, rarity: RARITY.RARE, value: 430, sprite: 'blaze', hue: 210,
+    leaps: R, shoots: DABBABA,
   },
 };
 

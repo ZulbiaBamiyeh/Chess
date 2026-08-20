@@ -35,6 +35,7 @@ export function tagsOf(id) {
   if (def.raises) tags.push('reaper');
   if (def.aura) tags.push('banner');
   if (def.swaps) tags.push('courier');
+  if (def.pull) tags.push('lodestone');
   if (def.cost >= 6) tags.push('heavy');
   if (def.cost <= 2 && !def.royal) tags.push('cheap');
   return tags;
@@ -265,6 +266,26 @@ export const RELICS = {
     id: 'postroad', name: 'Post Road', rarity: RARITY.RARE, archetype: 'Relay',
     blurb: 'Your couriers can trade places with the king itself. No net holds it.',
     tokens: ['kingswap'],
+  },
+
+  // ------------------------------------------------------------- the pull
+  // Every other archetype answers "what can my army do". This one answers
+  // "where can I make theirs stand", which turns every hazard already on the
+  // board into something you deliver them to rather than wait for.
+  filings: {
+    id: 'filings', name: 'Iron Filings', rarity: RARITY.COMMON, archetype: 'Magnetism',
+    blurb: 'Lodestones cost three less supply.',
+    discount: { tag: 'lodestone', amount: 3 },
+  },
+  hoarchain: {
+    id: 'hoarchain', name: 'Hoarfrost Chain', rarity: RARITY.RARE, archetype: 'Magnetism',
+    blurb: 'Anything your lodestones drag is frozen where it lands.',
+    tokens: ['dragchill'],
+  },
+  attractor: {
+    id: 'attractor', name: 'The Great Attractor', rarity: RARITY.EPIC, archetype: 'Magnetism',
+    blurb: 'Your whole army pulls. Every piece you move drags the enemy in toward it.',
+    tokens: ['allpull'], deploy: -1,
   },
 
   // ---------------------------------------------------------------- tempo

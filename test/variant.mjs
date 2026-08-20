@@ -1130,5 +1130,261 @@ const GUARD = { ...KC, royalGuard: true };
   assert('glass survives being passed over, not landed on', g.tileAt('b3') === TILE.GLASS);
 }
 
+// ---- the lodestone's pull ---------------------------------------------------
+
+// Rows are top-down, so -16 is "up the board". A lodestone stepping up from
+// row 4 to row 3 puts row 2 in the gap and row 1 two away — which is where
+// each of these diagrams parks whatever is meant to be dragged.
+const PULL_BOARD = (occupant, gap = '.') => `
+  {b:king} . . . .
+  . . ${occupant} . .
+  . . ${gap} . .
+  . . . . .
+  {w:king} . {w:lodestone} . .
+`;
+const pullGame = (occupant, gap, opts = {}) => Chess.fromDiagram(
+  PULL_BOARD(occupant, gap),
+  { files: 5, ranks: 5, rules: { ...KC }, ...opts },
+);
+// The lodestone's own step: row 4 col 2 up to row 3 col 2.
+const LODE_FROM = 4 * 16 + 2;
+const LODE_TO = 3 * 16 + 2;
+const PULL_MID = 2 * 16 + 2;
+const PULL_FAR = 1 * 16 + 2;
+
+{
+  const g = pullGame('{b:pawn}');
+  assert('the pull leaves the enemy alone until the lodestone moves',
+    g.board[PULL_FAR]?.type === 'p' && !g.board[PULL_MID]);
+
+  g.move({ from: LODE_FROM, to: LODE_TO });
+  assert('a lodestone drags an enemy two squares off one square closer',
+    g.board[PULL_MID]?.type === 'p' && g.board[PULL_MID]?.color === BLACK,
+    JSON.stringify(g.board[PULL_MID]));
+  assert('the square it was dragged off is empty', !g.board[PULL_FAR]);
+  assert('the lodestone itself still made its own move', g.board[LODE_TO]?.type === 'lodestone');
+
+  g.undo();
+  assert('undo puts the dragged piece back', g.board[PULL_FAR]?.type === 'p' && !g.board[PULL_MID]);
+  assert('undo puts the lodestone back', g.board[LODE_FROM]?.type === 'lodestone' && !g.board[LODE_TO]);
+}
+
+{
+  // A body in the gap means there is nowhere to drag them to.
+  const g = pullGame('{b:pawn}', '{b:knight}');
+  g.move({ from: LODE_FROM, to: LODE_TO });
+  assert('a blocked gap stops the pull',
+    g.board[PULL_FAR]?.type === 'p' && g.board[PULL_MID]?.type === 'n');
+}
+
+{
+  // It is a pull on the ENEMY, not a tractor beam on everything.
+  const g = pullGame('{w:pawn}');
+  g.move({ from: LODE_FROM, to: LODE_TO });
+  assert('the pull does not drag your own pieces',
+    g.board[PULL_FAR]?.color === WHITE && !g.board[PULL_MID]);
+}
+
+{
+  // Frozen holds against the pull — the cold already owns them.
+  const g = pullGame('{b:pawn}');
+  g.status[PULL_FAR] |= ST_FROZEN;
+  g.move({ from: LODE_FROM, to: LODE_TO });
+  assert('a frozen piece cannot be dragged', g.board[PULL_FAR]?.type === 'p' && !g.board[PULL_MID]);
+}
+
+{
+  // Dragging their king out of position is the whole point, so kings.b has
+  // to follow it — a stale king square would break every capture check.
+  const g = Chess.fromDiagram(`
+    . . . . .
+    . . {b:king} . .
+    . . . . .
+    . . . . .
+    {w:king} . {w:lodestone} . .
+  `, { files: 5, ranks: 5, rules: { ...KC } });
+  g.move({ from: LODE_FROM, to: LODE_TO });
+  assert('the pull drags a king too', g.board[PULL_MID]?.type === 'k');
+  assert('the dragged king is tracked at its new square', g.kings.b === PULL_MID, String(g.kings.b));
+  g.undo();
+  assert('undo restores the dragged king square', g.kings.b === PULL_FAR, String(g.kings.b));
+}
+
+{
+  // Dragged onto ice they freeze; the terrain applies to a piece hauled onto
+  // it, not only to one that walked there.
+  const g = pullGame('{b:pawn}', '*');
+  g.move({ from: LODE_FROM, to: LODE_TO });
+  assert('a piece dragged onto frost freezes',
+    g.board[PULL_MID]?.type === 'p' && Boolean(g.status[PULL_MID] & ST_FROZEN));
+  g.undo();
+  assert('undo thaws and returns a piece dragged onto frost',
+    g.board[PULL_FAR]?.type === 'p' && !(g.status[PULL_FAR] & ST_FROZEN) && !g.status[PULL_MID]);
+}
+
+{
+  // And dragged into fire they burn — setting the fire and then hauling
+  // someone onto it is the reason to field the thing.
+  const g = pullGame('{b:pawn}', '^');
+  g.move({ from: LODE_FROM, to: LODE_TO });
+  assert('a piece dragged into fire dies', !g.board[PULL_MID] && !g.board[PULL_FAR]);
+  g.undo();
+  assert('undo stands a burned dragged piece back up',
+    g.board[PULL_FAR]?.type === 'p' && !g.board[PULL_MID]);
+}
+
+{
+  // The nasty one: a pull can drag someone into the square the lodestone
+  // just vacated, so undo has to clear that square before walking the
+  // lodestone back onto it.
+  const g = Chess.fromDiagram(`
+    . . . . .
+    . . . . .
+    . . . . .
+    . . {w:lodestone} . .
+    {w:king} . {b:pawn} {b:king} .
+  `, { files: 5, ranks: 5, rules: { ...KC } });
+  const from = 3 * 16 + 2;
+  const to = 2 * 16 + 2;
+  const behind = 4 * 16 + 2;
+  g.move({ from, to });
+  assert('a pull can drag an enemy into the square the lodestone left',
+    g.board[from]?.type === 'p' && !g.board[behind]);
+  assert('the lodestone is on its destination', g.board[to]?.type === 'lodestone');
+  g.undo();
+  assert('undo returns the lodestone to a square the pull had filled',
+    g.board[from]?.type === 'lodestone', JSON.stringify(g.board[from]));
+  assert('undo returns the dragged piece behind it', g.board[behind]?.type === 'p');
+  assert('undo leaves the destination empty', !g.board[to]);
+}
+
+{
+  // A Bombard shoots along the dabbaba lines, which is a different set of
+  // squares from the Crossbow's knight leaps — that separation is the point
+  // of having both.
+  const g = Chess.fromDiagram(`
+    . . . . .
+    . . {b:knight} . .
+    . . . . .
+    . . {w:bombard} . .
+    {w:king} . . . {b:king}
+  `, { files: 5, ranks: 5, rules: { ...KC } });
+  const shooter = 3 * 16 + 2;
+  const target = 1 * 16 + 2;
+  const shot = g.moves({ square: shooter, legal: false }).find((m) => m.to === target);
+  assert('a bombard shoots two squares in a straight line',
+    Boolean(shot) && Boolean(shot.flags & FLAG.SHOOT), JSON.stringify(shot));
+  g.makeMove(shot);
+  assert('the bombard kills without moving',
+    !g.board[target] && g.board[shooter]?.type === 'bombard');
+}
+
+{
+  // A Basilisk freezes like a Rime but arrives along a diagonal, so it can
+  // set that up from across the board rather than a step at a time.
+  const g = Chess.fromDiagram(`
+    . . . . .
+    . {b:rook} . . .
+    . . . . .
+    . . . {w:basilisk} .
+    {w:king} . . . {b:king}
+  `, { files: 5, ranks: 5, rules: { ...KC } });
+  const from = 3 * 16 + 3;
+  const to = 1 * 16 + 1;
+  const slide = g.moves({ square: from, legal: false }).find((m) => m.to === to);
+  assert('a basilisk slides on the diagonals', Boolean(slide), names(g, from).join(','));
+}
+
+// ---- undo symmetry regressions ----------------------------------------------
+// All three of these were found by fuzzing make/undo over random positions:
+// play every legal move from a position, undo it, and demand the engine be
+// byte-identical. Each one silently corrupted the AI's search rather than
+// throwing, so nothing surfaced them until the state was compared directly.
+
+const engineSnapshot = (g) => JSON.stringify({
+  board: g.board.map((p) => (p ? p.type + p.color : null)),
+  status: Array.from(g.status),
+  kings: g.kings,
+});
+
+{
+  // A king capturing a sapper. undo() restores `this.kings` from the history
+  // entry and then the blast-restore loop used to re-derive it from the
+  // square the corpse was on, putting the king back on the sapper's square.
+  const g = Chess.fromDiagram(`
+    . . . .
+    . {b:sapper} . .
+    . {w:king} . .
+    . . . {b:king}
+  `, { files: 4, ranks: 4, rules: { ...KC } });
+  const before = engineSnapshot(g);
+  const blow = g.moves({ square: g.kings.w, legal: false }).find((m) => m.captured === 'x');
+  g.makeMove(blow);
+  assert('a king that takes a sapper dies in the blast', g.kings.w === -1);
+  g.undo();
+  assert('undo restores the king to its own square, not the sapper\'s',
+    engineSnapshot(g) === before, `kings ${JSON.stringify(g.kings)}`);
+}
+
+{
+  // A frozen piece caught in a sapper blast. The blast recorded the square
+  // and the piece but not its status, so it came back thawed.
+  const g = Chess.fromDiagram(`
+    . . . . .
+    . . . . .
+    . {w:pawn} {b:sapper} . .
+    . . {w:rook} . .
+    {w:king} . . . {b:king}
+  `, { files: 5, ranks: 5, rules: { ...KC } });
+  const frozenSq = 2 * 16 + 1;
+  g.status[frozenSq] |= ST_FROZEN;
+  const before = engineSnapshot(g);
+  const blow = g.moves({ square: 3 * 16 + 2, legal: false }).find((m) => m.captured === 'x');
+  g.makeMove(blow);
+  g.undo();
+  assert('undo restores the frozen status of a blast victim',
+    engineSnapshot(g) === before, `status ${g.status[frozenSq]}`);
+}
+
+{
+  // A Basilisk taking a sapper: the freeze happens first, the blast second,
+  // so undo has to unwind the blast first or the blast's (already-frozen)
+  // record wins over the real pre-move status.
+  const g = Chess.fromDiagram(`
+    . . . . .
+    . . . . .
+    . {b:rook} {b:sapper} . .
+    . . . {w:basilisk} .
+    {w:king} . . . {b:king}
+  `, { files: 5, ranks: 5, rules: { ...KC } });
+  const before = engineSnapshot(g);
+  const blow = g.moves({ square: 3 * 16 + 3, legal: false }).find((m) => m.captured === 'x');
+  assert('the basilisk can reach the sapper', Boolean(blow));
+  g.makeMove(blow);
+  g.undo();
+  assert('undo unwinds a blast before the freeze that preceded it',
+    engineSnapshot(g) === before);
+}
+
+{
+  // A pawn promoting onto a fire tile. `extra.burned` records the piece as
+  // it stood on the destination — already promoted — so undo walked a queen
+  // back onto the pawn's square and left it there.
+  const g = Chess.fromDiagram(`
+    . ^ . .
+    . {w:pawn} . .
+    . . . {b:king}
+    {w:king} . . .
+  `, { files: 4, ranks: 4, rules: { ...KC } });
+  const before = engineSnapshot(g);
+  const push = g.moves({ square: 1 * 16 + 1, legal: false }).find((m) => m.promotion === 'q');
+  assert('the pawn can promote onto the burning square', Boolean(push));
+  g.makeMove(push);
+  assert('promoting into fire kills it', !g.board[1] && !g.board[1 * 16 + 1]);
+  g.undo();
+  assert('undo returns a burned promotion as a pawn, not a queen',
+    engineSnapshot(g) === before, JSON.stringify(g.board[1 * 16 + 1]));
+}
+
 console.log(failures ? `\n${failures} variant failure(s)` : '\nAll variant tests passed.');
 process.exit(failures ? 1 : 0);
