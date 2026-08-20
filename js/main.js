@@ -34,7 +34,7 @@ const state = {
   // Bumped whenever the position is reset from outside the normal move flow.
   // A search that finishes after that is stale and gets dropped.
   generation: 0,
-  settings: { music: true, sfx: true, flip: false },
+  settings: { music: true, sfx: true, flip: false, autoQueen: false },
 };
 
 // ---- the opponent, off the main thread where possible ---------------------
@@ -419,6 +419,11 @@ function onAttemptMove(from, to) {
     return;
   }
   if (options[0].promotion) {
+    if (state.settings.autoQueen) {
+      const queen = options.find((m) => m.promotion === 'q') || options[0];
+      playMove(from, to, queen.promotion);
+      return;
+    }
     askPromotion(from, to);
     return;
   }
@@ -696,6 +701,13 @@ function init() {
 
   $('btn-new').addEventListener('click', () => newGame());
   $('btn-undo').addEventListener('click', () => takeBack());
+  const autoQueen = $('chk-auto-queen');
+  if (autoQueen) {
+    autoQueen.checked = Boolean(state.settings.autoQueen);
+    autoQueen.addEventListener('change', () => {
+      state.settings.autoQueen = autoQueen.checked;
+    });
+  }
   $('btn-flip').addEventListener('click', () => {
     state.settings.flip = !state.settings.flip;
     state.view.setFlipped(!state.view.flipped);

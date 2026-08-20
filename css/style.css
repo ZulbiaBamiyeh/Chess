@@ -644,6 +644,19 @@ kbd {
 }
 
 .rail-actions { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.3rem; }
+.rail-toggle {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0.55em 0.85em;
+  background: rgba(30, 39, 73, 0.75);
+  border: 2px solid rgba(169, 179, 208, 0.28);
+  border-radius: 10px;
+  font-family: var(--font-pixel);
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  box-sizing: border-box;
+}
+.rail-toggle:hover { border-color: var(--gold); color: var(--ink); }
 
 /* ---------- move list ---------- */
 
