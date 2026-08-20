@@ -8,7 +8,12 @@
 
 const MUSIC_DIR = 'Music/';
 const TRACK = {
-  map: 'Old RuneScape Soundtrack_ Doorways.mp3',
+  map: [
+    'Old RuneScape Soundtrack_ Doorways.mp3',
+    'Old RuneScape Soundtrack_ Scape Sad.mp3',
+    'Old RuneScape Soundtrack_ Regal.mp3',
+    'Old School RuneScape Soundtrack_ Crystal Sword.mp3',
+  ],
   shop: 'Wildfrost OST - The Wooly Snail.mp3',
   gameover: 'Wildfrost OST - Trapped Spirits.mp3',
   fightSetup: 'Wildfrost OST - Spirit Call.mp3',
@@ -42,6 +47,8 @@ export class AudioEngine {
     this.combatHot = false;
     this.combatOrder = [];
     this.combatIndex = 0;
+    this.mapOrder = [];
+    this.mapIndex = 0;
     this.preloadStarted = false;
   }
 
@@ -240,13 +247,14 @@ export class AudioEngine {
 
   // ---- soundtrack files -------------------------------------------------
   //
-  // Map plays Doorways. Shop, fight, and game over play the Wildfrost beds.
+  // Map walks Doorways, Scape Sad, Regal, and Crystal Sword. Shop, fight, and
+  // game over play the Wildfrost beds.
   // Fight starts on Spirit Call; taking an enemy piece walks the combat list.
 
   preloadMusic() {
     if (this.preloadStarted || !this.ctx) return;
     this.preloadStarted = true;
-    this.stem('map', TRACK.map, true);
+    TRACK.map.forEach((file, i) => this.stem(`map-${i}`, file, false));
     this.stem('shop', TRACK.shop, true);
     this.stem('gameover', TRACK.gameover, true);
     this.stem('fight-setup', TRACK.fightSetup, true);
@@ -312,13 +320,38 @@ export class AudioEngine {
   startFileStyle(style) {
     if (this.muted.music) return;
     this.preloadMusic();
-    if (style === 'ambient') this.startStem('map', { volume: 0.9, fade: 1.0 });
+    if (style === 'ambient') {
+      this.mapOrder = TRACK.map.map((_, i) => i).sort(() => Math.random() - 0.5);
+      this.mapIndex = 0;
+      this.playMapTrack(this.mapIndex, 1.0);
+    }
     else if (style === 'shop') this.startStem('shop', { volume: 0.92, fade: 0.8 });
     else if (style === 'gameover') this.startStem('gameover', { volume: 0.95, fade: 1.2 });
     else if (style === 'fight') {
       this.combatHot = false;
       this.startStem('fight-setup', { volume: 0.88, fade: 0.7 });
     }
+  }
+
+  playMapTrack(index, fade = 1.0) {
+    if (this.musicStyle !== 'ambient') return;
+    const order = this.mapOrder;
+    if (!order.length) return;
+    const which = order[((index % order.length) + order.length) % order.length];
+    const id = `map-${which}`;
+    for (let i = 0; i < TRACK.map.length; i++) {
+      if (i !== which) this.stopStem(`map-${i}`, 0.5);
+    }
+    const node = this.stems.get(id);
+    if (node) {
+      node.el.loop = false;
+      node.el.onended = () => {
+        if (this.musicStyle !== 'ambient') return;
+        this.mapIndex = (this.mapIndex + 1) % order.length;
+        this.playMapTrack(this.mapIndex, 0.6);
+      };
+    }
+    this.startStem(id, { volume: 0.9, fade, reset: true });
   }
 
   /**
