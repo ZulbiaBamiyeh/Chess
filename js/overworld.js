@@ -692,6 +692,38 @@ export function villageRecruit(biome) {
   return { type: 'w', gold: 3, name: 'a Wazir' };
 }
 
+function squareNameOn(file, rank1) {
+  return `${String.fromCharCode(97 + file)}${rank1}`;
+}
+
+/**
+ * Guarantee two adjacent files a pawn can walk from the home rank to the
+ * north. `block` and `fire` both stop a pawn; frost only costs a turn.
+ */
+function openPawnCrossing(terrain, files, ranks) {
+  let best = [Math.max(0, Math.floor(files / 2) - 1), Math.min(files - 1, Math.floor(files / 2))];
+  let bestScore = -1;
+  for (let f = 0; f < files - 1; f++) {
+    let score = 0;
+    for (let n = 1; n <= ranks; n++) {
+      for (const file of [f, f + 1]) {
+        const tile = terrain[squareNameOn(file, n)];
+        if (tile !== 'block' && tile !== 'fire') score++;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = [f, f + 1];
+    }
+  }
+  for (const f of best) {
+    for (let n = 1; n <= ranks; n++) {
+      const name = squareNameOn(f, n);
+      if (terrain[name] === 'block' || terrain[name] === 'fire') delete terrain[name];
+    }
+  }
+}
+
 /**
  * Build a fight encounter from the overworld tile the clash happened on.
  * Mountains/chasms become holes; frost and ember come with the biome.
@@ -725,6 +757,12 @@ export function clashEncounter(world, pack, run, aggressor) {
   for (let f = 0; f < files; f++) {
     delete terrain[`${String.fromCharCode(97 + f)}1`];
   }
+
+  // Overworld walls and chasms copy onto the fight. A one-file jog or a hole
+  // two squares wide is fine for a knight and death for the starting army
+  // (king and three pawns), who cannot jump. Open two neighbouring files so
+  // a pawn can walk north and a king can step around a freeze.
+  openPawnCrossing(terrain, files, ranks);
 
   // a1 is south on a variant board; a{ranks} is north. Enemies stand north.
   const enemySquares = [];

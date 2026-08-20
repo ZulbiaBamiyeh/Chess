@@ -105,6 +105,56 @@ function world(seed = 1, act = 1) {
   console.log('PASS  clash boards carry terrain and first-move');
 }
 
+function pawnLaneOpen(enc) {
+  const files = enc.files;
+  const ranks = enc.ranks;
+  for (let f = 0; f < files; f++) {
+    let clear = true;
+    for (let n = 1; n <= ranks; n++) {
+      const tile = enc.terrain?.[`${String.fromCharCode(97 + f)}${n}`];
+      if (tile === 'block' || tile === 'fire') { clear = false; break; }
+    }
+    if (clear) return true;
+  }
+  return false;
+}
+
+{
+  const run = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
+  let closed = 0;
+  for (const seed of [1, 2, 3, 5, 7, 9, 11, 13, 21, 42, 77, 99]) {
+    const w = world(seed);
+    for (const pack of w.packs.slice(0, 6)) {
+      w.player.file = pack.file;
+      w.player.rank = Math.max(0, pack.rank - 1);
+      const enc = clashEncounter(w, pack, run, 'player');
+      if (!pawnLaneOpen(enc)) closed++;
+    }
+  }
+  assert(closed === 0, `pawn-blocked fights ${closed}`);
+  console.log('PASS  clash boards keep a pawn-walkable north–south lane');
+}
+
+{
+  // A 1-file jog copied from the overworld used to leave a gap three pawns
+  // cannot cross. Force a wall-lined corridor, then check the fight opens it.
+  const w = world(1);
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < w.files; f++) {
+      w.cells[r][f].terrain = (f === 5) ? TERRAIN.FLOOR : TERRAIN.CHASM;
+    }
+  }
+  w.player.file = 5;
+  w.player.rank = 2;
+  const pack = {
+    id: 'test-jog', file: 5, rank: 3, army: [{ type: 'k' }, { type: 'p' }],
+    name: 'Levy', theme: 'wood', tier: 'trash',
+  };
+  const enc = clashEncounter(w, pack, { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] }, 'player');
+  assert(pawnLaneOpen(enc), `jog still blocked ${JSON.stringify(enc.terrain)}`);
+  console.log('PASS  a narrow overworld corridor still yields a pawn crossing');
+}
+
 {
   const w = world(2);
   const startVis = w.visible.size;

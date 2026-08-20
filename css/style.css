@@ -2691,7 +2691,8 @@ kbd {
 .ow-wrap {
   flex: 1;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 0.6rem;
   min-height: 0;
   padding: 0 0.8rem;
@@ -2734,7 +2735,9 @@ kbd {
 .ow-port {
   position: relative;
   overflow: auto;
-  max-height: min(78vh, 920px);
+  min-height: 0;
+  height: 100%;
+  max-height: none;
   border-radius: 10px;
   box-shadow:
     0 0 0 4px var(--wood-line),
@@ -2746,7 +2749,7 @@ kbd {
 .ow-stack {
   --ow-files: 11;
   --ow-ranks: 36;
-  --ow-cell: clamp(36px, 5.6vh, 56px);
+  --ow-cell: clamp(44px, 7.2vh, 72px);
   position: relative;
   width: calc(var(--ow-files) * var(--ow-cell));
   margin: 0 auto;
