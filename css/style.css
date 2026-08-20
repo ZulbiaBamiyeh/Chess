@@ -2442,20 +2442,49 @@ kbd {
 }
 
 .piece.frozen {
-  filter: brightness(1.12) saturate(0.45) drop-shadow(0 0 12px rgba(120, 220, 255, 1)) !important;
+  overflow: visible;
+  filter:
+    brightness(1.18) saturate(0.4)
+    drop-shadow(0 3px 3px rgba(0, 0, 0, 0.4))
+    drop-shadow(0 0 4px rgba(210, 250, 255, 1))
+    drop-shadow(0 0 12px rgba(110, 210, 255, 0.95))
+    drop-shadow(0 0 22px rgba(70, 180, 255, 0.55)) !important;
 }
+/* A glaze over the body of the sprite, not a box around the square. */
 .piece.frozen::before {
   content: '';
   position: absolute;
-  inset: -6%;
-  border-radius: 18%;
+  left: 22%;
+  width: 56%;
+  bottom: 7%;
+  height: 74%;
+  border-radius: 46% 46% 40% 40% / 52% 52% 38% 38%;
   pointer-events: none;
   z-index: 2;
   background:
-    linear-gradient(180deg, rgba(210, 245, 255, 0.5), rgba(140, 210, 240, 0.08) 52%, rgba(190, 235, 255, 0.35));
-  box-shadow:
-    inset 0 0 0 2px rgba(190, 240, 255, 0.95),
-    0 0 16px rgba(80, 200, 255, 0.65);
+    radial-gradient(ellipse at 48% 16%, rgba(255, 255, 255, 0.7), rgba(190, 236, 255, 0.18) 42%, transparent 68%),
+    linear-gradient(180deg, rgba(200, 240, 255, 0.22), transparent 62%);
+  mix-blend-mode: screen;
+}
+/* Rime at the feet and a few sparkles on the body — not a box. */
+.piece.frozen::after {
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 0;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='%23f2fdff' opacity='0.9'%3E%3Ccircle cx='28' cy='38' r='1.35'/%3E%3Ccircle cx='72' cy='34' r='1.15'/%3E%3Ccircle cx='50' cy='18' r='1.3'/%3E%3Ccircle cx='22' cy='56' r='1'/%3E%3Ccircle cx='78' cy='52' r='1.1'/%3E%3Ccircle cx='40' cy='26' r='0.8'/%3E%3Ccircle cx='62' cy='24' r='0.75'/%3E%3C/g%3E%3Cg fill='%23d4f3ff' stroke='%2398dcf0' stroke-width='0.55' stroke-linejoin='round' opacity='0.88'%3E%3Cpolygon points='22,96 26,78 31,96'/%3E%3Cpolygon points='32,97 38,72 44,97'/%3E%3Cpolygon points='46,97 50,70 55,97'/%3E%3Cpolygon points='56,97 62,74 68,97'/%3E%3Cpolygon points='70,96 75,80 80,96'/%3E%3Cpolygon points='18,92 20,84 24,92'/%3E%3Cpolygon points='76,92 80,83 84,92'/%3E%3C/g%3E%3C/svg%3E") center bottom / 100% 100% no-repeat;
+  animation: frost-sparkle 2.4s ease-in-out infinite;
+}
+@keyframes frost-sparkle {
+  0%, 100% { opacity: 0.82; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .piece.frozen::after { animation: none; }
 }
 /* Divine shield: a gold glow on the sprite, not a spinning hoop around the square. */
 .piece.shielded {
