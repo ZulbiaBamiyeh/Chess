@@ -484,7 +484,6 @@ body.no-webgl #app {
 .howto-piece .howto-art { width: 40px; height: 40px; flex: none; grid-row: 1 / 3; }
 .howto-piece b { color: var(--ink); font-size: 0.82rem; }
 .howto-piece span { color: var(--ink-faint); font-size: 0.72rem; line-height: 1.2; }
-.howto-keys { color: var(--ink-dim); font-size: 0.86rem; margin: 0 0 0.8rem; }
 
 .piece.duck-token { z-index: 16; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45)); }
 .sq.duck-here { box-shadow: inset 0 0 0 3px #ffcf3f; }
