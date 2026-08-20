@@ -70,13 +70,11 @@ function world(seed = 1, act = 1) {
   const dest = playerMoves(w)[0];
   movePlayer(w, dest.file, dest.rank); // turns=2, grace=2, decay not yet
   assert(w.decayRank === -1, 'grace holds the decay');
-  const dest2 = playerMoves(w)[0];
-  if (dest2) movePlayer(w, dest2.file, dest2.rank); // turns=3, (3-2)%3==1, still no
-  const dest3 = playerMoves(w)[0];
-  if (dest3) movePlayer(w, dest3.file, dest3.rank); // turns=4, (4-2)%3==2
-  const dest4 = playerMoves(w)[0];
-  if (dest4) {
-    movePlayer(w, dest4.file, dest4.rank); // turns=5, (5-2)%3==0 → decay
+  for (let i = 0; i < 12 && w.decayRank < 0; i++) {
+    const step = playerMoves(w).find((m) => !w.packs.some((p) => !p.dead && p.file === m.file && p.rank === m.rank))
+      || playerMoves(w)[0];
+    if (!step) break;
+    movePlayer(w, step.file, step.rank);
   }
   assert(w.decayRank >= 0, `decay started ${w.decayRank}`);
   console.log('PASS  the decay waits out its grace, then eats the south');
@@ -119,9 +117,28 @@ function world(seed = 1, act = 1) {
 }
 
 {
+  const w = world(9);
+  const south = w.packs.filter((p) => p.rank / w.ranks < 0.32 && p.tier !== 'boss');
+  assert(south.length >= 1, 'south packs exist');
+  for (const p of south) {
+    const bodies = (p.army || []).filter((x) => x.type !== 'k');
+    assert(bodies.length >= 2 && bodies.length <= 3, `${p.name} bodies ${bodies.length}`);
+    assert(bodies.every((x) => x.type === 'p'), `${p.name} ${packRoster(p.army)}`);
+  }
+  const run = createVoyageRun(9);
+  run.voyage = w;
+  const enc = clashEncounter(w, south[0], run, 'player');
+  assert(enc.rules?.royalGuard === false, 'embark fights drop the enemy guard');
+  const game = buildFight(run, enc, [{ uid: 'king', type: 'k', sq: 5 * 16 + 2 }]);
+  assert(!game.kingGuarded(game.kings.b), 'their king is not escorted');
+  console.log('PASS  the south is king-and-pawns, and their king has no guard');
+}
+
+{
   const w = world(7);
   const guard = w.packs.find((p) => p.stance === 'docile');
   assert(guard, 'a docile pack exists');
+  for (const p of w.packs) if (p !== guard) p.dead = true;
   w.player.file = Math.max(0, guard.file - 1);
   w.player.rank = guard.rank;
   const events = [];

@@ -6,7 +6,7 @@ import { pieceById } from './pieces.js';
 
 export const OW = {
   FILES: 11,
-  VISION: 2,
+  VISION: 3,
   GRACE: 24,
   DECAY_EVERY: 3,
   DECAY_HP: 3,
@@ -241,12 +241,16 @@ function pickArchetype(biome, tier, danger, rng, role = 'road') {
     return 'gate';
   }
   if (role === 'cache') {
+    if (danger < 0.34) return 'watch';
     const r = rng();
     if (r < 0.68) return 'watch';
     if (r < 0.86) return 'thieves';
     return 'skull';
   }
   if (role === 'road' && danger < 0.55 && rng() < 0.14) return 'caravan';
+  // The south is levy-and-pawns country. Scouts and thieves wait until the
+  // board has actually climbed.
+  if (danger < 0.34) return 'levy';
   if (danger > 0.74) {
     if (biome === 'frost' || biome === 'gate') return 'skull';
     if (biome === 'peak') return 'pyre';
@@ -265,9 +269,22 @@ function pickArchetype(biome, tier, danger, rng, role = 'road') {
   return rng() < 0.5 ? 'scouts' : 'thieves';
 }
 
+function packPower(rank, ranks, act, rng) {
+  const t = rank / Math.max(1, ranks - 1);
+  // Until well up the board, they field what you field: two or three pawns.
+  if (t < 0.34) return rng() < 0.55 ? 2 : 3;
+  if (t < 0.52) return 4 + Math.floor(rng() * 3);
+  return Math.round(6 + t * (12 + act * 5) + rng() * 3);
+}
+
 function buildArmy(rng, power, arch) {
   const spec = ARCHETYPES[arch] || ARCHETYPES.levy;
   const army = [{ type: 'k' }];
+  if (power <= 3) {
+    const n = Math.max(2, Math.min(3, power));
+    for (let i = 0; i < n; i++) army.push({ type: 'p' });
+    return army;
+  }
   let spent = 0;
   let guard = 0;
   while (spent < power && army.length < 8) {
@@ -446,7 +463,8 @@ export function generateWorld(rng, act = 1) {
     if (rng() < 0.42) x += rng() < 0.5 ? -1 : 1;
     x = Math.max(2, Math.min(files - 3, x));
     spine[y] = x;
-    const wide = y > ranks - 9 ? 0 : (rng() < 0.45 ? 1 : 0);
+    // A wider south so the opening is a glade, not a one-file trench.
+    const wide = y > ranks - 9 ? 0 : (y < 12 ? 1 : (rng() < 0.5 ? 1 : 0));
     carve(world, x, y, wide);
     if (y > 4 && y < ranks - 8 && rng() < 0.36) {
       const dir = rng() < 0.5 ? -1 : 1;
@@ -494,8 +512,8 @@ export function generateWorld(rng, act = 1) {
     }
   }
 
-  // Start clearing so the first view is not a corridor of walls.
-  carve(world, world.player.file, world.player.rank, 1);
+  // Start clearing so the first view is a little glade, not a trench of walls.
+  carve(world, world.player.file, world.player.rank, 2);
   setTerrain(world, world.player.file, world.player.rank, TERRAIN.FLOOR);
 
   // Ramp at the north end of the spine — and a boss sitting on it.
@@ -532,8 +550,8 @@ export function generateWorld(rng, act = 1) {
     const danger = Math.min(1, pocket.rank / ranks * 0.65 + pocket.depth / 10 * 0.45);
     cell.poi = 'loot';
     cell.loot = rollLoot(rng, danger, act);
-    const guardPower = Math.round(6 + danger * (16 + act * 5));
-    const guardTier = danger > 0.7 ? 'elite' : danger > 0.45 ? 'elite' : 'trash';
+    const guardPower = packPower(pocket.rank, ranks, act, rng);
+    const guardTier = danger > 0.7 ? 'elite' : danger > 0.52 ? 'elite' : 'trash';
     placePack(world, pocket.file, pocket.rank, guardPower, guardTier, { role: 'cache' });
   }
 
@@ -548,8 +566,8 @@ export function generateWorld(rng, act = 1) {
     if (chebyshev({ file: f, rank: y }, world.player) < 5) continue;
     used.add(key(f, y));
     const t = y / ranks;
-    const power = Math.round(5 + t * (14 + act * 6) + rng() * 3);
-    const tier = t > 0.82 ? 'elite' : t > 0.55 ? 'elite' : 'trash';
+    const power = packPower(y, ranks, act, rng);
+    const tier = t > 0.82 ? 'elite' : t > 0.62 ? 'elite' : 'trash';
     placePack(world, f, y, power, tier, { role: 'road' });
   }
 
@@ -570,17 +588,17 @@ export function generateWorld(rng, act = 1) {
       s.cell.poi = 'loot';
       s.cell.loot = rollLoot(rng, danger, act);
       caches++;
-      placePack(world, s.file, s.rank, Math.round(8 + danger * 14), danger > 0.55 ? 'elite' : 'trash', { role: 'cache' });
+      placePack(world, s.file, s.rank, packPower(s.rank, ranks, act, rng), danger > 0.62 ? 'elite' : 'trash', { role: 'cache' });
     }
   }
 
   // Fill any thin maps so the road is never empty.
   let extra = 0;
-  for (let y = 8; y < ranks - 3 && world.packs.length < 14 && extra < 8; y += 3) {
+  for (let y = 12; y < ranks - 3 && world.packs.length < 14 && extra < 8; y += 3) {
     const f = spine[y] ?? x;
     if (used.has(key(f, y))) continue;
     if (chebyshev({ file: f, rank: y }, world.player) < 5) continue;
-    const placed = placePack(world, f, y, Math.round(6 + (y / ranks) * 12), y / ranks > 0.55 ? 'elite' : 'trash', { role: 'road' });
+    const placed = placePack(world, f, y, packPower(y, ranks, act, rng), y / ranks > 0.62 ? 'elite' : 'trash', { role: 'road' });
     if (placed) {
       used.add(key(f, y));
       extra++;
@@ -920,6 +938,10 @@ export function clashEncounter(world, pack, run, aggressor) {
     theme: pack.theme,
     tier: pack.tier || 'trash',
     firstMover: aggressor === 'enemy' ? 'b' : 'w',
+    // Embark is already a hard enough road. The escort-soak that stops a
+    // first-ply king capture on the Old Road stays there; here the king dies
+    // if you can reach it.
+    rules: { royalGuard: false },
     ai: pack.tier === 'boss' ? { depth: 5, slip: 0, budget: 1400 }
       : pack.tier === 'elite' ? { depth: 4, slip: 0.04, budget: 800 }
       : { depth: 3, slip: 0.1, budget: 450 },

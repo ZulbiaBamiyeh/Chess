@@ -2738,18 +2738,15 @@ kbd {
   min-height: 0;
   height: 100%;
   max-height: none;
-  border-radius: 10px;
-  box-shadow:
-    0 0 0 4px var(--wood-line),
-    0 0 0 8px rgba(255, 207, 63, 0.16),
-    0 22px 60px rgba(0, 0, 0, 0.62);
-  background: #07080c;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   scrollbar-width: thin;
 }
 .ow-stack {
   --ow-files: 11;
   --ow-ranks: 36;
-  --ow-cell: clamp(44px, 7.2vh, 72px);
+  --ow-cell: clamp(58px, 10vh, 104px);
   position: relative;
   width: calc(var(--ow-files) * var(--ow-cell));
   margin: 0 auto;
@@ -2778,9 +2775,21 @@ kbd {
   background: #e8d4b0;
 }
 .ow-sq.dark { background: #6b4530; }
-.ow-sq.wood.light { background: #e8d4b0; }
-.ow-sq.wood.dark { background: #6b4530; }
-.ow-sq.frost.light { background: #d5e6f0; }
+.ow-sq.wood.light {
+  background:
+    radial-gradient(ellipse at 28% 18%, rgba(255, 248, 230, 0.35), transparent 52%),
+    #e8d4b0;
+}
+.ow-sq.wood.dark {
+  background:
+    radial-gradient(ellipse at 70% 80%, rgba(30, 16, 8, 0.28), transparent 55%),
+    #6b4530;
+}
+.ow-sq.frost.light {
+  background:
+    radial-gradient(ellipse at 40% 30%, rgba(255, 255, 255, 0.4), transparent 50%),
+    #d5e6f0;
+}
 .ow-sq.frost.dark { background: #3d566c; }
 .ow-sq.peak.light { background: #d0b49a; }
 .ow-sq.peak.dark { background: #4a3026; }
@@ -2794,15 +2803,15 @@ kbd {
 }
 .ow-sq.chasm {
   background: transparent !important;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
 }
 
 .ow-sq.fog-hidden {
-  background: #0a0c12 !important;
+  background: transparent !important;
   box-shadow: none;
 }
 .ow-sq.fog-seen {
-  filter: brightness(0.55) saturate(0.6);
+  filter: brightness(0.72) saturate(0.75);
 }
 .ow-sq.fog-seen .ow-piece { display: none; }
 .ow-sq.decay {

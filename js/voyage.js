@@ -488,9 +488,21 @@ export function initVoyage(ctx) {
     return vnoise(x, y) * 0.55 + vnoise(x * 2.07, y * 2.07) * 0.3 + vnoise(x * 4.13, y * 4.13) * 0.15;
   }
   function fogAt(f, r) {
-    if (f < 0 || r < 0 || f >= fogFiles || r >= fogRanks) return 1;
+    if (f < 0 || r < 0 || f >= fogFiles || r >= fogRanks) return 0;
     const v = fogGrid[r * fogFiles + f];
-    return v === 0 ? 0 : v === 1 ? 0.22 : 1;
+    if (v === 0) return 0;
+    if (v === 1) return 0.16;
+    // Unexplored mist only on the rim of the known island, so the shader
+    // shows through instead of a black (or grey) rectangle filling the map.
+    for (let dr = -2; dr <= 2; dr++) {
+      for (let df = -2; df <= 2; df++) {
+        const rr = r + dr;
+        const ff = f + df;
+        if (rr < 0 || ff < 0 || rr >= fogRanks || ff >= fogFiles) continue;
+        if (fogGrid[rr * fogFiles + ff] < 2) return 0.48;
+      }
+    }
+    return 0;
   }
   function sampleCoverage(file, rank) {
     const f0 = Math.floor(file);
@@ -557,10 +569,11 @@ export function initVoyage(ctx) {
         if (cov > 1) cov = 1;
         const i = (y * W + x) * 4;
         const swirl = n * 16;
-        data[i] = 7 + swirl * 0.25;
-        data[i + 1] = 9 + swirl * 0.3;
-        data[i + 2] = 14 + swirl * 0.45;
-        data[i + 3] = (cov * 255) | 0;
+        // Pale drifting mist, not a black wall — the shader behind is the sky.
+        data[i] = 186 + swirl * 0.8;
+        data[i + 1] = 198 + swirl * 0.6;
+        data[i + 2] = 214 + swirl * 0.4;
+        data[i + 3] = (cov * 118) | 0;
       }
     }
     ctx2.putImageData(img, 0, 0);
