@@ -1343,6 +1343,140 @@ export const EVENTS = {
       { label: 'Keep to the road', detail: 'Slower, but yours.', effects: [] },
     ],
   },
+
+  // ===================================================================
+  // Rooms that hand over something rare. A run is a story about the two
+  // or three pieces you built it around, so these are the beats where
+  // you actually get one — and every one of them is priced like it.
+  // ===================================================================
+  quarryface: {
+    id: 'quarryface', name: 'The Loadstone Face',
+    text: 'A seam of black rock that the picks are all stuck to. The foreman '
+      + 'pries one loose and it drags his hand back with it. "It pulls," he says. '
+      + '"Whole cartloads. Take a piece if you can carry it."',
+    choices: [
+      { label: 'Cut a piece loose', detail: 'A Lodestone joins the bag. −5 HP; it fights you the whole way.',
+        effects: [{ gain: 'lodestone' }, { hp: -5 }] },
+      { label: 'Take the stuck picks', detail: 'Good iron, badly wanted elsewhere. +26 gold.',
+        effects: [{ gold: 26 }] },
+      { label: 'Leave the seam', detail: 'It is still pulling when you are out of sight.', effects: [] },
+    ],
+  },
+  grove: {
+    id: 'grove', name: 'The Petrified Grove',
+    text: 'Every tree here is stone, and so is everything that was walking '
+      + 'between them. Something at the centre is still moving, slowly, and it '
+      + 'has been alone a very long time.',
+    choices: [
+      { label: 'Walk in and meet it', detail: 'A Basilisk follows you out. It costs you badly (−9 HP, −2 maximum HP).',
+        effects: [{ gain: 'basilisk' }, { hp: -9 }, { maxHp: -2 }] },
+      { label: 'Chip the statues for stone', detail: '+34 gold, and nothing follows you.',
+        effects: [{ gold: 34 }] },
+      { label: 'Go around the grove', detail: 'A long way around, but a way around.', effects: [] },
+    ],
+  },
+  giant: {
+    id: 'giant', name: 'The Fallen Giant',
+    text: 'It came down some time before the road did, and the road was built '
+      + 'around it rather than through. Close up you can see the plates still '
+      + 'fit, and that it is not obviously dead.',
+    choices: [
+      { label: 'Wake it', detail: 'A Colossus joins you. Getting it upright costs 30 gold and 6 HP.',
+        cost: 30, effects: [{ gain: 'colossus' }, { hp: -6 }] },
+      { label: 'Strip the plating', detail: 'Armour enough to sell twice over. +40 gold.',
+        effects: [{ gold: 40 }] },
+      { label: 'Let it lie', detail: 'It has earned that much.', effects: [] },
+    ],
+  },
+  siegetrain: {
+    id: 'siegetrain', name: 'The Siege Train',
+    text: 'Wagons in a line, all facing a wall that is not there any more. The '
+      + 'crews left the tubes behind because the tubes are the heavy part.',
+    choices: [
+      { label: 'Take a tube', detail: 'A Bombard joins the bag. −3 HP loading it.',
+        effects: [{ gain: 'bombard' }, { hp: -3 }] },
+      { label: 'Take the powder', detail: 'Sells well and travels badly. +24 gold, −2 HP.',
+        effects: [{ gold: 24 }, { hp: -2 }] },
+      { label: 'Take the horses', detail: 'One more piece in every fight, for good.',
+        effects: [{ deploy: 1 }] },
+    ],
+  },
+  forgemouth: {
+    id: 'forgemouth', name: 'The Crucible',
+    text: 'A furnace kept lit by nobody, hot enough to melt what you are carrying '
+      + 'into something that was never yours. The smith\'s note says only: BETTER, '
+      + 'NOT MORE.',
+    choices: [
+      { label: 'Feed it a piece', detail: 'It comes back out one rarity higher. Costs 20 gold and 4 HP.',
+        cost: 20, effects: [{ upgrade: true }, { hp: -4 }] },
+      { label: 'Bank the fire', detail: 'Warm work for a night. +10 gold, +5 HP.',
+        effects: [{ gold: 10 }, { heal: 5 }] },
+      { label: 'Let it go out', detail: 'Somebody will relight it.', effects: [] },
+    ],
+  },
+  reliquarydoor: {
+    id: 'reliquarydoor', name: 'The Sealed Reliquary',
+    text: 'A door with no handle and a slot at chest height, worn smooth. '
+      + 'Whatever is behind it has been paid for many times and collected once.',
+    choices: [
+      { label: 'Pay the slot', detail: 'Costs 55 gold. Something legendary is behind that door.',
+        cost: 55, effects: [{ gain: 'random-legendary' }] },
+      { label: 'Force the door', detail: 'It opens. So does something in you (−11 HP), '
+        + 'but you take a rare piece and 15 gold out with you.',
+        effects: [{ hp: -11 }, { gain: 'random-rare' }, { gold: 15 }] },
+      { label: 'Leave it sealed', detail: 'It has waited this long.', effects: [] },
+    ],
+  },
+  hollowcrown: {
+    id: 'hollowcrown', name: 'The Hollow Crown',
+    text: 'A crown on a cushion in an empty tent, sized for nobody in particular. '
+      + 'It has clearly been worn, and recently, and the tent has clearly been '
+      + 'left in a hurry.',
+    choices: [
+      { label: 'Put it on', detail: 'A king you do not own joins the bag. It takes 4 maximum HP to wear.',
+        effects: [{ king: 'random' }, { maxHp: -4 }] },
+      { label: 'Sell the stones', detail: '+30 gold, and the tent stays empty.', effects: [{ gold: 30 }] },
+      { label: 'Leave the tent', detail: 'Whoever ran had a reason.', effects: [] },
+    ],
+  },
+  duellist: {
+    id: 'duellist', name: 'The Duellist',
+    text: 'She has been waiting at this crossing for someone worth the trouble, '
+      + 'and has decided that you are. "One piece of yours against one of mine," '
+      + 'she says. "Mine is better. That is rather the point."',
+    choices: [
+      { label: 'Put a piece up', detail: 'Even odds. Win and an epic piece is yours; lose and she keeps what you staked.',
+        gamble: { odds: 0.5, win: [{ gain: 'random-epic' }], lose: [{ lose: 'choose' }] }, effects: [] },
+      { label: 'Buy her off', detail: '−22 gold. She lets the crossing go.', effects: [{ gold: -22 }] },
+      { label: 'Refuse and walk', detail: 'She lets you, and watches the whole way.', effects: [] },
+    ],
+  },
+  drownedcart: {
+    id: 'drownedcart', name: 'The Drowned Cart',
+    text: 'A merchant\'s cart in the ford, up to the axles, with the merchant '
+      + 'nowhere and the strongbox still roped down. The water is moving faster '
+      + 'than it looks.',
+    choices: [
+      { label: 'Go in for the box', detail: 'A rare piece and 18 gold. The ford takes 7 HP for it.',
+        effects: [{ hp: -7 }, { gain: 'random-rare' }, { gold: 18 }] },
+      { label: 'Cut the horse free', detail: 'It is still alive under there. +2 maximum HP for the trouble, and it heals you 4.',
+        effects: [{ maxHp: 2 }, { heal: 4 }] },
+      { label: 'Ford it further down', detail: 'Dry, and slower.', effects: [] },
+    ],
+  },
+  understudy: {
+    id: 'understudy', name: 'The Understudy',
+    text: 'A clerk copying out the movements of every piece she has ever seen, '
+      + 'in a hand far too good for the job. "I can teach one of yours to move '
+      + 'like something else," she says. "It will not thank you."',
+    choices: [
+      { label: 'Have one taught', detail: 'A piece of your choice becomes one rarity better. Costs 15 gold.',
+        cost: 15, effects: [{ upgrade: true }] },
+      { label: 'Buy a copy of her notes', detail: '−18 gold, +2 supply in every fight, permanently.',
+        cost: 18, effects: [{ supply: 2 }] },
+      { label: 'Leave her to it', detail: 'She does not look up.', effects: [] },
+    ],
+  },
 };
 
 export const EVENT_IDS = Object.keys(EVENTS);

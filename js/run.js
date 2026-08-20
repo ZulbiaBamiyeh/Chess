@@ -482,6 +482,10 @@ function countDeployedSurvivors(game, run) {
   return alive;
 }
 
+const DROP_RANK = {
+  [RARITY.COMMON]: 0, [RARITY.RARE]: 1, [RARITY.EPIC]: 2, [RARITY.LEGENDARY]: 3,
+};
+
 function rollDrop(run, encounter) {
   const chance = DROP_CHANCE[encounter.tier || 'trash'] ?? 0.15;
   if (run.rng() > chance) return null;
@@ -489,8 +493,29 @@ function rollDrop(run, encounter) {
     .map((e) => e.type)
     .filter((t) => t !== 'k' && PIECES[t] && PIECES[t].rarity !== RARITY.UNIQUE);
   const theme = THEME_DROPS[encounter.theme] || [];
-  const pool = fromBoard.length ? fromBoard : theme;
+  let pool = fromBoard.length ? fromBoard : theme;
   if (!pool.length) return null;
+
+  // Prefer something the bag can actually hold. A drop you have no slot for
+  // is auto-sold for a handful of gold, which is the flattest possible end
+  // to a fight you just won — so only fall back to it when there is nothing
+  // in the room you could have kept.
+  const roomFor = pool.filter((t) => hasSlot(run, t));
+  if (roomFor.length) pool = roomFor;
+
+  // The prize scales with the room. A boss hands over the best thing it
+  // fielded rather than whichever pawn the roll happened to land on: it is
+  // the trophy for the hardest fight in the act, and rolling a pawn out of
+  // it made clearing one feel like nothing happened. Elites lean the same
+  // way without committing to it.
+  const tier = encounter.tier || 'trash';
+  const best = () => {
+    const top = Math.max(...pool.map((t) => DROP_RANK[PIECES[t].rarity] ?? 0));
+    const finest = pool.filter((t) => (DROP_RANK[PIECES[t].rarity] ?? 0) === top);
+    return finest[Math.floor(run.rng() * finest.length)];
+  };
+  if (tier === 'boss') return best();
+  if (tier === 'elite' && run.rng() < 0.5) return best();
   return pool[Math.floor(run.rng() * pool.length)];
 }
 
@@ -857,7 +882,7 @@ export function choiceAvailable(run, choice) {
   if (choice.cost && run.gold < choice.cost) {
     return { ok: false, reason: `Costs ${choice.cost}g` };
   }
-  const dropsAPiece = (choice.effects || []).some((e) => e.lose);
+  const dropsAPiece = (choice.effects || []).some((e) => e.lose || e.upgrade);
   if (dropsAPiece && run.bag.length <= 1) {
     return { ok: false, reason: 'Nothing to give' };
   }
@@ -876,6 +901,9 @@ export function applyChoice(run, choice, pickedUid = null) {
   if (!gate.ok) return { ok: false, reason: gate.reason, lines: [] };
 
   const lines = [];
+  // What the choice handed over, so the UI can give a rare or better piece
+  // the same reveal a fight drop gets instead of one more line of text.
+  const gained = [];
   if (choice.cost) {
     run.gold -= choice.cost;
     lines.push(`−${choice.cost} gold`);
@@ -928,6 +956,7 @@ export function applyChoice(run, choice, pickedUid = null) {
         lines.push(added ? `${PIECES[id].name} joins the bag`
           : `${PIECES[id].name} would not fit — sold for 12 gold`);
         if (!added) run.gold += 12;
+        gained.push({ type: id, sold: added ? 0 : 12 });
       }
     }
     if (effect.lose) {
@@ -944,9 +973,55 @@ export function applyChoice(run, choice, pickedUid = null) {
         lines.push(`${PIECES[gone.type].name} left behind`);
       }
     }
+    // Feed a piece in, get one of the next rarity up. The reason this exists
+    // rather than another flat "gain a rare": it makes the commons you have
+    // been carrying since the first floor worth something late, and it is
+    // the only way to aim a reward at a tier instead of hoping for one.
+    if (effect.upgrade) {
+      const at = pickedUid ? run.bag.findIndex((p) => p.uid === pickedUid) : -1;
+      if (at >= 0) {
+        const [gone] = run.bag.splice(at, 1);
+        lines.push(`${PIECES[gone.type].name} goes in`);
+        const next = NEXT_RARITY[rarityOf(gone.type)];
+        const id = next ? rollGain(run, `random-${next}`) : null;
+        if (id) {
+          const added = addToBag(run, id);
+          lines.push(added ? `${PIECES[id].name} comes out`
+            : `${PIECES[id].name} comes out — no slot, sold for 12 gold`);
+          if (!added) run.gold += 12;
+          gained.push({ type: id, sold: added ? 0 : 12 });
+        } else {
+          // A legendary has nothing above it, and a full slot at the tier
+          // above has nowhere to put the result. Either way you are owed.
+          run.gold += 25;
+          lines.push('Nothing comes out but slag. +25 gold');
+        }
+      }
+    }
+    if (effect.king) {
+      const owned = new Set(ownedKingIds(run));
+      const pool = Object.keys(KING_PASSIVES).filter((id) => !owned.has(id));
+      const id = effect.king === 'random'
+        ? pool[Math.floor(Math.random() * pool.length)]
+        : effect.king;
+      if (id && !owned.has(id)) {
+        run.kings = ownedKingIds(run);
+        run.kings.push(id);
+        lines.push(`${KING_PASSIVES[id].name} King joins the bag`);
+      } else {
+        run.gold += 20;
+        lines.push('You already carry every crown they had. +20 gold');
+      }
+    }
   }
-  return { ok: true, lines };
+  return { ok: true, lines, gained };
 }
+
+const NEXT_RARITY = {
+  [RARITY.COMMON]: RARITY.RARE,
+  [RARITY.RARE]: RARITY.EPIC,
+  [RARITY.EPIC]: RARITY.LEGENDARY,
+};
 
 /** The index of the single most expensive non-king piece in a bag, if any. */
 function priciestIndex(bag) {

@@ -2520,6 +2520,44 @@ kbd {
 .relic-tip b { display: block; color: var(--gold); margin-bottom: 0.15rem; }
 .relic-chip:hover .relic-tip { opacity: 1; }
 
+/* The drop reveal. A rare piece used to arrive as a clause at the end of a
+   sentence in the results box — "+14 gold. They dropped a Rook." — which is
+   the same weight as the gold, for the thing that actually changes how the
+   rest of the run plays. It gets its own moment now: the rarity called out
+   in its own colour, the piece drawn large, and the board showing what it
+   does, because half of "this is good" is understanding why. */
+.drop-modal {
+  max-width: min(92vw, 400px);
+  border-color: var(--drop-tint, var(--gold));
+  box-shadow: 0 0 0 1px var(--drop-tint, var(--gold)), 0 0 60px -10px var(--drop-tint, var(--gold));
+}
+.drop-rarity {
+  display: inline-block;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--drop-tint, var(--gold));
+  margin-bottom: 0.5rem;
+}
+.drop-modal h2 { margin: 0 0 0.9rem; }
+.drop-modal .move-diagram {
+  text-align: left;
+  margin-bottom: 0.9rem;
+  border-color: var(--drop-tint, var(--gold));
+}
+.drop-note { color: var(--ink-dim); font-size: 0.82rem; margin: 0 0 1rem; }
+/* The card lands rather than fades — it should feel like it hit the table. */
+.modal:not(.hidden) .drop-modal { animation: drop-land 0.4s cubic-bezier(.2, .9, .3, 1.25); }
+@keyframes drop-land {
+  0% { transform: scale(0.6) translateY(-16px); opacity: 0; }
+  60% { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal:not(.hidden) .drop-modal { animation: none; }
+}
+
 .relic-modal { max-width: min(94vw, 760px); }
 .relic-choices {
   display: grid;

@@ -903,9 +903,14 @@ export function initCampaign(ctx) {
       detail = `+${reward.gold} gold` + (reward.clockLeft ? ` (${reward.clockLeft} for speed)` : '') + '.';
       if (reward.drop) {
         const def = pieceById(reward.drop);
-        detail += reward.dropSold
-          ? ` A ${def?.name || reward.drop} dropped — no slot, sold for ${reward.dropSold}g.`
-          : ` They dropped a ${def?.name || reward.drop}.`;
+        // Rare and better get their own reveal after this modal closes, so
+        // the results line only mentions the ones that do not.
+        state.lastDrop = { type: reward.drop, sold: reward.dropSold || 0 };
+        if (!def || def.rarity === 'common') {
+          detail += reward.dropSold
+            ? ` A ${def?.name || reward.drop} dropped — no slot, sold for ${reward.dropSold}g.`
+            : ` They dropped a ${def?.name || reward.drop}.`;
+        }
       }
       if (enc.boss && run.act >= 2 && run.won) {
         title = 'THE THRONE IS YOURS';
@@ -956,8 +961,54 @@ export function initCampaign(ctx) {
       if (state.run.over) { endRun(); return; }
       showMap();
     };
-    if (pending.length) { offerRelics(pending, advance); return; }
-    advance();
+    const relicsThen = () => {
+      if (pending.length) { offerRelics(pending, advance); return; }
+      advance();
+    };
+    // The piece first, then the relic, then the map. A rare drop is the
+    // thing you actually won; it should not have to share a screen with
+    // anything else.
+    showDropReveal(relicsThen);
+  }
+
+  const DROP_DIAGRAM = {
+    box: 'drop-diagram', board: 'drop-md-board', name: 'drop-md-name',
+    blurb: 'drop-md-blurb', cost: 'drop-md-cost', art: 'drop-md-art',
+  };
+  const DROP_TINT = {
+    rare: 'var(--blue)', epic: 'var(--violet)', legendary: 'var(--gold)',
+  };
+
+  /**
+   * Celebrate a rare-or-better drop before anything else happens. Commons
+   * stay a clause in the results line — there are a lot of them and stopping
+   * the run for a Pawn would train the player to click through this.
+   */
+  function showDropReveal(done) {
+    const drop = state.lastDrop;
+    state.lastDrop = null;
+    const def = drop && pieceById(drop.type);
+    if (!def || !DROP_TINT[def.rarity]) { done(); return; }
+
+    const card = $('modal-drop');
+    if (!card) { done(); return; }
+    card.querySelector('.drop-modal').style.setProperty('--drop-tint', DROP_TINT[def.rarity]);
+    $('drop-rarity').textContent = def.rarity;
+    $('drop-title').textContent = drop.sold ? `A ${def.name}, and no room for it` : `A ${def.name}`;
+    $('drop-note').textContent = drop.sold
+      ? `Your ${def.rarity} slots are full, so it went for ${drop.sold} gold.`
+      : 'It joins the bag.';
+    $('btn-drop-take').textContent = drop.sold ? 'Take the gold' : 'Take it';
+    paintMoveDiagram(drop.type, DROP_DIAGRAM);
+
+    const close = () => {
+      $('modal-drop').classList.add('hidden');
+      $('btn-drop-take').onclick = null;
+      done();
+    };
+    $('btn-drop-take').onclick = close;
+    card.classList.remove('hidden');
+    if (!drop.sold) { audio.victory(); confetti(); }
   }
 
   function retryFight() {
@@ -1007,14 +1058,16 @@ export function initCampaign(ctx) {
 
   /** A choice that gives up a piece has to ask which one before it resolves. */
   function takeChoice(choice) {
-    const needsPick = (choice.effects || []).some((e) => e.lose === 'choose');
-    if (needsPick) { askWhichPiece(choice); return; }
+    const effects = choice.effects || [];
+    const needsPick = effects.some((e) => e.lose === 'choose' || e.upgrade);
+    if (needsPick) { askWhichPiece(choice, effects.some((e) => e.upgrade)); return; }
     resolveChoice(choice, null);
   }
 
-  function askWhichPiece(choice) {
+  function askWhichPiece(choice, feeding = false) {
     const host = $('event-choices');
-    host.innerHTML = '<div class="ec-detail" style="padding:0 0 .4rem">Which piece do you leave?</div>';
+    const prompt = feeding ? 'Which piece goes in?' : 'Which piece do you leave?';
+    host.innerHTML = `<div class="ec-detail" style="padding:0 0 .4rem">${prompt}</div>`;
     for (const item of state.run.bag) {
       const def = pieceById(item.type);
       const btn = document.createElement('button');
@@ -1045,6 +1098,18 @@ export function initCampaign(ctx) {
     $('btn-event-leave').classList.remove('hidden');
     paintRunHud();
     if (state.run.hp <= 0) { state.run.over = true; }
+
+    // A room that hands over a Basilisk should land like one. The best thing
+    // the choice produced gets the same reveal a fight drop does; anything
+    // common just stays in the outcome lines behind it.
+    const worth = { rare: 1, epic: 2, legendary: 3 };
+    const prize = (result.gained || [])
+      .filter((g) => worth[pieceById(g.type)?.rarity])
+      .sort((a, b) => worth[pieceById(b.type).rarity] - worth[pieceById(a.type).rarity])[0];
+    if (prize) {
+      state.lastDrop = prize;
+      showDropReveal(() => {});
+    }
   }
 
   function leaveEvent() {

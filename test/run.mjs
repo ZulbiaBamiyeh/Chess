@@ -666,5 +666,101 @@ function courtyardOrGate() {
   assert('every choice in the new rooms resolves cleanly', broke === 0, String(broke));
 }
 
+{
+  // `upgrade` feeds a piece in and gets one of the next rarity back. The
+  // ladder has to actually climb — an earlier shape of this silently fell
+  // through to common whenever the token was not one it recognised.
+  const ladder = [['p', RARITY.RARE], ['r', RARITY.EPIC], ['q', RARITY.LEGENDARY]];
+  for (const [feed, want] of ladder) {
+    let got = null;
+    for (let t = 0; t < 60 && !got; t++) {
+      const run = createRun(t + 1);
+      run.slots = { common: Infinity, rare: 9, epic: 9, legendary: 9 };
+      run.bag = [{ uid: 'a', type: feed }, { uid: 'b', type: 'p' }];
+      applyChoice(run, { effects: [{ upgrade: true }] }, 'a');
+      const added = run.bag.find((p) => p.uid !== 'a' && p.uid !== 'b');
+      if (added) got = PIECES[added.type].rarity;
+    }
+    assert(`upgrade turns a ${PIECES[feed].rarity} into a ${want}`, got === want, String(got));
+  }
+}
+
+{
+  // Nothing sits above legendary, so the crucible owes you instead of
+  // silently eating the piece.
+  const run = createRun(3);
+  run.bag = [{ uid: 'L', type: 'a' }, { uid: 'z', type: 'p' }];
+  const gold = run.gold;
+  const res = applyChoice(run, { effects: [{ upgrade: true }] }, 'L');
+  assert('feeding a legendary in pays out instead of vanishing',
+    res.ok && run.gold > gold && !run.bag.some((p) => p.uid === 'L'), JSON.stringify(res.lines));
+}
+
+{
+  // An upgrade consumes a piece, so it needs one — same gate `lose` uses.
+  const run = createRun(4);
+  run.bag = [{ uid: 'only', type: 'p' }];
+  const gate = choiceAvailable(run, { effects: [{ upgrade: true }] });
+  assert('an upgrade is gated on having a piece to feed it', !gate.ok, JSON.stringify(gate));
+}
+
+{
+  // A king handed out by an event lands in the bag, not the void.
+  const run = createRun(5);
+  const before = ownedKingIds(run).length;
+  const res = applyChoice(run, { effects: [{ king: 'random' }] });
+  assert('an event can hand over a king', res.ok && ownedKingIds(run).length === before + 1,
+    JSON.stringify(res.lines));
+}
+
+{
+  // applyChoice reports what it handed over so the UI can give a rare or
+  // better piece its own reveal.
+  const run = createRun(6);
+  run.slots = { common: Infinity, rare: 9, epic: 9, legendary: 9 };
+  const res = applyChoice(run, { effects: [{ gain: 'basilisk' }] });
+  assert('applyChoice reports gained pieces',
+    Array.isArray(res.gained) && res.gained[0]?.type === 'basilisk', JSON.stringify(res.gained));
+}
+
+{
+  // Every room in the book, every choice, against a full bag and real gold.
+  let broke = 0;
+  for (const ev of Object.values(EVENTS)) {
+    for (const choice of ev.choices) {
+      for (let t = 0; t < 8; t++) {
+        const run = createRun(t + 1);
+        run.gold = 400;
+        for (const ty of ['p', 'n', 'b', 'r', 'q', 'a', 'crossbow', 'gnu']) addToBag(run, ty);
+        try {
+          const res = applyChoice(run, choice, run.bag[0]?.uid);
+          if (!res.ok || !Number.isFinite(run.hp) || !Number.isFinite(run.gold)
+            || run.hp > run.hpMax || run.hp < 0 || run.gold < 0 || run.hpMax < 1) broke++;
+          if (run.bag.some((item) => !PIECES[item.type])) broke++;
+        } catch { broke++; }
+      }
+    }
+  }
+  assert('every choice in every room resolves cleanly', broke === 0, String(broke));
+}
+
+{
+  // A boss should hand over the best thing it fielded. Rolling a pawn out of
+  // the hardest fight in the act made clearing one feel like nothing.
+  const enc = ENCOUNTERS.rimeguard;
+  const rarities = new Set();
+  for (let s = 0; s < 40; s++) {
+    const run = createRun(s * 31 + 1);
+    run.slots = { common: Infinity, rare: 9, epic: 9, legendary: 9 };
+    const game = buildFight(run, enc, autoPlace(enc, []));
+    game.board[game.kings.b] = null;
+    game.kings.b = -1;
+    const reward = settleFight(run, game, enc, { clockLeft: 4 });
+    if (reward.drop) rarities.add(PIECES[reward.drop].rarity);
+  }
+  assert('a boss always drops, and drops its best piece',
+    rarities.size === 1 && !rarities.has(RARITY.COMMON), [...rarities].join(','));
+}
+
 console.log(failures ? `\n${failures} run failure(s)` : '\nAll run tests passed.');
 process.exit(failures ? 1 : 0);
