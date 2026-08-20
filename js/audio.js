@@ -16,7 +16,6 @@ const TRACK = {
   ],
   shop: 'Wildfrost OST - The Wooly Snail.mp3',
   gameover: 'Wildfrost OST - Trapped Spirits.mp3',
-  fightSetup: 'Wildfrost OST - Spirit Call.mp3',
   combat: [
     "Wildfrost OST - Winter's Wrath.mp3",
     'Wildfrost OST - Tundra Heart.mp3',
@@ -45,7 +44,6 @@ export class AudioEngine {
     this.musicStyle = 'menu';
     this.stems = new Map();
     this.combatHot = false;
-    this.combatOrder = [];
     this.combatIndex = 0;
     this.mapOrder = [];
     this.mapIndex = 0;
@@ -256,9 +254,8 @@ export class AudioEngine {
 
   // ---- soundtrack files -------------------------------------------------
   //
-  // Map walks Doorways, Scape Sad, Regal, and Crystal Sword. Shop, fight, and
-  // game over play the Wildfrost beds.
-  // Fight starts on Spirit Call; taking an enemy piece walks the combat list.
+  // Map walks Doorways, Scape Sad, Regal, and Crystal Sword. Shop and
+  // game over play the Wildfrost beds. A fight picks one combat theme at random.
 
   preloadMusic() {
     if (this.preloadStarted || !this.ctx) return;
@@ -266,8 +263,7 @@ export class AudioEngine {
     TRACK.map.forEach((file, i) => this.stem(`map-${i}`, file, false));
     this.stem('shop', TRACK.shop, true);
     this.stem('gameover', TRACK.gameover, true);
-    this.stem('fight-setup', TRACK.fightSetup, true);
-    TRACK.combat.forEach((file, i) => this.stem(`combat-${i}`, file, false));
+    TRACK.combat.forEach((file, i) => this.stem(`combat-${i}`, file, true));
   }
 
   stem(id, file, loop) {
@@ -337,8 +333,9 @@ export class AudioEngine {
     else if (style === 'shop') this.startStem('shop', { volume: 0.92, fade: 0.8 });
     else if (style === 'gameover') this.startStem('gameover', { volume: 0.95, fade: 1.2 });
     else if (style === 'fight') {
-      this.combatHot = false;
-      this.startStem('fight-setup', { volume: 0.88, fade: 0.7 });
+      this.combatHot = true;
+      this.combatIndex = Math.floor(Math.random() * TRACK.combat.length);
+      this.playCombatTrack(this.combatIndex, 0.7);
     }
   }
 
@@ -363,38 +360,19 @@ export class AudioEngine {
     this.startStem(id, { volume: 0.9, fade, reset: true });
   }
 
-  /**
-   * First enemy piece taken: Spirit Call ducks out and the combat playlist
-   * (Winter's Wrath, Tundra Heart, the Pengoons, Luminice Dance) takes over.
-   */
-  engageCombat() {
-    if (this.muted.music || this.musicStyle !== 'fight' || this.combatHot) return;
-    this.combatHot = true;
-    this.stopStem('fight-setup', 1.6);
-    this.combatOrder = TRACK.combat
-      .map((_, i) => i)
-      .sort(() => Math.random() - 0.5);
-    this.combatIndex = 0;
-    this.playCombatTrack(this.combatIndex, 1.5);
-  }
-
   playCombatTrack(index, fade = 0.9) {
-    if (!this.combatHot || this.musicStyle !== 'fight') return;
-    const order = this.combatOrder;
-    if (!order.length) return;
-    const which = order[((index % order.length) + order.length) % order.length];
+    if (this.musicStyle !== 'fight') return;
+    const n = TRACK.combat.length;
+    if (!n) return;
+    const which = ((index % n) + n) % n;
     const id = `combat-${which}`;
-    for (let i = 0; i < TRACK.combat.length; i++) {
-      if (i !== which) this.stopStem(`combat-${i}`, 0.4);
+    for (let i = 0; i < n; i++) {
+      if (i !== which) this.stopStem(`combat-${i}`, 0.35);
     }
     const node = this.stems.get(id);
     if (node) {
-      node.el.loop = false;
-      node.el.onended = () => {
-        if (!this.combatHot || this.musicStyle !== 'fight') return;
-        this.combatIndex = (this.combatIndex + 1) % order.length;
-        this.playCombatTrack(this.combatIndex, 0.4);
-      };
+      node.el.loop = true;
+      node.el.onended = null;
     }
     this.startStem(id, { volume: 0.95, fade, reset: true });
   }

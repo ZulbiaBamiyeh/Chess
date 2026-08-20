@@ -223,11 +223,6 @@ function reactTo(move) {
     audio.place();
   }
 
-  const tookEnemy = Boolean(move.captured)
-    && move.color === state.playerColor
-    && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved);
-  if (tookEnemy) audio.engageCombat();
-
   if (state.mode === 'run') state.campaign.paintRunHud();
 
   if (state.mode === 'run' && state.game.outcome().reason === 'opponent fled') {
