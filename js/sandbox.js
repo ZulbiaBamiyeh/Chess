@@ -477,7 +477,6 @@ export function initSandbox({ $, showScreen, audio }) {
   }
   if ($('btn-sandbox-back')) {
     $('btn-sandbox-back').addEventListener('click', () => {
-      audio.setMusicStyle('ambient');
       showScreen('screen-start');
     });
   }

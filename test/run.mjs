@@ -9,7 +9,7 @@ import {
   completeNode, pickNode, rest, forage, trainPiece, currentEncounter,
   bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
   costFor, claimRelic, RELIC_SHIELD_CAP, TRAIN_COST, FORAGE_GOLD, freeHomeSquares,
-  restHeal, forageGold, trainCost,
+  restHeal, forageGold, trainCost, payUndo, UNDO_HP,
 } from '../js/run.js';
 import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
@@ -134,10 +134,33 @@ const alley = ENCOUNTERS.alley;
   game.kings.w = -1;
   const before = run.hp;
   const reward = settleFight(run, game, gate);
-  assert('losing costs HP rather than the run',
-    !reward.won && !run.over && run.hp === before - reward.hpLost && reward.hpLost > 0,
+  assert('losing the king ends the run',
+    !reward.won && run.over && !run.won && run.hp === before,
     JSON.stringify({ before, after: run.hp, reward }));
   assert('pieces still return after a loss', run.bag.length === 3);
+}
+
+{
+  const run = createRun(1);
+  const game = buildFight(run, gate, autoPlace(gate, []));
+  const before = run.hp;
+  const reward = settleFight(run, game, gate, { forfeit: true });
+  assert('a forfeit costs HP and leaves the run alive',
+    !reward.won && !run.over && run.hp === before - reward.hpLost && reward.hpLost > 0,
+    JSON.stringify({ before, after: run.hp, reward }));
+}
+
+{
+  const run = createRun(1);
+  const before = run.hp;
+  const paid = payUndo(run);
+  assert('undo spends 3 HP', paid.ok && run.hp === before - UNDO_HP, JSON.stringify(paid));
+  run.hp = UNDO_HP;
+  const refused = payUndo(run);
+  assert('undo will not spend your last 3 HP', !refused.ok && run.hp === UNDO_HP, JSON.stringify(refused));
+  run.hp = 18;
+  run.over = true;
+  assert('undo is refused once the run is over', !payUndo(run).ok);
 }
 
 {
@@ -709,18 +732,27 @@ function courtyardOrGate() {
 }
 
 {
-  // Losing costs HP; only running out of HP ends the run.
+  // Forfeit costs HP; only running out of HP (or losing the king) ends the run.
   const run = createRun(1);
   let losses = 0;
   while (!run.over && losses < 30) {
     const game = buildFight(run, gate, autoPlace(gate, []));
-    game.board[game.kings.w] = null;
-    game.kings.w = -1;
-    settleFight(run, game, gate);
+    settleFight(run, game, gate, { forfeit: true });
     losses++;
   }
-  assert('a run survives more than one lost fight', losses > 1, String(losses));
+  assert('a run survives more than one forfeit', losses > 1, String(losses));
   assert('running out of HP ends the run', run.over && run.hp === 0, String(run.hp));
+}
+
+{
+  const run = createRun(1);
+  run.relics = ['secondwind'];
+  run.hp = 2;
+  const game = buildFight(run, gate, autoPlace(gate, []));
+  game.board[game.kings.w] = null;
+  game.kings.w = -1;
+  settleFight(run, game, gate);
+  assert('Second Wind does not revive a captured king', run.over && !run.won);
 }
 
 {

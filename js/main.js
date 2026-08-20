@@ -9,6 +9,7 @@ import { ShaderBackground } from './bg.js';
 import { audio } from './audio.js';
 import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, toast, setGameText } from './ui.js';
 import { kingDef } from './content.js';
+import { UNDO_HP } from './run.js';
 import { initCampaign } from './campaign.js';
 import { initSandbox } from './sandbox.js';
 import { initVoyage } from './voyage.js';
@@ -77,9 +78,12 @@ function requestMove(game, level) {
 
 // ---- screens ---------------------------------------------------------------
 
+const MENU_SCREENS = new Set(['screen-start', 'screen-classic', 'screen-howto']);
+
 function showScreen(id) {
   for (const el of document.querySelectorAll('.screen')) el.classList.add('hidden');
   $(id).classList.remove('hidden');
+  if (MENU_SCREENS.has(id)) audio.setMusicStyle('menu');
 }
 
 // ---- HUD -------------------------------------------------------------------
@@ -160,7 +164,15 @@ function updateHud() {
   $('panel-opponent').classList.toggle('active', state.game.turn === opponent && !state.gameOver);
 
   renderMoveList();
-  $('btn-undo').disabled = state.thinking || state.game.history.length === 0;
+  const undo = $('btn-undo');
+  if (state.mode === 'run') {
+    undo.textContent = `Take Back · ${UNDO_HP} HP`;
+    undo.disabled = state.thinking || state.gameOver || state.game.history.length === 0
+      || !state.run || state.run.hp <= UNDO_HP;
+  } else {
+    undo.textContent = 'Take Back';
+    undo.disabled = state.thinking || state.game.history.length === 0;
+  }
 }
 
 function setStatus(text, kind = '') {
@@ -550,7 +562,10 @@ function newGame() {
 
 /** Takes back to the player's own turn — their move and the reply together. */
 function takeBack() {
-  if (state.mode === 'run') return;
+  if (state.mode === 'run') {
+    state.campaign.takeBack();
+    return;
+  }
   if (state.thinking || state.game.history.length === 0) return;
   state.generation++;
   state.game.undoMove();
@@ -695,7 +710,6 @@ function init() {
     state.generation++;
     state.gameOver = true;
     state.thinking = false;
-    audio.setMusicStyle('ambient');
     if (state.mode === 'run') state.campaign.abandon();
     else showScreen('screen-start');
   });
@@ -710,7 +724,6 @@ function init() {
   });
   $('btn-result-menu').addEventListener('click', () => {
     $('modal-result').classList.add('hidden');
-    audio.setMusicStyle('ambient');
     if (state.mode === 'run') state.campaign.abandon();
     else showScreen('screen-start');
   });

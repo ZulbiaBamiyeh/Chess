@@ -42,7 +42,7 @@ export class AudioEngine {
     this.musicTimer = null;
     this.nextNoteTime = 0;
     this.step = 0;
-    this.musicStyle = 'ambient';
+    this.musicStyle = 'menu';
     this.stems = new Map();
     this.combatHot = false;
     this.combatOrder = [];
@@ -176,6 +176,7 @@ export class AudioEngine {
 
   startMusic() {
     if (this.muted.music) return;
+    if (this.musicStyle === 'menu') return;
     this.ensureContext();
     this.preloadMusic();
     if (FILE_STYLES.has(this.musicStyle)) {
@@ -204,16 +205,24 @@ export class AudioEngine {
 
   /**
    * Crossfade between the wilderness bed, the town, the shop, the fight, and
-   * the game-over dirge.
-   * @param {'ambient'|'fight'|'shop'|'town'|'gameover'} style
+   * the game-over dirge. `menu` is silence — the title screen stays quiet.
+   * @param {'menu'|'ambient'|'fight'|'shop'|'town'|'gameover'} style
    */
   setMusicStyle(style) {
+    if (style === 'menu') {
+      this.musicStyle = 'menu';
+      this.combatHot = false;
+      this.stopMusic();
+      if (typeof document !== 'undefined') document.documentElement.dataset.music = 'menu';
+      return;
+    }
     // A new fight always restarts on Spirit Call even if we were already in
     // a fight — otherwise the previous combat playlist would keep running.
     if (this.musicStyle === style && style !== 'fight') return;
     const prev = this.musicStyle;
     this.musicStyle = style;
     this.combatHot = false;
+    if (typeof document !== 'undefined') document.documentElement.dataset.music = style;
     if (!this.ctx || this.muted.music || !this.musicGain) return;
 
     if (FILE_STYLES.has(prev) || FILE_STYLES.has(style)) {

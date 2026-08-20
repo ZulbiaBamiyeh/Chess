@@ -29,6 +29,8 @@ export const STARTING_BAG = ['p', 'p', 'p'];
 
 export const LOSS_HP = { trash: 3, elite: 6, boss: 8 };
 export const FORFEIT_HP = { trash: 2, elite: 3, boss: 4 };
+/** HP charged to take back a ply in a run fight. A fallen king cannot be undone. */
+export const UNDO_HP = 3;
 
 export const PLAIN_KING = {
   id: 'plain',

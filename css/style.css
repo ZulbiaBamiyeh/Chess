@@ -2067,21 +2067,26 @@ kbd {
 .shop-pad.empty { cursor: default; }
 .shop-fig {
   position: absolute;
-  inset: 6%;
+  left: -28%;
+  right: -28%;
+  bottom: 2%;
+  top: auto;
+  height: 240%;
   background-size: contain;
   background-repeat: no-repeat;
-  background-position: center center;
-  filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.7));
+  background-position: center bottom;
+  filter: drop-shadow(0 8px 8px rgba(0, 0, 0, 0.75));
   pointer-events: none;
+  transform-origin: center bottom;
   transition: transform 0.18s cubic-bezier(.2, .8, .3, 1.1), filter 0.18s ease;
   z-index: 1;
 }
 .shop-pad:hover:not(:disabled) .shop-fig,
 .shop-pad.selected .shop-fig {
-  transform: scale(1.08);
+  transform: scale(1.12);
   filter:
-    drop-shadow(0 8px 8px rgba(0, 0, 0, 0.55))
-    drop-shadow(0 0 10px rgba(255, 220, 130, 0.7));
+    drop-shadow(0 10px 10px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 12px rgba(255, 220, 130, 0.7));
 }
 .shop-pad.selected .shop-fig { z-index: 3; }
 .shop-pad.rarity-rare.selected .shop-fig {
