@@ -712,13 +712,20 @@ export function retryAllowed(run) {
 /**
  * Pay the HP cost of taking a move back. Refuses if it would drop you to
  * zero — undo is a spend, not a way to die without losing the king.
+ * `revive` is the YOU DIED screen: same cost, and it stands the run back up.
  */
-export function payUndo(run) {
-  if (!run || run.over) return { ok: false, reason: 'The run is over.' };
+export function payUndo(run, { revive = false } = {}) {
+  if (!run) return { ok: false, reason: 'The run is over.' };
+  if (run.over && !revive) return { ok: false, reason: 'The run is over.' };
+  if (run.won) return { ok: false, reason: 'The run is already won.' };
   if (run.hp <= UNDO_HP) {
     return { ok: false, reason: `Need more than ${UNDO_HP} HP to take a move back.` };
   }
   run.hp -= UNDO_HP;
+  if (revive) {
+    run.over = false;
+    run.won = false;
+  }
   return { ok: true, hpLost: UNDO_HP, hp: run.hp };
 }
 

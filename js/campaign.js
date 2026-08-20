@@ -82,6 +82,7 @@ export function initCampaign(ctx) {
   let spoilsAnim = 0;
   let spoilsFinish = null;
   let spoilsSkipHandler = null;
+  let deathSnapshot = null;
 
   /**
    * Gold and HP used to be a bare number in the pixel font, same weight as
@@ -158,6 +159,7 @@ export function initCampaign(ctx) {
     state.run = createRun();
     state.playerColor = WHITE;
     state._hudPrev = null;
+    deathSnapshot = null;
     showMap();
   }
 
@@ -1264,7 +1266,7 @@ export function initCampaign(ctx) {
     $('run-hud').classList.remove('hidden');
     $('btn-undo').classList.remove('hidden');
     $('btn-undo').textContent = `Take Back · ${UNDO_HP} HP`;
-    $('btn-undo').title = `Costs ${UNDO_HP} HP. A fallen king cannot be taken back.`;
+    $('btn-undo').title = `Costs ${UNDO_HP} HP. If your king falls, Take Back is still on the YOU DIED screen.`;
     $('btn-new').classList.add('hidden');
     $('btn-forfeit').classList.remove('hidden');
     $('opponent-name').textContent = enc.name;
@@ -1284,6 +1286,11 @@ export function initCampaign(ctx) {
   function onFightOver(opts = {}) {
     const run = state.run;
     const enc = state.encounter;
+    deathSnapshot = {
+      deployed: (run.deployed || []).slice(),
+      capturedLen: (run.captured || []).length,
+      clock: state.clock,
+    };
     const reward = settleFight(run, state.game, enc, {
       forfeit: Boolean(opts.forfeit),
       timeout: Boolean(opts.timeout),
@@ -2015,7 +2022,67 @@ export function initCampaign(ctx) {
     }
     if (run.won) audio.setMusicStyle('ambient');
     else audio.setMusicStyle('gameover');
+    const undo = $('btn-go-undo');
+    if (undo) {
+      const canUndo = !run.won
+        && Boolean(deathSnapshot)
+        && Boolean(state.game)
+        && state.game.history.length > 0
+        && run.hp > UNDO_HP;
+      undo.classList.toggle('hidden', !canUndo);
+      undo.disabled = !canUndo;
+      undo.textContent = `Take Back · ${UNDO_HP} HP`;
+      undo.title = canUndo
+        ? `Spend ${UNDO_HP} HP to take back the move that ended the run.`
+        : `Need more than ${UNDO_HP} HP to take a move back.`;
+    }
     showScreen('screen-gameover');
+  }
+
+  function undoDeath() {
+    const run = state.run;
+    if (!run || run.won || !state.game || !deathSnapshot) {
+      audio.illegal();
+      return;
+    }
+    if (state.game.history.length === 0) {
+      audio.illegal();
+      toast('Nothing to take back.', 'danger');
+      return;
+    }
+    const paid = payUndo(run, { revive: true });
+    if (!paid.ok) {
+      audio.illegal();
+      toast(paid.reason, 'danger');
+      return;
+    }
+    run.deployed = deathSnapshot.deployed.slice();
+    if (Array.isArray(run.captured)) run.captured.length = deathSnapshot.capturedLen;
+    run.lastReward = null;
+    deathSnapshot = null;
+    state.gameOver = false;
+    state.generation++;
+    state.game.undoMove();
+    if (state.game.turn !== state.playerColor && state.game.history.length > 0) {
+      state.game.undoMove();
+    }
+    audio.lift();
+    audio.setMusicStyle('fight');
+    showScreen('screen-game');
+    $('run-hud')?.classList.remove('hidden');
+    $('btn-undo')?.classList.remove('hidden');
+    $('btn-forfeit')?.classList.remove('hidden');
+    $('btn-undo').textContent = `Take Back · ${UNDO_HP} HP`;
+    state.view.syncFromGame(state.game);
+    const last = state.game.history[state.game.history.length - 1];
+    state.view.markLastMove(last?.move.from ?? null, last?.move.to ?? null);
+    state.view.markCheck(state.game.inCheck() ? state.game.kings[state.game.turn] : null);
+    state.view.setInteractive(true);
+    paintRunHud();
+    updateHud();
+    refreshStatus();
+    toast(`−${UNDO_HP} HP`, 'danger');
+    if (state.game.turn !== state.playerColor && scheduleOpponent) scheduleOpponent();
   }
 
   function paintStatRow(host, rows, empty) {
@@ -2059,6 +2126,7 @@ export function initCampaign(ctx) {
     $('modal-result').classList.add('hidden');
     hideSpoils();
     if (state.mode === 'run') noteBestClimb(state.run);
+    deathSnapshot = null;
     paintTitleRecord();
     resetClassicButtons();
     state.mode = 'classic';
@@ -2112,6 +2180,7 @@ export function initCampaign(ctx) {
       startRun();
     });
   }
+  if ($('btn-go-undo')) $('btn-go-undo').addEventListener('click', undoDeath);
   if ($('btn-go-menu')) {
     $('btn-go-menu').addEventListener('click', () => abandon());
   }

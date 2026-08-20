@@ -252,6 +252,21 @@ const alley = ENCOUNTERS.alley;
   run.hp = UNDO_HP;
   const refused = payUndo(run);
   assert('undo will not spend your last 3 HP', !refused.ok && run.hp === UNDO_HP, JSON.stringify(refused));
+}
+
+{
+  const run = createRun(1);
+  run.over = true;
+  const blocked = payUndo(run);
+  assert('undo refuses a dead run', !blocked.ok && run.over);
+  const revived = payUndo(run, { revive: true });
+  assert('undo from YOU DIED spends HP and stands the run up',
+    revived.ok && !run.over && run.hp === 18 - UNDO_HP, JSON.stringify({ revived, hp: run.hp }));
+  run.over = true;
+  run.hp = UNDO_HP;
+  const tooLow = payUndo(run, { revive: true });
+  assert('undo from YOU DIED still will not spend your last 3 HP',
+    !tooLow.ok && run.over && run.hp === UNDO_HP, JSON.stringify(tooLow));
   run.hp = 18;
   run.over = true;
   assert('undo is refused once the run is over', !payUndo(run).ok);

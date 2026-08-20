@@ -97,7 +97,7 @@
       <h2>How to Play</h2>
       <p>A chess roguelike. You start as the <strong>king</strong> with three pawns.</p>
       <p>Climb the map. Capture their king, keep your army. Shops and strange rooms along the way will sell you — or offer you — better pieces.</p>
-      <p>Take Back costs 3 HP. Lose your king and the run ends for good.</p>
+      <p>Take Back costs 3 HP. If your king falls, you can still spend 3 HP from the YOU DIED screen to take the move back — if you have it.</p>
       <button id="btn-howto-close" class="btn btn-gold">Got It</button>
     </div>
   </section>
@@ -571,6 +571,7 @@
         </div>
       </div>
       <div class="menu-buttons">
+        <button id="btn-go-undo" class="btn btn-ghost btn-wide hidden">Take Back · 3 HP</button>
         <button id="btn-go-again" class="btn btn-gold btn-big">Embark again</button>
         <button id="btn-go-menu" class="btn btn-ghost">Menu</button>
       </div>
