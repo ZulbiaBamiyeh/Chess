@@ -50,7 +50,7 @@ export function initVoyage(ctx) {
     paintLeaders();
     paintBlurb();
     showScreen('screen-overworld');
-    audio.setMusicStyle('ambient');
+    audio.setMusicStyle(world()?.scene === 'town' ? 'town' : 'ambient');
     ensureFog();
     requestAnimationFrame(centerOnPlayer);
   }
@@ -303,8 +303,9 @@ export function initVoyage(ctx) {
   }
 
   function beginClash(pack, aggressor) {
-    const w = world();
+    const w = overworld();
     const enc = clashEncounter(w, pack, state.run, aggressor);
+    audio.setMusicStyle('fight');
     playVersus(enc, () => campaign.openLoadout(enc));
   }
 

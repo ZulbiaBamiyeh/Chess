@@ -163,8 +163,8 @@ export class AudioEngine {
   }
 
   /**
-   * Crossfade between the menu bed, the shop, and the fight music.
-   * @param {'ambient'|'fight'|'shop'} style
+   * Crossfade between the wilderness bed, the town, the shop, and the fight.
+   * @param {'ambient'|'fight'|'shop'|'town'} style
    */
   setMusicStyle(style) {
     if (this.musicStyle === style) return;
@@ -185,6 +185,7 @@ export class AudioEngine {
     if (!this.ctx || this.muted.music) return;
     if (this.musicStyle === 'fight') this.scheduleFight();
     else if (this.musicStyle === 'shop') this.scheduleShop();
+    else if (this.musicStyle === 'town') this.scheduleTown();
     else this.scheduleAmbient();
   }
 
@@ -209,43 +210,194 @@ export class AudioEngine {
 
   // ---- fight bed --------------------------------------------------------
   //
-  // Age-of-Empires-1-ward: a dusty drone, a frame drum, and a reed that
-  // wanders a pentatonic. Same generative idea as the menu, older clothes.
+  // A battle walk: pulsing fifths, a tight kick, and short horns. Faster and
+  // harder than the old reed-and-frame-drum bed so a clash actually sounds
+  // like one.
 
   static get FIGHT() {
     return [
-      { drone: [38, 45], scale: [62, 65, 67, 69, 72, 74] },       // D
-      { drone: [41, 48], scale: [65, 67, 69, 72, 74, 77] },       // F
-      { drone: [36, 43], scale: [60, 63, 65, 67, 70, 72] },       // C
-      { drone: [40, 47], scale: [64, 67, 69, 71, 74, 76] },       // E
+      { bass: 38, fifth: 45, scale: [62, 65, 67, 70, 74], stab: [62, 65, 70] },
+      { bass: 36, fifth: 43, scale: [60, 63, 67, 70, 72], stab: [60, 63, 67] },
+      { bass: 41, fifth: 48, scale: [65, 68, 72, 75, 77], stab: [65, 68, 72] },
+      { bass: 34, fifth: 41, scale: [58, 62, 65, 70, 74], stab: [58, 65, 70] },
     ];
   }
 
   scheduleFight() {
     const ctx = this.ctx;
-    const beat = 60 / 92;                 // a walking 92 BPM
+    const beat = 60 / 118;
     while (this.nextNoteTime < ctx.currentTime + 0.7) {
       const step = this.step % 8;
       const bar = Math.floor(this.step / 8) % AudioEngine.FIGHT.length;
       const slot = AudioEngine.FIGHT[bar];
       const t = this.nextNoteTime;
 
-      if (step === 0) this.drone(slot.drone, t, beat * 8);
-      if (step === 0 || step === 4) this.frameDrum(t, step === 0 ? 0.2 : 0.14);
-      if (step === 2 || step === 6) this.frameDrum(t, 0.08);
-      if (step % 2 === 1) {
-        this.noise(ctx, this.musicGain, t, {
-          type: 'bandpass', freq: 2400, q: 0.7, level: 0.03, dur: 0.04,
-        });
+      if (step === 0) this.drone([slot.bass, slot.fifth], t, beat * 8);
+      if (step === 0 || step === 4) this.kick(t, step === 0 ? 0.22 : 0.16);
+      if (step === 2 || step === 6) this.frameDrum(t, 0.1);
+      if (step === 4) this.noise(ctx, this.musicGain, t, {
+        type: 'bandpass', freq: 1800, q: 1.4, level: 0.055, dur: 0.06,
+      });
+      if (step === 0 || step === 3) {
+        this.horn(slot.stab[step === 0 ? 0 : 1], t, beat * 1.4);
       }
-      if (step === 0 || (step === 3 && Math.random() < 0.55) || (step === 5 && Math.random() < 0.4)) {
-        const note = slot.scale[Math.floor(Math.random() * slot.scale.length)];
-        this.reed(note, t, beat * (1.2 + Math.random()));
+      if (step === 5 && Math.random() < 0.65) {
+        this.horn(slot.stab[2], t, beat * 0.9);
+      }
+      if (step % 2 === 1 && Math.random() < 0.45) {
+        this.reed(slot.scale[Math.floor(Math.random() * slot.scale.length)], t, beat * 1.1);
       }
 
       this.nextNoteTime += beat;
       this.step++;
     }
+  }
+
+  kick(time, level) {
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140, time);
+    osc.frequency.exponentialRampToValueAtTime(48, time + 0.12);
+    gain.gain.setValueAtTime(level, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.22);
+    osc.connect(gain).connect(this.musicGain);
+    osc.start(time);
+    osc.stop(time + 0.24);
+    this.noise(ctx, this.musicGain, time, {
+      type: 'lowpass', freq: 280, q: 0.8, level: level * 0.35, dur: 0.05,
+    });
+  }
+
+  horn(note, time, dur) {
+    const ctx = this.ctx;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(900, time);
+    filter.frequency.linearRampToValueAtTime(1400, time + dur * 0.3);
+    filter.frequency.exponentialRampToValueAtTime(500, time + dur);
+    filter.Q.value = 2.2;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.linearRampToValueAtTime(0.06, time + 0.03);
+    gain.gain.linearRampToValueAtTime(0.035, time + dur * 0.5);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    for (const [type, detune] of [['sawtooth', -6], ['square', 8]]) {
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.value = mtof(note);
+      osc.detune.value = detune;
+      osc.connect(filter);
+      osc.start(time);
+      osc.stop(time + dur + 0.05);
+    }
+    filter.connect(gain).connect(this.musicGain);
+    const send = ctx.createGain();
+    send.gain.value = 0.32;
+    gain.connect(send).connect(this.reverb);
+  }
+
+  // ---- town bed ---------------------------------------------------------
+  //
+  // A hamlet: a slow major drone, a recorder, and a harp. Brighter than the
+  // wilderness, quieter than the shop, no drums of war.
+
+  static get TOWN() {
+    return [
+      { drone: [50, 57], scale: [69, 71, 74, 76, 78, 81], harp: [62, 66, 69] },
+      { drone: [45, 52], scale: [64, 69, 71, 73, 76, 81], harp: [57, 64, 69] },
+      { drone: [47, 54], scale: [66, 71, 73, 74, 78, 81], harp: [59, 66, 71] },
+      { drone: [43, 50], scale: [62, 67, 71, 74, 78, 79], harp: [55, 62, 67] },
+    ];
+  }
+
+  scheduleTown() {
+    const ctx = this.ctx;
+    const beat = 60 / 84;
+    while (this.nextNoteTime < ctx.currentTime + 0.7) {
+      const step = this.step % 8;
+      const bar = Math.floor(this.step / 8) % AudioEngine.TOWN.length;
+      const slot = AudioEngine.TOWN[bar];
+      const t = this.nextNoteTime;
+
+      if (step === 0) this.pad(slot.drone.concat(slot.harp), t, beat * 8);
+      if (step === 0 || step === 4) this.harp(slot.harp[step === 0 ? 0 : 2], t);
+      if (step === 2 || step === 6) this.harp(slot.harp[1], t);
+      if (step === 1 || (step === 5 && Math.random() < 0.7)) {
+        const note = slot.scale[(bar * 2 + step) % slot.scale.length];
+        this.flute(note, t, beat * (2.2 + Math.random() * 0.8));
+      }
+      if (step === 7 && Math.random() < 0.4) {
+        this.flute(slot.scale[slot.scale.length - 1], t, beat * 1.6);
+      }
+      if ((step === 0 || step === 4) && Math.random() < 0.5) this.jingle(t, 0.018);
+
+      this.nextNoteTime += beat;
+      this.step++;
+    }
+  }
+
+  harp(note, time) {
+    const ctx = this.ctx;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(4200, time);
+    filter.frequency.exponentialRampToValueAtTime(900, time + 0.8);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.linearRampToValueAtTime(0.055, time + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 1.15);
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = mtof(note);
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = mtof(note) * 2;
+    osc2.detune.value = 4;
+    osc.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain).connect(this.musicGain);
+    const send = ctx.createGain();
+    send.gain.value = 0.55;
+    gain.connect(send).connect(this.reverb);
+    osc.start(time);
+    osc2.start(time);
+    osc.stop(time + 1.2);
+    osc2.stop(time + 1.2);
+  }
+
+  flute(note, time, dur) {
+    const ctx = this.ctx;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = mtof(note) * 1.6;
+    filter.Q.value = 3.2;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.linearRampToValueAtTime(0.048, time + 0.08);
+    gain.gain.linearRampToValueAtTime(0.03, time + dur * 0.7);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = mtof(note);
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'triangle';
+    osc2.frequency.value = mtof(note);
+    osc2.detune.value = 5;
+    osc.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain).connect(this.musicGain);
+    this.noise(ctx, gain, time, {
+      type: 'bandpass', freq: mtof(note) * 2, q: 2, level: 0.012, dur: Math.min(0.2, dur * 0.2),
+    });
+    const send = ctx.createGain();
+    send.gain.value = 0.48;
+    gain.connect(send).connect(this.reverb);
+    osc.start(time);
+    osc2.start(time);
+    osc.stop(time + dur + 0.05);
+    osc2.stop(time + dur + 0.05);
   }
 
   // ---- shop bed ---------------------------------------------------------
