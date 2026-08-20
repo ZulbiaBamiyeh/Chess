@@ -1979,61 +1979,52 @@ kbd {
 }
 .shop-scene {
   position: relative;
-  width: 100%;
-  flex: 1;
-  min-height: 280px;
+  width: min(100%, calc(min(72vh, 620px) * 1408 / 768));
   aspect-ratio: 1408 / 768;
-  max-height: min(72vh, 620px);
+  margin: 0 auto;
   border-radius: 14px;
   overflow: hidden;
-  background: #16141c url('../assets/shop-keeper.jpg') center / cover no-repeat;
+  background: #16141c url('../assets/shop-keeper.jpg') center / 100% 100% no-repeat;
   box-shadow: 0 22px 50px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 220, 140, 0.12);
 }
 .shop-table {
   position: absolute;
-  left: 18.6%;
-  width: 62.8%;
-  top: 60.2%;
-  height: 15.4%;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 0 0.4%;
+  inset: 0;
   z-index: 2;
+  pointer-events: none;
 }
 .shop-pad {
-  position: relative;
-  flex: 1;
-  height: 100%;
-  margin: 0 0.35%;
+  position: absolute;
   border: 0;
   padding: 0;
   background: transparent;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 10px;
+  pointer-events: auto;
 }
+.shop-pad:nth-child(1) { left: 17.8%; top: 63.3%; width: 10.0%; height: 11.8%; }
+.shop-pad:nth-child(2) { left: 31.4%; top: 63.4%; width: 10.0%; height: 11.8%; }
+.shop-pad:nth-child(3) { left: 44.9%; top: 63.4%; width: 10.1%; height: 11.9%; }
+.shop-pad:nth-child(4) { left: 58.6%; top: 63.4%; width: 10.0%; height: 11.8%; }
+.shop-pad:nth-child(5) { left: 72.2%; top: 63.3%; width: 10.0%; height: 11.8%; }
 .shop-pad:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 .shop-pad.empty { cursor: default; }
 .shop-fig {
   position: absolute;
-  left: 50%;
-  bottom: 6%;
-  width: 92%;
-  height: 168%;
-  translate: -50% 0;
+  inset: 6%;
   background-size: contain;
   background-repeat: no-repeat;
-  background-position: center bottom;
-  filter: drop-shadow(0 8px 8px rgba(0, 0, 0, 0.7));
+  background-position: center center;
+  filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.7));
   pointer-events: none;
   transition: transform 0.18s cubic-bezier(.2, .8, .3, 1.1), filter 0.18s ease;
   z-index: 1;
 }
 .shop-pad:hover:not(:disabled) .shop-fig,
 .shop-pad.selected .shop-fig {
-  transform: translateY(-12%) scale(1.08);
+  transform: scale(1.08);
   filter:
-    drop-shadow(0 12px 10px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 8px 8px rgba(0, 0, 0, 0.55))
     drop-shadow(0 0 10px rgba(255, 220, 130, 0.7));
 }
 .shop-pad.selected .shop-fig { z-index: 3; }

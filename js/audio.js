@@ -320,7 +320,7 @@ export class AudioEngine {
   }
 
   /**
-   * First blood of the fight: Spirit Call ducks out and the combat playlist
+   * First enemy piece taken: Spirit Call ducks out and the combat playlist
    * (Winter's Wrath, Tundra Heart, the Pengoons, Luminice Dance) takes over.
    */
   engageCombat() {
