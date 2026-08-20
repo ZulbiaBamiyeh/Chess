@@ -1520,23 +1520,25 @@ kbd {
 }
 .map-art {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: 0;
   pointer-events: none;
   z-index: 0;
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
 }
-.map-art.act-0 { background-image: url('../assets/map-act1.jpg'); background-color: #1a2416; }
-.map-art.act-1 { background-image: url('../assets/map-act2.jpg'); background-color: #2a100c; }
-.map-art.act-2 { background-image: url('../assets/map-act3.jpg'); background-color: #0c0a16; }
+.map-art.act-0 { background-image: url('../assets/map-act1.jpg'); background-color: #cbb98a; }
+.map-art.act-1 { background-image: url('../assets/map-act2.jpg'); background-color: #b8946a; }
+.map-art.act-2 { background-image: url('../assets/map-act3.jpg'); background-color: #8a7a62; }
 .map-fog {
   pointer-events: none;
   position: absolute;
   inset: 0;
+  z-index: 2;
   border-radius: inherit;
-  background: radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(6, 4, 3, 0.45) 100%);
-  opacity: 1;
+  background: radial-gradient(ellipse at 50% 45%, transparent 62%, rgba(20, 12, 6, 0.28) 100%);
 }
 .map-act-label {
   /* Out of the scroll column's flow — it floats over the art rather than

@@ -5,7 +5,7 @@ import { WHITE, BLACK, Chess, ST_SHIELD, ST_FROZEN, FLAG, TILE, parseSquare } fr
 import { PIECES, SLOT_CAPS, pieceCost, rarityOf, RARITY } from './pieces.js';
 import { relicTotals, discountedCost, hasTag, relicPool } from './relics.js';
 import {
-  LOSS_HP, FORFEIT_HP, UNDO_HP, REST_HEAL,
+  LOSS_HP, FORFEIT_HP, UNDO_HP, FIGHT_GOLD, REST_HEAL,
   START_HP, START_GOLD, STARTING_BAG, KING_PASSIVES, REST_GOLD,
   FORAGE_GOLD, TRAIN_COST,
   TURN_CLOCK, THEME_DROPS, DROP_CHANCE,
@@ -422,12 +422,7 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
     // No gold, no drop, no relic, no heal — a fight that ended because it
     // could never be finished isn't a fight that pays out.
   } else if (won) {
-    // First shop is one trash fight away. Army-scaled payouts plus a fat
-    // speed bonus used to land you there with enough gold for half the stall.
-    // Trash pays a coin, elites/bosses a little more, and a clean win tacks
-    // on one extra — enough for one piece at the first stall, not two.
-    gold = (tier === 'boss' ? 4 : tier === 'elite' ? 2 : 1)
-      + (clockLeft >= 10 ? 1 : 0);
+    gold = encounter.gold ?? FIGHT_GOLD[tier] ?? FIGHT_GOLD.trash;
     gold += relics.goldPerFight;
     martyrGold = lost * relics.goldPerLoss;
     gold += martyrGold;
@@ -1041,7 +1036,7 @@ function tallyTypes(types) {
     .sort((a, b) => b.count - a.count || (PIECES[a.type]?.cost || 0) - (PIECES[b.type]?.cost || 0));
 }
 
-export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, UNDO_HP };
+export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, UNDO_HP, FIGHT_GOLD };
 
 // ---- events ---------------------------------------------------------------
 
