@@ -17,7 +17,7 @@ import {
   REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, turnClock,
   restHeal, forageGold, trainCost,
   bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
-  suggestLoadout,
+  suggestLoadout, runStats,
 } from './run.js';
 import { kingDef, EVENTS, encounterFor } from './content.js';
 import { relicById } from './relics.js';
@@ -39,6 +39,7 @@ export function initCampaign(ctx) {
   let deployView = null;
   let selectedUid = null;
   let placements = []; // { uid, type, sq }
+  let shopSelectedId = null;
 
   /**
    * Gold and HP used to be a bare number in the pixel font, same weight as
@@ -111,10 +112,6 @@ export function initCampaign(ctx) {
     state.playerColor = WHITE;
     state._hudPrev = null;
     showMap();
-    // Stated once, up front, rather than left for the how-to screen a player
-    // might never open: the guard rule is asymmetric and worth knowing before
-    // the first fight, not after losing a king to it.
-    if ($('map-guard-note')) $('map-guard-note').classList.remove('hidden');
   }
 
   function hash01(str) {
@@ -269,6 +266,13 @@ export function initCampaign(ctx) {
       $('map-blurb').textContent = 'Choose a path.';
     }
     showScreen('screen-map');
+    requestAnimationFrame(() => {
+      const scroll = $('map-scroll');
+      if (!scroll) return;
+      const focus = climb.querySelector('.map-dot.current, .map-dot.open');
+      if (focus) focus.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+      else scroll.scrollTop = scroll.scrollHeight;
+    });
   }
 
   function enterNode() {
@@ -287,10 +291,8 @@ export function initCampaign(ctx) {
   }
 
   /**
-   * Built per visit, not once at module load. Three kings move these numbers
-   * — Convalescent heals more, Ranger forages more, Provisioner trains for
-   * less — and a fixed list quoted the base figures at anyone carrying one,
-   * promising 7 HP and handing over 10.
+   * Built per visit, not once at module load, so the numbers on the card
+   * always match what rest() / forage() / trainPiece() actually pay.
    */
   const restChoices = (run) => [
     { id: 'rest', label: 'Rest',
@@ -605,6 +607,8 @@ export function initCampaign(ctx) {
     }
     box.classList.remove('empty');
     const def = pieceById(type);
+    const artUrl = pieceImage(type, WHITE, ids.skin || null);
+    const artHue = ids.hue || pieceHue(type);
     const files = 7;
     const ranks = 7;
     const g = new Chess({
@@ -614,14 +618,14 @@ export function initCampaign(ctx) {
     const mid = 3 * 16 + 3;
     g.board[mid] = { type, color: WHITE };
     if (type === 'k') g.kings.w = mid;
-    if (def.pawn) {
+    if (def?.pawn) {
       for (const off of [-17, -15]) {
         const sq = mid + off;
         if (g.inBounds(sq)) g.board[sq] = { type: 'p', color: 'b' };
       }
     }
     // A hopper needs something to hop, or its diagram comes out blank.
-    if (def.hopper) g.board[mid - 16] = { type: 'p', color: 'b' };
+    if (def?.hopper) g.board[mid - 16] = { type: 'p', color: 'b' };
     g.turn = WHITE;
     g.refreshMode();
     const dest = new Map();
@@ -631,19 +635,19 @@ export function initCampaign(ctx) {
     // A shot only generates when something is standing there to be shot, so
     // on an empty diagram board a Crossbow would look like a plain Ferz —
     // its whole point invisible. Draw the firing squares from the definition.
-    if (def.shootOff) {
+    if (def?.shootOff) {
       for (const off of def.shootOff) {
         const sq = mid + off;
         if (g.inBounds(sq) && sq !== mid) dest.set(sq, true);
       }
     }
 
-    if ($(ids.name)) $(ids.name).textContent = def.name;
-    if ($(ids.blurb)) $(ids.blurb).textContent = def.blurb || '';
-    if ($(ids.cost)) setGameText($(ids.cost), `${def.cost} supply · ${def.rarity}`);
+    if ($(ids.name)) $(ids.name).textContent = def?.name || '';
+    if ($(ids.blurb)) $(ids.blurb).textContent = def?.blurb || '';
+    if ($(ids.cost)) setGameText($(ids.cost), `${def?.cost ?? 0} supply · ${def?.rarity || ''}`);
     if ($(ids.art)) {
-      $(ids.art).style.backgroundImage = `url('${pieceImage(type, WHITE)}')`;
-      $(ids.art).style.filter = pieceHue(type) ? `hue-rotate(${pieceHue(type)}deg)` : '';
+      $(ids.art).style.backgroundImage = `url('${artUrl}')`;
+      $(ids.art).style.filter = artHue ? `hue-rotate(${artHue}deg)` : '';
     }
 
     host.innerHTML = '';
@@ -654,8 +658,8 @@ export function initCampaign(ctx) {
         cell.className = 'md-sq' + ((r + f) % 2 ? ' dark' : ' light');
         if (sq === mid) {
           const fig = document.createElement('b');
-          fig.style.backgroundImage = `url('${pieceImage(type, WHITE)}')`;
-          if (pieceHue(type)) fig.style.filter = `hue-rotate(${pieceHue(type)}deg)`;
+          fig.style.backgroundImage = `url('${artUrl}')`;
+          if (artHue) fig.style.filter = `hue-rotate(${artHue}deg)`;
           cell.appendChild(fig);
         } else if (dest.has(sq)) {
           cell.classList.add(dest.get(sq) ? 'cap' : 'go');
@@ -669,6 +673,12 @@ export function initCampaign(ctx) {
     box: 'bag-diagram', board: 'bag-md-board', name: 'bag-md-name',
     blurb: 'bag-md-blurb', cost: 'bag-md-cost', art: 'bag-md-art',
     emptyBlurb: 'Click a piece or a king.',
+  };
+
+  const SHOP_DIAGRAM = {
+    box: 'shop-diagram', board: 'shop-md-board', name: 'shop-md-name',
+    blurb: 'shop-md-blurb', cost: 'shop-md-cost', art: 'shop-md-art',
+    emptyBlurb: 'Click a piece on the table.',
   };
 
   function markBagPeek(btn) {
@@ -999,6 +1009,14 @@ export function initCampaign(ctx) {
     }
 
     setStatus(title, youWon ? 'good' : 'danger');
+
+    if (run.over) {
+      if (run.won) { audio.victory(); confetti(); }
+      else audio.defeat();
+      setTimeout(() => showGameOver(), 700);
+      return true;
+    }
+
     $('btn-again').classList.toggle('hidden', !run.over);
     $('btn-again').textContent = run.won ? 'Embark again' : 'Try again';
     $('btn-continue').classList.toggle('hidden', !youWon || run.over);
@@ -1275,39 +1293,101 @@ export function initCampaign(ctx) {
     const shop = state.run.shop;
     paintRunHud();
     $('btn-shop-reroll').textContent = `Reroll (${shop.rerollCost}g)`;
-    const root = $('shop-offers');
-    root.innerHTML = '';
-    for (const offer of shop.offers) {
-      const card = document.createElement('button');
-      card.className = 'shop-card rarity-' + (offer.rarity || offer.kind)
-        + (offer.hpCost ? ' shop-card-blood' : '');
-      card.disabled = state.run.gold < offer.cost || (offer.hpCost && state.run.hp <= offer.hpCost);
-      const art = offer.type
-        ? `<i class="shop-art" style="background-image:url('${pieceImage(offer.type, WHITE)}');${pieceHue(offer.type) ? `filter:hue-rotate(${pieceHue(offer.type)}deg)` : ''}"></i>`
-        : offer.kind === 'king'
-          ? `<i class="shop-art" style="background-image:url('${pieceImage('k', WHITE, offer.sprite || kingSkin(offer.king))}');${kingHue(offer.king) ? `filter:hue-rotate(${kingHue(offer.king)}deg)` : ''}"></i>`
-          : offer.kind === 'supply'
-            ? `<i class="shop-art" style="background-image:url('assets/map-shop.png')"></i>`
-            : offer.kind === 'relic'
-              ? '<i class="shop-art shop-art-relic">✦</i>'
-              : '<i class="shop-art shop-art-slot"></i>';
-      const bloodCost = offer.hpCost
-        ? `<span class="shop-card-cost-hp"><svg class="chip-ico shop-cost-ico"><use href="#icon-heart"></use></svg>${offer.hpCost}</span>`
-        : '';
-      card.innerHTML = art
-        + `<span class="shop-card-name">${offer.name}</span>`
-        + `<span class="shop-card-blurb">${gameText(offer.blurb)}</span>`
-        + `<span class="shop-card-cost-row"><span class="shop-card-cost">${offer.cost}g</span>${bloodCost}</span>`;
-      card.addEventListener('click', () => {
-        const result = buyOffer(state.run, offer.id);
-        if (!result.ok) { audio.illegal(); toast(result.reason, 'danger'); return; }
-        audio.capture();
-        toast(offer.name, 'good');
+    const table = $('shop-table');
+    if (!table) return;
+    table.innerHTML = '';
+    const offers = shop.offers || [];
+    if (shopSelectedId && !offers.some((o) => o.id === shopSelectedId)) shopSelectedId = null;
+
+    for (let i = 0; i < 5; i++) {
+      const offer = offers[i];
+      const pad = document.createElement('button');
+      pad.type = 'button';
+      pad.className = 'shop-pad'
+        + (offer ? ` rarity-${offer.rarity || offer.kind}` : ' empty')
+        + (offer && offer.id === shopSelectedId ? ' selected' : '')
+        + (offer?.hpCost ? ' blood' : '');
+      if (!offer) {
+        pad.disabled = true;
+        pad.setAttribute('aria-label', 'Sold');
+        table.appendChild(pad);
+        continue;
+      }
+      const isKing = offer.kind === 'king';
+      const figUrl = isKing
+        ? pieceImage('k', WHITE, offer.sprite || kingSkin(offer.king))
+        : pieceImage(offer.type, WHITE);
+      const hue = isKing ? kingHue(offer.king) : pieceHue(offer.type);
+      pad.setAttribute('aria-label', offer.name);
+      pad.innerHTML = `<i class="shop-fig" style="background-image:url('${figUrl}');${hue ? `filter:hue-rotate(${hue}deg)` : ''}"></i>`;
+      pad.addEventListener('click', () => {
+        shopSelectedId = offer.id;
+        audio.click();
         paintShop();
       });
-      card.addEventListener('pointerenter', () => audio.hover());
-      root.appendChild(card);
+      pad.addEventListener('pointerenter', () => audio.hover());
+      table.appendChild(pad);
     }
+    paintShopInspect();
+  }
+
+  function selectedShopOffer() {
+    return (state.run?.shop?.offers || []).find((o) => o.id === shopSelectedId) || null;
+  }
+
+  function paintShopInspect() {
+    const inspect = $('shop-inspect');
+    const buy = $('btn-shop-buy');
+    const price = $('shop-inspect-price');
+    const offer = selectedShopOffer();
+    if (!inspect) return;
+    if (!offer) {
+      inspect.classList.add('empty');
+      paintMoveDiagram(null, SHOP_DIAGRAM);
+      if (price) price.textContent = '';
+      if (buy) buy.disabled = true;
+      return;
+    }
+    inspect.classList.remove('empty');
+    if (offer.kind === 'king') {
+      paintMoveDiagram('k', {
+        ...SHOP_DIAGRAM,
+        skin: offer.sprite || kingSkin(offer.king),
+        hue: kingHue(offer.king),
+      });
+      if ($('shop-md-name')) $('shop-md-name').textContent = offer.name;
+      if ($('shop-md-blurb')) $('shop-md-blurb').textContent = offer.blurb;
+      if ($('shop-md-cost')) setGameText($('shop-md-cost'), `${offer.cost}g · king variant`);
+    } else {
+      paintMoveDiagram(offer.type, SHOP_DIAGRAM);
+      if ($('shop-md-cost')) {
+        const def = pieceById(offer.type);
+        setGameText($('shop-md-cost'),
+          `${offer.cost}g · ${def?.cost ?? 0} supply · ${offer.rarity || def?.rarity || ''}`);
+      }
+    }
+    const canBuy = state.run.gold >= offer.cost && !(offer.hpCost && state.run.hp <= offer.hpCost);
+    if (price) {
+      price.innerHTML = `<span class="shop-card-cost">${offer.cost}g</span>`
+        + (offer.hpCost
+          ? `<span class="shop-card-cost-hp"><svg class="chip-ico shop-cost-ico"><use href="#icon-heart"></use></svg>${offer.hpCost}</span>`
+          : '');
+    }
+    if (buy) {
+      buy.disabled = !canBuy;
+      buy.textContent = canBuy ? `Buy ${offer.name}` : 'Not enough';
+    }
+  }
+
+  function buySelectedShopOffer() {
+    const offer = selectedShopOffer();
+    if (!offer) return;
+    const result = buyOffer(state.run, offer.id);
+    if (!result.ok) { audio.illegal(); toast(result.reason, 'danger'); return; }
+    audio.capture();
+    toast(offer.name, 'good');
+    shopSelectedId = null;
+    paintShop();
   }
 
   function leaveShop() {
@@ -1323,21 +1403,70 @@ export function initCampaign(ctx) {
     const run = state.run;
     $('modal-result').classList.add('hidden');
     if (run?.won) {
-      setTitleText($('result-title'), 'THE THRONE IS YOURS', 'prize');
-      setGameText($('result-detail'),
-        `Gold in pocket ${run.gold} gold. The bag goes with you into the next telling.`);
-      $('btn-again').classList.remove('hidden');
-      $('btn-again').textContent = 'Embark again';
-      $('btn-continue').classList.add('hidden');
-      $('btn-retry').classList.add('hidden');
-      $('btn-result-menu').textContent = 'Menu';
-      $('modal-result').classList.remove('hidden');
       audio.victory();
       confetti();
+      showGameOver();
+    } else if (run?.over) {
+      showGameOver();
     } else {
+      audio.setMusicStyle('ambient');
       showScreen('screen-start');
+      state.mode = 'classic';
     }
-    state.mode = 'classic';
+  }
+
+  function showGameOver() {
+    const run = state.run;
+    if (!run) { showScreen('screen-start'); return; }
+    const stats = runStats(run);
+    const romans = ['I', 'II', 'III'];
+    const actLabel = `Act ${romans[stats.act - 1] || stats.act}`;
+    const where = run.won
+      ? 'the throne'
+      : (stats.lastName || 'the road');
+    if ($('go-title')) {
+      setTitleText($('go-title'), run.won ? 'THE THRONE IS YOURS' : 'YOU DIED',
+        run.won ? 'prize' : 'bad');
+    }
+    if ($('go-far')) {
+      $('go-far').textContent = run.won
+        ? `${actLabel} cleared · ${stats.rooms} rooms`
+        : `${actLabel} · ${stats.rooms} rooms · fell at ${where}`;
+    }
+    if ($('go-gold')) {
+      $('go-gold').textContent = `${stats.goldSpent}g spent · ${stats.goldLeft}g left`;
+    }
+    paintStatRow($('go-captured'), stats.captured, 'None taken.');
+    paintStatRow($('go-army'), stats.army, 'An empty bag.');
+    if ($('go-kings')) {
+      const names = (stats.kings || []).map((id) => (kingDef(id).name || 'Plain') + ' King');
+      $('go-kings').textContent = names.join(' · ') || 'Plain King';
+    }
+    if (run.won) audio.setMusicStyle('ambient');
+    else audio.setMusicStyle('gameover');
+    showScreen('screen-gameover');
+  }
+
+  function paintStatRow(host, rows, empty) {
+    if (!host) return;
+    host.innerHTML = '';
+    if (!rows || !rows.length) {
+      host.innerHTML = `<span class="go-empty">${empty}</span>`;
+      return;
+    }
+    for (const row of rows) {
+      const chip = document.createElement('span');
+      chip.className = 'go-piece';
+      const art = document.createElement('i');
+      art.style.backgroundImage = `url('${pieceImage(row.type, WHITE)}')`;
+      if (pieceHue(row.type)) art.style.filter = `hue-rotate(${pieceHue(row.type)}deg)`;
+      chip.appendChild(art);
+      const label = document.createElement('b');
+      const name = row.name || pieceById(row.type)?.name || row.type;
+      label.textContent = row.count > 1 ? `${row.count} ${name}` : name;
+      chip.appendChild(label);
+      host.appendChild(chip);
+    }
   }
 
   function resetClassicButtons() {
@@ -1368,9 +1497,7 @@ export function initCampaign(ctx) {
     if ($(id)) $(id).addEventListener('click', openBag);
   }
   if ($('btn-map-quit')) $('btn-map-quit').addEventListener('click', abandon);
-  if ($('btn-map-guard-note-close')) {
-    $('btn-map-guard-note-close').addEventListener('click', () => $('map-guard-note').classList.add('hidden'));
-  }
+
   if ($('btn-bag-close')) $('btn-bag-close').addEventListener('click', closeBag);
   if ($('panel-bag')) {
     $('panel-bag').addEventListener('click', (e) => {
@@ -1402,11 +1529,22 @@ export function initCampaign(ctx) {
   });
   $('btn-loadout-fight').addEventListener('click', beginFight);
   $('deploy-board').addEventListener('click', onDeployClick);
+  if ($('btn-go-again')) {
+    $('btn-go-again').addEventListener('click', () => {
+      audio.setMusicStyle('ambient');
+      startRun();
+    });
+  }
+  if ($('btn-go-menu')) {
+    $('btn-go-menu').addEventListener('click', () => abandon());
+  }
   $('btn-shop-leave').addEventListener('click', leaveShop);
+  if ($('btn-shop-buy')) $('btn-shop-buy').addEventListener('click', buySelectedShopOffer);
   $('btn-shop-reroll').addEventListener('click', () => {
     const result = rerollShop(state.run);
     if (!result.ok) { audio.illegal(); toast(result.reason, 'danger'); return; }
     audio.click();
+    shopSelectedId = null;
     paintShop();
   });
   $('btn-continue').addEventListener('click', continueAfterFight);
@@ -1421,9 +1559,10 @@ export function initCampaign(ctx) {
   $('btn-rest-back').addEventListener('click', goWorld);
 
   function openWorldShop({ name, blurb } = {}) {
+    shopSelectedId = null;
     openShop(state.run);
-    if ($('shop-name')) $('shop-name').textContent = name || 'A Wayside Stall';
-    if ($('shop-blurb')) $('shop-blurb').textContent = blurb || 'Gold for steel.';
+    if ($('shop-name')) $('shop-name').textContent = name || 'The Masked Stall';
+    if ($('shop-blurb')) $('shop-blurb').textContent = blurb || 'The same hooded figure. Gold, and sometimes blood.';
     audio.setMusicStyle('shop');
     paintShop();
     showScreen('screen-shop');

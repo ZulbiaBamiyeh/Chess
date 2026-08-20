@@ -1,9 +1,25 @@
-// Every sound in the game is synthesized at runtime — no audio files ship.
+// SFX are synthesized at runtime. Music beds that have a soundtrack file
+// (shop, fight, game over) play those; the map still uses a generative pad.
 //
 // One mixer feeds two buses: SFX (the wooden knocks, captures and stingers) and
-// music (a generative ambient bed that never repeats exactly). Both run through
-// a procedurally-generated convolution reverb and a bus compressor, and the
-// music ducks under the bigger stingers so a checkmate lands cleanly.
+// music. Both run through a procedurally-generated convolution reverb and a bus
+// compressor, and the music ducks under the bigger stingers so a checkmate lands
+// cleanly.
+
+const MUSIC_DIR = 'Music/';
+const TRACK = {
+  shop: 'Wildfrost OST - The Wooly Snail.mp3',
+  gameover: 'Wildfrost OST - Trapped Spirits.mp3',
+  fightSetup: 'Wildfrost OST - Spirit Call.mp3',
+  combat: [
+    "Wildfrost OST - Winter's Wrath.mp3",
+    'Wildfrost OST - Tundra Heart.mp3',
+    'Wildfrost OST - March of the Pengoons.mp3',
+    'Wildfrost OST - Luminice Dance.mp3',
+  ],
+};
+const trackUrl = (file) => MUSIC_DIR + encodeURIComponent(file);
+const FILE_STYLES = new Set(['shop', 'fight', 'gameover']);
 //
 // The board sounds are built from the same three ingredients a real piece makes
 // when it meets a board: a wooden *body* resonance, a *click* of lacquer on
@@ -21,6 +37,11 @@ export class AudioEngine {
     this.nextNoteTime = 0;
     this.step = 0;
     this.musicStyle = 'ambient';
+    this.stems = new Map();
+    this.combatHot = false;
+    this.combatOrder = [];
+    this.combatIndex = 0;
+    this.preloadStarted = false;
   }
 
   // ---- graph -------------------------------------------------------------
@@ -148,6 +169,12 @@ export class AudioEngine {
   startMusic() {
     if (this.muted.music) return;
     this.ensureContext();
+    this.preloadMusic();
+    if (FILE_STYLES.has(this.musicStyle)) {
+      this.stopScheduler();
+      this.startFileStyle(this.musicStyle);
+      return;
+    }
     if (this.musicTimer) return;
     this.nextNoteTime = this.ctx.currentTime + 0.1;
     this.step = 0;
@@ -158,18 +185,40 @@ export class AudioEngine {
   }
 
   stopMusic() {
+    this.stopScheduler();
+    this.stopAllStems(0.2);
+  }
+
+  stopScheduler() {
     if (this.musicTimer) clearInterval(this.musicTimer);
     this.musicTimer = null;
   }
 
   /**
-   * Crossfade between the wilderness bed, the town, the shop, and the fight.
-   * @param {'ambient'|'fight'|'shop'|'town'} style
+   * Crossfade between the wilderness bed, the town, the shop, the fight, and
+   * the game-over dirge.
+   * @param {'ambient'|'fight'|'shop'|'town'|'gameover'} style
    */
   setMusicStyle(style) {
-    if (this.musicStyle === style) return;
+    // A new fight always restarts on Spirit Call even if we were already in
+    // a fight — otherwise the previous combat playlist would keep running.
+    if (this.musicStyle === style && style !== 'fight') return;
+    const prev = this.musicStyle;
     this.musicStyle = style;
+    this.combatHot = false;
     if (!this.ctx || this.muted.music || !this.musicGain) return;
+
+    if (FILE_STYLES.has(prev) || FILE_STYLES.has(style)) {
+      this.stopAllStems(0.7);
+      if (FILE_STYLES.has(style)) {
+        this.stopScheduler();
+        this.startFileStyle(style);
+        return;
+      }
+      this.startMusic();
+      return;
+    }
+
     const t = this.ctx.currentTime;
     const g = this.musicGain.gain;
     g.cancelScheduledValues(t);
@@ -183,10 +232,127 @@ export class AudioEngine {
 
   scheduleMusic() {
     if (!this.ctx || this.muted.music) return;
-    if (this.musicStyle === 'fight') this.scheduleFight();
-    else if (this.musicStyle === 'shop') this.scheduleShop();
-    else if (this.musicStyle === 'town') this.scheduleTown();
+    if (FILE_STYLES.has(this.musicStyle)) return;
+    if (this.musicStyle === 'town') this.scheduleTown();
     else this.scheduleAmbient();
+  }
+
+  // ---- soundtrack files -------------------------------------------------
+  //
+  // Shop, fight setup, combat, and game over play the Wildfrost beds. Fight
+  // starts on the quiet Spirit Call loop; the first capture or hit crossfades
+  // that out and walks a playlist of the full combat tracks.
+
+  preloadMusic() {
+    if (this.preloadStarted || !this.ctx) return;
+    this.preloadStarted = true;
+    this.stem('shop', TRACK.shop, true);
+    this.stem('gameover', TRACK.gameover, true);
+    this.stem('fight-setup', TRACK.fightSetup, true);
+    TRACK.combat.forEach((file, i) => this.stem(`combat-${i}`, file, false));
+  }
+
+  stem(id, file, loop) {
+    if (this.stems.has(id)) return this.stems.get(id);
+    this.ensureContext();
+    const el = new Audio();
+    el.src = trackUrl(file);
+    el.loop = Boolean(loop);
+    el.preload = 'auto';
+    el.crossOrigin = 'anonymous';
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.0001;
+    const src = this.ctx.createMediaElementSource(el);
+    src.connect(gain).connect(this.musicGain);
+    const node = { id, el, gain, src, file };
+    this.stems.set(id, node);
+    return node;
+  }
+
+  fadeStem(id, to, seconds = 1.1) {
+    const node = this.stems.get(id);
+    if (!node || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const g = node.gain.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(Math.max(0.0001, g.value), t);
+    g.linearRampToValueAtTime(Math.max(0.0001, to), t + seconds);
+  }
+
+  async startStem(id, { volume = 1, fade = 0.9, reset = true } = {}) {
+    const node = this.stems.get(id);
+    if (!node) return;
+    node.gen = (node.gen || 0) + 1;
+    if (reset) {
+      try { node.el.currentTime = 0; } catch { /* some browsers refuse before metadata */ }
+    }
+    this.fadeStem(id, volume, fade);
+    try { await node.el.play(); } catch { /* gesture / autoplay — resume() already ran */ }
+  }
+
+  stopStem(id, fade = 0.8) {
+    const node = this.stems.get(id);
+    if (!node) return;
+    node.gen = (node.gen || 0) + 1;
+    const gen = node.gen;
+    this.fadeStem(id, 0.0001, fade);
+    const el = node.el;
+    setTimeout(() => {
+      if (this.stems.get(id) !== node || node.gen !== gen) return;
+      try { el.pause(); } catch { /* already stopped */ }
+    }, fade * 1000 + 80);
+  }
+
+  stopAllStems(fade = 0.6) {
+    for (const id of this.stems.keys()) this.stopStem(id, fade);
+    this.combatHot = false;
+  }
+
+  startFileStyle(style) {
+    if (this.muted.music) return;
+    this.preloadMusic();
+    if (style === 'shop') this.startStem('shop', { volume: 0.92, fade: 0.8 });
+    else if (style === 'gameover') this.startStem('gameover', { volume: 0.95, fade: 1.2 });
+    else if (style === 'fight') {
+      this.combatHot = false;
+      this.startStem('fight-setup', { volume: 0.88, fade: 0.7 });
+    }
+  }
+
+  /**
+   * First blood of the fight: Spirit Call ducks out and the combat playlist
+   * (Winter's Wrath, Tundra Heart, the Pengoons, Luminice Dance) takes over.
+   */
+  engageCombat() {
+    if (this.muted.music || this.musicStyle !== 'fight' || this.combatHot) return;
+    this.combatHot = true;
+    this.stopStem('fight-setup', 1.6);
+    this.combatOrder = TRACK.combat
+      .map((_, i) => i)
+      .sort(() => Math.random() - 0.5);
+    this.combatIndex = 0;
+    this.playCombatTrack(this.combatIndex, 1.5);
+  }
+
+  playCombatTrack(index, fade = 0.9) {
+    if (!this.combatHot || this.musicStyle !== 'fight') return;
+    const order = this.combatOrder;
+    if (!order.length) return;
+    const which = order[((index % order.length) + order.length) % order.length];
+    const id = `combat-${which}`;
+    for (let i = 0; i < TRACK.combat.length; i++) {
+      if (i !== which) this.stopStem(`combat-${i}`, 0.4);
+    }
+    const node = this.stems.get(id);
+    if (node) {
+      node.el.loop = false;
+      node.el.onended = () => {
+        if (!this.combatHot || this.musicStyle !== 'fight') return;
+        this.combatIndex = (this.combatIndex + 1) % order.length;
+        this.playCombatTrack(this.combatIndex, 0.4);
+      };
+    }
+    this.startStem(id, { volume: 0.95, fade, reset: true });
   }
 
   scheduleAmbient() {

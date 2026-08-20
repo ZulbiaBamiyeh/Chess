@@ -25,7 +25,7 @@ const REST_NAMES = [
 // slow, careful line, not on a normal one.
 export const TURN_CLOCK = { trash: 24, elite: 30, boss: 38 };
 
-export const STARTING_BAG = ['p', 'p', 'p', 'n', 'f', 'w'];
+export const STARTING_BAG = ['p', 'p', 'p'];
 
 export const LOSS_HP = { trash: 3, elite: 6, boss: 8 };
 export const FORFEIT_HP = { trash: 2, elite: 3, boss: 4 };
@@ -141,49 +141,49 @@ export const KING_PASSIVES = {
   provisioner: {
     id: 'provisioner',
     name: 'Provisioner',
-    blurb: 'Training a piece at camp costs two less gold.',
+    blurb: 'A levy pawn appears on a free home square at the start of every fight.',
     cost: 6,
     sprite: 'king-provisioner',
   },
   ranger: {
     id: 'ranger',
     name: 'Ranger',
-    blurb: 'Foraging pays four gold more.',
+    blurb: 'Your king may also leap like a knight.',
     cost: 5,
     sprite: 'king-ranger',
   },
   broker: {
     id: 'broker',
     name: 'Broker',
-    blurb: 'Every shop price is a gold cheaper.',
+    blurb: 'Whenever you capture, that square becomes a fort for the rest of the fight.',
     cost: 7,
     sprite: 'king-broker',
   },
   convalescent: {
     id: 'convalescent',
     name: 'Convalescent',
-    blurb: 'Camping heals three HP more.',
+    blurb: 'At the end of each of your turns, your king is shielded.',
     cost: 6,
     sprite: 'king-convalescent',
   },
   steadfast: {
     id: 'steadfast',
     name: 'Steadfast',
-    blurb: 'Losing a fight costs two less HP.',
+    blurb: 'Your king cannot be frozen or burned.',
     cost: 8,
     sprite: 'king-steadfast',
   },
   nomad: {
     id: 'nomad',
     name: 'Nomad',
-    blurb: 'One more piece fits in every fight, over your usual limit.',
+    blurb: 'Your king may step onto blocked tiles, clearing them.',
     cost: 8,
     sprite: 'king-nomad',
   },
   financier: {
     id: 'financier',
     name: 'Financier',
-    blurb: 'Rerolling a shop costs a gold less, down to just one.',
+    blurb: 'The first capture you make each fight shields the capturer.',
     cost: 5,
     sprite: 'king-financier',
   },
@@ -202,22 +202,22 @@ export const ENCOUNTERS = {
     id: 'gate', kind: 'fight', tier: 'trash', act: 1,
     pool: 'easy',
     name: 'The Gate', blurb: 'A sentry and two attendants.',
-    files: 6, ranks: 6, supply: 11, ai: AI.easy, theme: 'court',
+    files: 6, ranks: 6, supply: 8, ai: AI.easy, theme: 'court',
     enemy: [
       { type: 'k', at: 'd6' },
       { type: 'p', at: 'c6' },
-      { type: 'f', at: 'e6' },
+      { type: 'p', at: 'e6' },
     ],
   },
   alley: {
     id: 'alley', kind: 'fight', tier: 'trash', act: 1,
     pool: 'easy',
-    name: 'The Alley', blurb: 'A tight 5×3. Three pieces, no room to hide.',
-    files: 6, ranks: 6, supply: 9, ai: AI.easy, theme: 'court',
+    name: 'The Alley', blurb: 'A tight yard. A wazir and a pawn, no room to hide.',
+    files: 6, ranks: 6, supply: 8, ai: AI.easy, theme: 'court',
     enemy: [
       { type: 'k', at: 'c6' },
-      { type: 'n', at: 'd6' },
-      { type: 'w', at: 'b6' },
+      { type: 'w', at: 'd6' },
+      { type: 'p', at: 'b6' },
     ],
   },
   courtyard: {
@@ -428,13 +428,13 @@ export const ENCOUNTERS = {
   hedge: {
     id: 'hedge', kind: 'fight', tier: 'trash', act: 1, pool: 'easy',
     name: 'The Hedge', blurb: 'Two spearmen and nowhere to hide.',
-    files: 6, ranks: 6, supply: 9, ai: AI.easy, theme: 'court',
+    files: 6, ranks: 6, supply: 7, ai: AI.easy, theme: 'court',
     enemy: [{ type: 'k', at: 'c6' }, { type: 'p', at: 'b6' }, { type: 'p', at: 'd6' }],
   },
   ford: {
     id: 'ford', kind: 'fight', tier: 'trash', act: 1, pool: 'easy',
     name: 'The Ford', blurb: 'A wazir holding the crossing.',
-    files: 6, ranks: 6, supply: 11, ai: AI.easy, theme: 'court',
+    files: 6, ranks: 6, supply: 8, ai: AI.easy, theme: 'court',
     terrain: { c4: TILE.BLOCK, c5: TILE.BLOCK },
     enemy: [{ type: 'k', at: 'c6' }, { type: 'w', at: 'b6' }, { type: 'p', at: 'd6' }],
   },
@@ -836,7 +836,7 @@ export const ENCOUNTERS = {
 
   // ---- act 1 --------------------------------------------------------
   butts: {
-    id: 'butts', kind: 'fight', tier: 'trash', act: 1, pool: 'easy',
+    id: 'butts', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
     name: 'The Butts', blurb: 'It kills at a distance and never steps forward.',
     files: 6, ranks: 6, supply: 13, ai: AI.easy, theme: 'volley',
     enemy: [
@@ -844,7 +844,7 @@ export const ENCOUNTERS = {
     ],
   },
   paupers: {
-    id: 'paupers', kind: 'fight', tier: 'trash', act: 1, pool: 'easy',
+    id: 'paupers', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
     name: "Pauper's Field", blurb: 'What it kills does not stay dead.',
     files: 6, ranks: 6, supply: 13, ai: AI.easy, theme: 'grave',
     enemy: [
@@ -852,7 +852,7 @@ export const ENCOUNTERS = {
     ],
   },
   paradeground: {
-    id: 'paradeground', kind: 'fight', tier: 'trash', act: 1, pool: 'easy',
+    id: 'paradeground', kind: 'fight', tier: 'trash', act: 1, pool: 'hard',
     name: 'The Parade Ground', blurb: 'They march in a block. Break the block.',
     files: 6, ranks: 6, supply: 12, ai: AI.easy, theme: 'banner',
     enemy: [
@@ -1051,6 +1051,8 @@ export const EVENTS = {
         effects: [{ hp: -3 }, { gain: 'random-common' }] },
       { label: 'Reach deeper', detail: '−7 HP. Something better is down there.',
         effects: [{ hp: -7 }, { gain: 'random-rare' }] },
+      { label: 'All the way down', detail: '−12 HP. Whatever is at the bottom is epic.',
+        effects: [{ hp: -12 }, { gain: 'random-epic' }] },
       { label: 'Keep your arm', detail: 'Walk away dry.', effects: [] },
     ],
   },
@@ -1139,6 +1141,8 @@ export const EVENTS = {
         effects: [{ hp: -5 }, { gain: 'random-rare' }] },
       { label: 'Strip the rusted racks', detail: 'Gain two common pieces.',
         effects: [{ gain: 'random-common' }, { gain: 'random-common' }] },
+      { label: 'Force the locked cabinet', detail: 'An epic piece. The lock takes 8 HP to break.',
+        effects: [{ hp: -8 }, { gain: 'random-epic' }] },
       { label: 'Take the door instead', detail: '+22 gold for good iron.', effects: [{ gold: 22 }] },
     ],
   },
@@ -1256,12 +1260,12 @@ export const EVENTS = {
     ],
   },
   hightable: {
-    id: 'hightable', name: 'The High Table',
+    id: 'hightable', name: 'The High Table', minAct: 3,
     text: 'Not the shell game — the real one, played for a seat at the table '
       + 'and everything on it. "Sit down," the dealer says. "Or don\'t. Nobody\'s forcing you."',
     choices: [
-      { label: 'Sit down', detail: 'One in three, a legendary piece. Otherwise you lose your priciest piece to the house.',
-        gamble: { odds: 0.34, win: [{ gain: 'random-legendary' }], lose: [{ lose: 'priciest' }] }, effects: [] },
+      { label: 'Sit down', detail: 'One in six, a legendary piece. Otherwise you lose your priciest piece to the house.',
+        gamble: { odds: 0.18, win: [{ gain: 'random-legendary' }], lose: [{ lose: 'priciest' }] }, effects: [] },
       { label: "Don't", detail: 'You keep your seat empty and your bag intact.', effects: [] },
     ],
   },
@@ -1343,7 +1347,7 @@ export const EVENTS = {
     ],
   },
   grove: {
-    id: 'grove', name: 'The Petrified Grove',
+    id: 'grove', name: 'The Petrified Grove', minAct: 3,
     text: 'Every tree here is stone, and so is everything that was walking '
       + 'between them. Something at the centre is still moving, slowly, and it '
       + 'has been alone a very long time.',
@@ -1356,7 +1360,7 @@ export const EVENTS = {
     ],
   },
   giant: {
-    id: 'giant', name: 'The Fallen Giant',
+    id: 'giant', name: 'The Fallen Giant', minAct: 3,
     text: 'It came down some time before the road did, and the road was built '
       + 'around it rather than through. Close up you can see the plates still '
       + 'fit, and that it is not obviously dead.',
@@ -1395,12 +1399,12 @@ export const EVENTS = {
     ],
   },
   reliquarydoor: {
-    id: 'reliquarydoor', name: 'The Sealed Reliquary',
+    id: 'reliquarydoor', name: 'The Sealed Reliquary', minAct: 3,
     text: 'A door with no handle and a slot at chest height, worn smooth. '
       + 'Whatever is behind it has been paid for many times and collected once.',
     choices: [
-      { label: 'Pay the slot', detail: 'Costs 55 gold. Something legendary is behind that door.',
-        cost: 55, effects: [{ gain: 'random-legendary' }] },
+      { label: 'Pay the slot', detail: 'Costs 80 gold. Something legendary is behind that door.',
+        cost: 80, effects: [{ gain: 'random-legendary' }] },
       { label: 'Force the door', detail: 'It opens. So does something in you (−11 HP), '
         + 'but you take a rare piece and 15 gold out with you.',
         effects: [{ hp: -11 }, { gain: 'random-rare' }, { gold: 15 }] },
@@ -1458,16 +1462,16 @@ export const EVENTS = {
     ],
   },
   jester: {
-    id: 'jester', name: "The Jester's Wager",
+    id: 'jester', name: "The Jester's Wager", minAct: 3,
     text: 'A jester in motley juggles chess pieces carved from glass, humming off-key. '
       + '"Give me your finest," they grin, already eyeing your best piece, "and I\'ll '
       + 'give you back whatever the dice allow. Could be silver. Could be gold. Could '
       + 'be a Pawn with a funny little hat."',
     choices: [
       { label: 'Take the wager',
-        detail: 'They take your priciest piece. 35% odds of a legendary back — otherwise a common.',
+        detail: 'They take your priciest piece. One in six, a legendary back — otherwise a common.',
         effects: [{ lose: 'priciest' }],
-        gamble: { odds: 0.35, win: [{ gain: 'random-legendary' }], lose: [{ gain: 'random-common' }] } },
+        gamble: { odds: 0.16, win: [{ gain: 'random-legendary' }], lose: [{ gain: 'random-common' }] } },
       { label: 'Keep your hands in your pockets', detail: 'Walk on.', effects: [] },
     ],
   },
@@ -1483,29 +1487,94 @@ export const EVENTS = {
       { label: 'Turn the mirror to the wall', detail: 'Some things should not be doubled.', effects: [] },
     ],
   },
+  crowfeast: {
+    id: 'crowfeast', name: 'The Crow Feast',
+    text: 'A tree black with crows, and under it a wrapped bundle that used to be someone. '
+      + 'One of them tilts its head. "Leave the best of what you carry," it says, quite clearly. '
+      + '"We will leave you something that was never yours."',
+    choices: [
+      { label: 'Leave your finest',
+        detail: 'They take your priciest piece. Half the time an epic comes back; otherwise the crows keep both.',
+        effects: [{ lose: 'priciest' }],
+        gamble: { odds: 0.5, win: [{ gain: 'random-epic' }], lose: [] } },
+      { label: 'Throw them gold instead', detail: '−20 gold. They scatter, and you take a rare from the bundle.',
+        cost: 20, effects: [{ gain: 'random-rare' }] },
+      { label: 'Walk wide of the tree', detail: 'The bundle stays where it is.', effects: [] },
+    ],
+  },
+  saintiron: {
+    id: 'saintiron', name: 'The Saint in the Tree', minAct: 2,
+    text: 'A sword is grown through an oak, hilt out, the way a saint is supposed to be buried. '
+      + 'It is not a sword. Up close it is a piece, and it is better than anything you brought.',
+    choices: [
+      { label: 'Pull it free', detail: 'An epic piece joins the bag. The oak takes 6 HP for the privilege.',
+        effects: [{ gain: 'random-epic' }, { hp: -6 }] },
+      { label: 'Leave an offering', detail: '−12 gold. The tree gives you 8 HP back, and nothing else.',
+        cost: 12, effects: [{ heal: 8 }] },
+      { label: 'Let it rust', detail: 'Saints can wait.', effects: [] },
+    ],
+  },
+  lastlesson: {
+    id: 'lastlesson', name: 'The Last Lesson', minAct: 2,
+    text: 'A master with no students left, sitting on a folding stool in the road. '
+      + '"I have one lesson," she says. "It is not a cheap one. It is also not a long one."',
+    choices: [
+      { label: 'Pay for the lesson', detail: '−35 gold. An epic piece, taught in an afternoon.',
+        cost: 35, effects: [{ gain: 'random-epic' }] },
+      { label: 'Offer a piece as tuition', detail: 'Leave a piece of your choice. Take an epic in its place.',
+        effects: [{ lose: 'choose' }, { gain: 'random-epic' }] },
+      { label: 'Decline', detail: 'She folds the stool and does not argue.', effects: [] },
+    ],
+  },
+  blackcandle: {
+    id: 'blackcandle', name: 'The Black Candle', minAct: 2,
+    text: 'A candle of black wax, already lit, in a room with no other light. '
+      + '"Blow it out and take what it was burning for," says nobody in particular. '
+      + '"Or sit with it. Sitting is safer. Sitting is also poorer."',
+    choices: [
+      { label: 'Blow it out',
+        detail: 'One in five, a legendary. Otherwise −9 HP and nothing else.',
+        gamble: { odds: 0.2, win: [{ gain: 'random-legendary' }], lose: [{ hp: -9 }] },
+        effects: [] },
+      { label: 'Sit with it', detail: 'Recover 10 HP in the quiet.', effects: [{ heal: 10 }] },
+      { label: 'Leave it burning', detail: 'Someone else will want the dark more.', effects: [] },
+    ],
+  },
+  hollowtree: {
+    id: 'hollowtree', name: 'The Hollow Oak', minAct: 3,
+    text: 'The trunk is a doorway. Cold air comes out of it, and a sound like a bag being opened. '
+      + 'You can reach in as far as you like. The oak does not care how much of you it keeps.',
+    choices: [
+      { label: 'Reach in', detail: 'An epic piece. −4 HP; something in there bites.',
+        effects: [{ gain: 'random-epic' }, { hp: -4 }] },
+      { label: 'Go in after it', detail: 'A legendary. −10 HP and −2 maximum HP. The oak is not a gentle teacher.',
+        effects: [{ gain: 'random-legendary' }, { hp: -10 }, { maxHp: -2 }] },
+      { label: 'Stopper the hollow', detail: '+16 gold from whoever wanted it shut.', effects: [{ gold: 16 }] },
+    ],
+  },
   longodds: {
-    id: 'longodds', name: 'The Long Odds',
+    id: 'longodds', name: 'The Long Odds', minAct: 2,
     text: 'A crooked table, a single card face-down, and a man missing three fingers. '
       + '"Turn it," he says. "Big prize under a bad card. Nothing under a good one. '
       + 'Your call which is which — I stopped being able to tell a while ago."',
     choices: [
       { label: 'Turn the card',
-        detail: '25% odds of a legendary. Otherwise −10 HP and your priciest piece, gone.',
-        gamble: { odds: 0.25, win: [{ gain: 'random-legendary' }], lose: [{ hp: -10 }, { lose: 'priciest' }] },
+        detail: 'One in six, a legendary. Otherwise −10 HP and your priciest piece, gone.',
+        gamble: { odds: 0.16, win: [{ gain: 'random-legendary' }], lose: [{ hp: -10 }, { lose: 'priciest' }] },
         effects: [] },
       { label: 'Leave the table', detail: 'Some tables you just walk past.', effects: [] },
     ],
   },
   bloodletter: {
-    id: 'bloodletter', name: 'The Bloodletter',
+    id: 'bloodletter', name: 'The Bloodletter', minAct: 2,
     text: 'A physician with clean hands and a dirty table. "Vigour for value," she '
       + 'says, already rolling a sleeve. "I have done this before. You will not enjoy '
       + 'it. You will not regret it either."',
     choices: [
       { label: 'Give her a vein', detail: '−3 max HP, permanently. +30 gold.',
         effects: [{ maxHp: -3 }, { gold: 30 }] },
-      { label: 'Give her more', detail: '−6 max HP, permanently. A legendary piece.',
-        effects: [{ maxHp: -6 }, { gain: 'random-legendary' }] },
+      { label: 'Give her more', detail: '−8 max HP, permanently. A legendary piece.',
+        effects: [{ maxHp: -8 }, { gain: 'random-legendary' }] },
       { label: 'Keep your blood', detail: 'She shrugs, unsurprised.', effects: [] },
     ],
   },
@@ -1527,9 +1596,9 @@ export const THEME_DROPS = {
 };
 
 export const SHOP_WEIGHTS = {
-  1: { common: 70, rare: 24, epic: 6, legendary: 0 },
-  2: { common: 50, rare: 30, epic: 16, legendary: 4 },
-  3: { common: 35, rare: 28, epic: 25, legendary: 12 },
+  1: { common: 82, rare: 18, epic: 0, legendary: 0 },
+  2: { common: 48, rare: 36, epic: 16, legendary: 0 },
+  3: { common: 22, rare: 38, epic: 28, legendary: 12 },
 };
 
 export const DROP_CHANCE = { trash: 0.18, elite: 0.42, boss: 1 };
@@ -1574,10 +1643,10 @@ function pickEncounter(rng, act, tier, drawn, wantEasy) {
 }
 
 /** Draws an unseen event for this act where possible. */
-function pickEvent(rng, seen) {
-  const all = Object.values(EVENTS);
+function pickEvent(rng, seen, act = 1) {
+  const all = Object.values(EVENTS).filter((e) => (e.minAct || 1) <= act);
   const fresh = all.filter((e) => !seen.has(e.id));
-  const pool = fresh.length ? fresh : all;
+  const pool = fresh.length ? fresh : (all.length ? all : Object.values(EVENTS));
   const pick = pool[Math.floor(rng() * pool.length)];
   seen.add(pick.id);
   return pick;
@@ -1601,12 +1670,12 @@ export function generateMap(rng) {
         if (kind === 'shop') {
           node = {
             id, act, col: layer.col, row, kind: 'shop',
-            name: act === 1 ? 'Wayside Stall' : act === 2 ? 'The Armoury' : 'The Reliquary',
-            blurb: 'Spend what you took.',
+            name: act === 1 ? 'The Masked Stall' : act === 2 ? 'The Masked Armoury' : 'The Masked Reliquary',
+            blurb: 'The same hooded figure. Gold, and sometimes blood.',
             next: [],
           };
         } else if (kind === 'event') {
-          const ev = pickEvent(rng, seenEvents);
+          const ev = pickEvent(rng, seenEvents, act);
           node = {
             id, act, col: layer.col, row, kind: 'event',
             eventId: ev.id,

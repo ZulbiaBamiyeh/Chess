@@ -211,6 +211,10 @@ function reactTo(move) {
     audio.place();
   }
 
+  const hit = Boolean(move.captured)
+    || Boolean(move.flags & (FLAG.CAPTURE | FLAG.EP_CAPTURE | FLAG.SHOOT | FLAG.SHIELD_BREAK));
+  if (hit) audio.engageCombat();
+
   if (state.mode === 'run') state.campaign.paintRunHud();
 
   if (state.mode === 'run' && state.game.outcome().reason === 'opponent fled') {

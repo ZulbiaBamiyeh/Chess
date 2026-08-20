@@ -853,6 +853,51 @@ const snap = (g) => JSON.stringify(g.pieces());
   assert('a fresh Duck Chess fight starts with a duck placed', game.duck >= 0);
 }
 
+{
+  const g = Chess.fromDiagram(`
+    . . . . .
+    . . . . .
+    . . {w:king} . .
+    . . . . .
+    . . . . .
+  `, { files: 5, ranks: 5, rules: { ...KC }, kingPassives: ['ranger'] });
+  const moves = g.moves({ square: g.kings.w, legal: false });
+  assert('Ranger king can leap like a knight',
+    moves.some((m) => m.to === g.kings.w - 33) || moves.some((m) => m.to === g.kings.w - 31));
+}
+
+{
+  const g = Chess.fromDiagram(`
+    . . .
+    . # .
+    . {w:king} .
+  `, { files: 3, ranks: 3, rules: { ...KC }, kingPassives: ['nomad'] });
+  const wall = g.sqOf('b2');
+  const moves = g.moves({ square: g.kings.w, legal: false });
+  assert('Nomad king can step onto a blocked tile', moves.some((m) => m.to === wall));
+  const step = moves.find((m) => m.to === wall);
+  g.makeMove(step);
+  assert('Nomad king clears the wall it stepped on', g.tileAt(wall) !== TILE.BLOCK);
+}
+
+{
+  const g = Chess.fromDiagram(`
+    {b:rime} . .
+    . {w:king} .
+    . . .
+  `, { files: 3, ranks: 3, rules: { ...KC }, kingPassives: ['steadfast'] });
+  assert('Steadfast king is freeze-immune', g.freezeImmune(g.board[g.kings.w]));
+}
+
+{
+  const run = createRun(3);
+  run.king = 'provisioner';
+  const enc = ENCOUNTERS.hedge;
+  const game = buildFight(run, enc, autoPlace(enc, []));
+  const pawns = game.pieces().filter((p) => p.color === WHITE && p.type === 'p').length;
+  assert('Provisioner starts a fight with a levy pawn', pawns >= 1, String(pawns));
+}
+
 // ---- boss scripts -----------------------------------------------------------
 
 {

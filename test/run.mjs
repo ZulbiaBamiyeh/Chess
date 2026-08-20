@@ -3,7 +3,7 @@
 
 import { WHITE } from '../js/chess.js';
 import {
-  createRun, validateLoadout, buildFight, settleFight, addToBag, hasSlot,
+  createRun, validateLoadout, buildFight, settleFight, addToBag, hasSlot, runStats,
   occupiedSlots, supplyBudget, deployBudget, openShop, buyOffer, autoPlace, currentNode,
   completeNode, pickNode, rest, forage, trainPiece, currentEncounter,
   bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
@@ -30,7 +30,7 @@ const alley = ENCOUNTERS.alley;
 
 {
   const run = createRun(1);
-  assert('starting bag is six pieces', run.bag.length === 6);
+  assert('starting bag is three pawns', run.bag.length === 3 && run.bag.every((p) => p.type === 'p'));
   assert('commons are uncapped', run.slots.common === Infinity);
   assert('one legendary slot', run.slots.legendary === 1);
   assert('starts with 18 HP', run.hp === 18);
@@ -83,7 +83,7 @@ const alley = ENCOUNTERS.alley;
   assert('losing costs HP rather than the run',
     !reward.won && !run.over && run.hp === before - reward.hpLost && reward.hpLost > 0,
     JSON.stringify({ before, after: run.hp, reward }));
-  assert('pieces still return after a loss', run.bag.length === 6);
+  assert('pieces still return after a loss', run.bag.length === 3);
 }
 
 {
@@ -102,11 +102,72 @@ const alley = ENCOUNTERS.alley;
   const run = createRun(7);
   run.gold = 40;
   const shop = openShop(run);
-  assert('shop has a common', shop.offers.some((o) => o.rarity === 'common'));
+  const pieces = shop.offers.filter((o) => o.kind === 'piece');
+  const kings = shop.offers.filter((o) => o.kind === 'king');
+  assert('shop stocks five stalls', shop.offers.length === 5, String(shop.offers.length));
+  assert('shop is five pieces, or four and a king',
+    (pieces.length === 5 && kings.length === 0) || (pieces.length === 4 && kings.length === 1),
+    JSON.stringify(shop.offers.map((o) => o.kind)));
+  assert('shop has a common', shop.offers.some((o) => o.rarity === 'common' || o.kind === 'piece'));
   assert('shop does not offer the removed Deeper Reserve', !shop.offers.some((o) => o.kind === 'supply'));
   assert('shop does not offer the removed Epic Slot', !shop.offers.some((o) => o.id === 'slot-epic'));
-  assert('shop offers a king', shop.offers.some((o) => o.kind === 'king'));
-  assert('shop lists at most two kings', shop.offers.filter((o) => o.kind === 'king').length <= 2);
+  assert('shop lists at most one king', kings.length <= 1);
+}
+
+{
+  const run = createRun(1);
+  run.gold = 40;
+  const shop = openShop(run);
+  const offer = shop.offers.find((o) => o.kind === 'piece') || shop.offers[0];
+  const before = run.gold;
+  const bought = buyOffer(run, offer.id);
+  assert('a purchase records gold spent', bought.ok && run.goldSpent === before - run.gold,
+    JSON.stringify({ spent: run.goldSpent, before, after: run.gold, ok: bought.ok }));
+}
+
+{
+  const run = createRun(1);
+  run.captured = ['p', 'p', 'n'];
+  run.goldSpent = 12;
+  const stats = runStats(run);
+  const pawns = stats.captured.find((c) => c.type === 'p');
+  assert('run stats stack captured pieces', pawns && pawns.count === 2, JSON.stringify(stats.captured));
+  assert('run stats keep gold spent', stats.goldSpent === 12);
+}
+
+{
+  let sawKing = false;
+  let sawFive = false;
+  let sawRare = false;
+  let sawEpic = false;
+  let sawLegend = false;
+  for (let seed = 0; seed < 80; seed++) {
+    const run = createRun(seed + 3);
+    const shop = openShop(run);
+    if (shop.offers.some((o) => o.kind === 'king')) sawKing = true;
+    if (shop.offers.filter((o) => o.kind === 'piece').length === 5) sawFive = true;
+    if (shop.offers.some((o) => o.rarity === 'rare')) sawRare = true;
+  }
+  for (let seed = 0; seed < 40; seed++) {
+    const run = createRun(seed + 11);
+    run.act = 2;
+    run.nodeId = run.map.acts[2].nodes.find((n) => n.kind === 'shop')?.id || run.nodeId;
+    const shop = openShop(run);
+    if (shop.offers.some((o) => o.rarity === 'epic')) sawEpic = true;
+    run.act = 2;
+  }
+  // Act 3 shops can roll a legendary.
+  for (let seed = 0; seed < 60 && !sawLegend; seed++) {
+    const run = createRun(seed + 21);
+    const shopNode = run.map.acts[2].nodes.find((n) => n.kind === 'shop');
+    if (shopNode) run.nodeId = shopNode.id;
+    run.act = 2;
+    const shop = openShop(run);
+    if (shop.offers.some((o) => o.rarity === 'legendary')) sawLegend = true;
+  }
+  assert('some shops sell a king', sawKing);
+  assert('some shops sell five pieces', sawFive);
+  assert('act 1 shops can show a rare', sawRare);
 }
 
 {
@@ -144,8 +205,15 @@ const alley = ENCOUNTERS.alley;
   assert('bag summary stacks starting pawns', pawns && pawns.count === 3, JSON.stringify(summary.pieces));
   assert('plain king is in the bag', summary.kings.includes('plain') && summary.equipped === 'plain');
   run.gold = 40;
-  const shop = openShop(run);
-  const kingOffer = shop.offers.find((o) => o.kind === 'king');
+  let kingOffer = null;
+  let shop = null;
+  for (let seed = 1; seed < 80 && !kingOffer; seed++) {
+    const r = createRun(seed);
+    r.gold = 40;
+    shop = openShop(r);
+    kingOffer = shop.offers.find((o) => o.kind === 'king');
+    if (kingOffer) Object.assign(run, { bag: r.bag, gold: r.gold, shop: r.shop, kings: r.kings, king: r.king, rng: r.rng, slots: r.slots, relics: r.relics });
+  }
   assert('a king can be bought', Boolean(kingOffer));
   const bought = buyOffer(run, kingOffer.id);
   assert('buying a king keeps the old one', bought.ok && ownedKingIds(run).includes('plain')
@@ -293,6 +361,17 @@ const alley = ENCOUNTERS.alley;
   assert('each act opens with a fork', map.acts.every((a) => firstRooms(a).length >= 2));
   assert('maps actually branch', map.acts.every((a) => a.nodes.some((n) => n.next.length >= 2)));
   assert('act 1 shop weights have no legendary', SHOP_WEIGHTS[1].legendary === 0);
+}
+
+{
+  const early = Object.values(EVENTS).filter((e) => (e.minAct || 1) <= 1);
+  const leak = [];
+  for (const ev of early) {
+    const blob = JSON.stringify(ev);
+    if (blob.includes('random-legendary') || blob.includes('"basilisk"') || blob.includes('"colossus"')
+      || blob.includes('"amazon"')) leak.push(ev.id);
+  }
+  assert('act 1 events never hand out legendaries', leak.length === 0, leak.join(','));
 }
 
 
@@ -570,7 +649,7 @@ function courtyardOrGate() {
   const run = createRun(1);
   run.relics = ['seal'];
   const shop = openShop(run);
-  assert('the shop stocks a relic', shop.offers.some((o) => o.kind === 'relic'));
+  assert('the shop sells pieces, not relics', shop.offers.every((o) => o.kind === 'piece' || o.kind === 'king'));
   assert("Merchant's Seal discounts the board",
     shop.offers.every((o) => o.cost >= 1));
 }

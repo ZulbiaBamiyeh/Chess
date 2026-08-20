@@ -3,18 +3,27 @@
 
 import { WHITE, BLACK, Chess, ST_SHIELD, ST_FROZEN, FLAG, TILE, parseSquare } from './chess.js';
 import { PIECES, SLOT_CAPS, pieceCost, rarityOf, RARITY } from './pieces.js';
-import { relicTotals, discountedCost, hasTag, relicById, relicPool } from './relics.js';
+import { relicTotals, discountedCost, hasTag, relicPool } from './relics.js';
 import {
   LOSS_HP, FORFEIT_HP, REST_HEAL,
   START_HP, START_GOLD, STARTING_BAG, KING_PASSIVES, REST_GOLD,
   FORAGE_GOLD, TRAIN_COST,
   TURN_CLOCK, THEME_DROPS, DROP_CHANCE,
   generateMap, findNode, encounterFor, firstRooms, freeHomeSquares, homeSquares,
-  weightedPiece, slotUpgradeCost,
+  weightedPiece,
 } from './content.js';
 
 let nextUid = 1;
 const uid = () => `p${nextUid++}`;
+
+function debitGold(run, amount) {
+  const n = Math.max(0, Number(amount) || 0);
+  if (!n) return 0;
+  const paid = Math.min(run.gold, n);
+  run.gold -= paid;
+  run.goldSpent = (run.goldSpent || 0) + paid;
+  return paid;
+}
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -69,6 +78,8 @@ export function createRun(seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>>
     secondWindUsed: false,
     over: false,
     won: false,
+    goldSpent: 0,
+    captured: [],
   };
 }
 
@@ -191,8 +202,7 @@ export function deployBudget(run, encounter) {
   // Roughly three fifths of supply, so a pure horde cannot spend it all on
   // bodies and always has points spare to put into something better.
   const base = encounter.deploy ?? Math.max(2, Math.ceil(supply * 0.6));
-  const nomad = run.king === 'nomad' ? 1 : 0;
-  return Math.max(1, base + (run.deployBonus || 0) + relicTotals(run.relics).deploy + nomad);
+  return Math.max(1, base + (run.deployBonus || 0) + relicTotals(run.relics).deploy);
 }
 
 export function loadoutCost(items, run = null) {
@@ -366,6 +376,11 @@ export function applyStartStatuses(game, run) {
     }
     if (best) game.status[best.square] |= ST_SHIELD;
   }
+  if (run.king === 'provisioner') {
+    const spare = homeSquares(game.files, game.ranks)
+      .find((sq) => !game.board[sq] && game.tileAt(sq) !== TILE.BLOCK);
+    if (spare != null) game.board[spare] = { type: 'p', color: WHITE };
+  }
 }
 
 export function remainingArmy(game, color) {
@@ -443,7 +458,7 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
     // Second Wind, the whole heal economy) had nothing to protect you from.
     hpLost = Math.max(1, (forfeit
       ? (FORFEIT_HP[tier] ?? 2)
-      : (LOSS_HP[tier] ?? 3)) - (run.king === 'steadfast' ? 2 : 0));
+      : (LOSS_HP[tier] ?? 3)));
     run.hp -= hpLost;
 
     if (run.hp <= 0) {
@@ -458,6 +473,14 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
         run.won = false;
       }
     }
+  }
+
+  run.captured = run.captured || [];
+  for (const entry of game.history || []) {
+    const move = entry.move;
+    if (!move || move.color !== WHITE || !move.captured) continue;
+    if (move.flags & FLAG.SHIELD_BREAK && move._shieldSaved) continue;
+    run.captured.push(move.captured);
   }
 
   run.lastReward = {
@@ -580,9 +603,9 @@ export function pickNode(run, nodeId) {
  * has to quote these numbers before you commit, and computing them a second
  * time over there is how it ended up promising 7 HP and handing over 10.
  */
-export const restHeal = (run) => REST_HEAL + (run?.king === 'convalescent' ? 3 : 0);
-export const forageGold = (run) => FORAGE_GOLD + (run?.king === 'ranger' ? 4 : 0);
-export const trainCost = (run) => Math.max(1, TRAIN_COST - (run?.king === 'provisioner' ? 2 : 0));
+export const restHeal = (run) => REST_HEAL;
+export const forageGold = (run) => FORAGE_GOLD;
+export const trainCost = (run) => TRAIN_COST;
 
 export function rest(run) {
   const before = run.hp;
@@ -610,7 +633,7 @@ export function trainPiece(run, itemUid) {
   if (item.trained) return { ok: false, reason: 'Already trained.' };
   const cost = trainCost(run);
   if (run.gold < cost) return { ok: false, reason: `Needs ${cost} gold.` };
-  run.gold -= cost;
+  debitGold(run, cost);
   item.trained = true;
   return { ok: true };
 }
@@ -624,40 +647,31 @@ export function openShop(run) {
   const act = currentAct(run);
   const offers = [];
   const seen = new Set();
-  const allowed = new Set(['common']);
-  if (run.slots.rare > 0) allowed.add('rare');
-  if (run.slots.epic > 0) allowed.add('epic');
-  if (run.slots.legendary > 0) allowed.add('legendary');
 
-  // Always one common so a broke player still has a button.
-  const common = weightedPiece(run.rng, new Set(['common']), act);
-  if (common) {
-    seen.add(common.id);
-    offers.push(pieceOffer(run, common, 0, act));
-  }
+  // The same hooded stall every time: five pieces, or four and a king.
+  const ownedKings = new Set(ownedKingIds(run));
+  const kingPool = Object.values(KING_PASSIVES).filter((pas) => !ownedKings.has(pas.id));
+  const includeKing = kingPool.length > 0 && run.rng() < 0.5;
+  const pieceCount = includeKing ? 4 : 5;
 
-  // One more, not two. A shop that shows every piece you might want doesn't
-  // ask you to want anything in particular — three piece offers plus a king
-  // and a relic meant a decent run could just buy the whole board and never
-  // commit to a build. One real alternative to the common is enough to be a
-  // choice.
-  for (let i = 1; i < 2; i++) {
+  const rarities = shopRarityPlan(run.rng, act, pieceCount);
+  for (let i = 0; i < rarities.length; i++) {
+    const want = rarities[i];
     let pick = null;
-    for (let tries = 0; tries < 16; tries++) {
-      const p = weightedPiece(run.rng, allowed, act);
+    for (let tries = 0; tries < 20; tries++) {
+      const p = weightedPiece(run.rng, new Set([want]), act);
       if (p && !seen.has(p.id) && hasSlot(run, p.id)) { pick = p; break; }
+    }
+    if (!pick) {
+      const fallback = weightedPiece(run.rng, new Set(['common', want]), act);
+      if (fallback && !seen.has(fallback.id) && hasSlot(run, fallback.id)) pick = fallback;
     }
     if (!pick) continue;
     seen.add(pick.id);
     offers.push(pieceOffer(run, pick, i, act));
   }
 
-  const ownedKings = new Set(ownedKingIds(run));
-  const kingPool = Object.values(KING_PASSIVES).filter((pas) => !ownedKings.has(pas.id));
-  // One king offer regardless of act. Two in act 3 was one more thing on an
-  // already crowded board that a flush run just bought without thinking.
-  const kingSlots = 1;
-  for (let i = 0; i < kingSlots && kingPool.length; i++) {
+  if (includeKing && kingPool.length) {
     const pick = kingPool.splice(Math.floor(run.rng() * kingPool.length), 1)[0];
     offers.push({
       kind: 'king',
@@ -670,51 +684,44 @@ export function openShop(run) {
     });
   }
 
-  if (run.slots.legendary < 2) {
-    offers.push({
-      kind: 'slot',
-      id: 'slot-legendary',
-      rarity: RARITY.LEGENDARY,
-      name: 'Legendary Slot',
-      blurb: 'Room for another legendary.',
-      cost: slotUpgradeCost(RARITY.LEGENDARY),
-    });
-  }
-
-  // Relics for sale — one per shop, always. A second in act 3 was the
-  // clearest case of the shop selling you a whole extra build on top of
-  // whatever you had already committed to.
-  const relicSlots = 1;
-  const pool = relicPool(run.relics);
-  for (let i = 0; i < relicSlots && pool.length; i++) {
-    const pick = pool.splice(Math.floor(run.rng() * pool.length), 1)[0];
-    const relic = relicById(pick);
-    offers.push({
-      kind: 'relic',
-      id: `relic-${relic.id}`,
-      relic: relic.id,
-      name: relic.name,
-      blurb: `${relic.blurb} (${relic.archetype})`,
-      rarity: relic.rarity,
-      cost: RELIC_PRICE[relic.rarity] ?? 30,
-    });
-  }
-
-  // Merchant's Seal and friends discount the whole board.
   const discount = 1 - Math.min(0.6, relicTotals(run.relics).shopDiscount);
   for (const offer of offers) offer.cost = Math.max(1, Math.round(offer.cost * discount));
-  // Broker: a flat gold off every sticker, after the percentage discounts —
-  // a percentage off a percentage off would make it worth more stacked with
-  // Merchant's Seal than alone, which isn't the point of a flat discount.
-  if (run.king === 'broker') {
-    for (const offer of offers) offer.cost = Math.max(1, offer.cost - 1);
-  }
 
   run.shop = { offers, rerollBase: 2, rerollCost: rerollCostFor(run, 2) };
   return run.shop;
 }
 
-const RELIC_PRICE = { common: 26, rare: 40, epic: 58, legendary: 75 };
+/**
+ * What rarities the masked stall puts on the table this visit.
+ * Act 1 is commons, maybe one rare. Later acts open up.
+ */
+function shopRarityPlan(rng, act, count) {
+  const plan = [];
+  if (act <= 1) {
+    const rare = rng() < 0.42 ? 1 : 0;
+    for (let i = 0; i < count - rare; i++) plan.push(RARITY.COMMON);
+    if (rare) plan.push(RARITY.RARE);
+    return plan;
+  }
+  if (act === 2) {
+    const epic = rng() < 0.5 ? 1 : 0;
+    const rares = epic ? 1 : 2;
+    const commons = Math.max(0, count - rares - epic);
+    for (let i = 0; i < commons; i++) plan.push(RARITY.COMMON);
+    for (let i = 0; i < rares; i++) plan.push(RARITY.RARE);
+    if (epic) plan.push(RARITY.EPIC);
+    return plan;
+  }
+  const legend = rng() < 0.3 ? 1 : 0;
+  const epics = legend ? 1 : 2;
+  const rares = Math.min(2, Math.max(0, count - epics - legend));
+  const commons = Math.max(0, count - rares - epics - legend);
+  for (let i = 0; i < commons; i++) plan.push(RARITY.COMMON);
+  for (let i = 0; i < rares; i++) plan.push(RARITY.RARE);
+  for (let i = 0; i < epics; i++) plan.push(RARITY.EPIC);
+  if (legend) plan.push(RARITY.LEGENDARY);
+  return plan;
+}
 
 // Every merchant on the road is the same hooded figure, and every so often
 // — mostly for the better pieces — he'll deal in blood as well as gold, not
@@ -780,7 +787,7 @@ export function buyOffer(run, offerId) {
     return { ok: false, reason: 'Unknown offer.' };
   }
 
-  run.gold -= offer.cost;
+  debitGold(run, offer.cost);
   if (offer.hpCost) run.hp -= offer.hpCost;
   shop.offers = shop.offers.filter((o) => o.id !== offerId);
   return { ok: true, offer };
@@ -795,14 +802,14 @@ export function buyOffer(run, offerId) {
  * the discount.
  */
 function rerollCostFor(run, base) {
-  return Math.max(1, base - (run.king === 'financier' ? 1 : 0));
+  return Math.max(1, base);
 }
 
 export function rerollShop(run) {
   const shop = run.shop;
   if (!shop) return { ok: false, reason: 'No shop is open.' };
   if (run.gold < shop.rerollCost) return { ok: false, reason: 'Not enough gold.' };
-  run.gold -= shop.rerollCost;
+  debitGold(run, shop.rerollCost);
   const nextBase = Math.min(6, (shop.rerollBase || shop.rerollCost) + 1);
   openShop(run);
   run.shop.rerollBase = nextBase;
@@ -819,10 +826,9 @@ export function closeShop(run) {
  * upgrading them.
  *
  * Spending supply on the most expensive pieces first looks sensible and loses
- * games. On The Gate — a 4x4 with five supply and three slots — it fielded a
- * knight and a ferz, two bodies, and lost every time; three pawns win it. When
- * the deploy cap is the binding constraint, an empty slot is worth more than a
- * costlier piece in the ones you filled.
+ * games. Opening fights are built for a king and three pawns: bodies first,
+ * upgrades later. When the deploy cap is the binding constraint, an empty
+ * slot is worth more than a costlier piece in the ones you filled.
  */
 export function suggestLoadout(run, encounter) {
   const budget = supplyBudget(run, encounter);
@@ -873,6 +879,37 @@ export function autoPlace(encounter, selectedItems) {
   return placements;
 }
 
+export function runStats(run) {
+  const captured = tallyTypes(run.captured || []);
+  const bag = bagSummary(run);
+  const node = currentNode(run);
+  const act = node?.act || run.act + 1;
+  return {
+    won: Boolean(run.won),
+    act,
+    rooms: run.cleared instanceof Set ? run.cleared.size : 0,
+    lastName: node?.name || null,
+    lastKind: node?.kind || null,
+    goldSpent: run.goldSpent || 0,
+    goldLeft: run.gold || 0,
+    captured,
+    army: bag.pieces,
+    kings: bag.kings,
+    equipped: bag.equipped,
+  };
+}
+
+function tallyTypes(types) {
+  const map = new Map();
+  for (const type of types) {
+    if (!type) continue;
+    map.set(type, (map.get(type) || 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([type, count]) => ({ type, count, name: PIECES[type]?.name || type }))
+    .sort((a, b) => b.count - a.count || (PIECES[a.type]?.cost || 0) - (PIECES[b.type]?.cost || 0));
+}
+
 export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST };
 
 // ---- events ---------------------------------------------------------------
@@ -914,7 +951,7 @@ export function applyChoice(run, choice, pickedUid = null) {
   // the same reveal a fight drop gets instead of one more line of text.
   const gained = [];
   if (choice.cost) {
-    run.gold -= choice.cost;
+    debitGold(run, choice.cost);
     lines.push(`−${choice.cost} gold`);
   }
 
@@ -927,7 +964,8 @@ export function applyChoice(run, choice, pickedUid = null) {
 
   for (const effect of effects) {
     if (effect.gold != null) {
-      run.gold = Math.max(0, run.gold + effect.gold);
+      if (effect.gold < 0) debitGold(run, -effect.gold);
+      else run.gold += effect.gold;
       lines.push(`${effect.gold >= 0 ? '+' : '−'}${Math.abs(effect.gold)} gold`);
     }
     if (effect.hp != null) {

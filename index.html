@@ -42,7 +42,6 @@
 
     <div class="menu-buttons">
       <button id="btn-embark" class="btn btn-gold btn-big">EMBARK</button>
-      <button id="btn-voyage" class="btn btn-ghost" type="button">The Open World</button>
       <button id="btn-classic" class="btn btn-ghost">Classic chess</button>
       <button id="btn-sandbox" class="btn btn-ghost" type="button">Sandbox</button>
       <button id="btn-howto" class="btn btn-ghost">How to Play</button>
@@ -96,9 +95,9 @@
   <section id="screen-howto" class="screen hidden">
     <div class="howto-card">
       <h2>How to Play</h2>
-      <p>A chess roguelike: you're the <strong>king</strong>, the board is a world.</p>
-      <p>Walk it a square at a time. Everything you meet — armies, ruins, towns — is real; run into one and you're playing it. Stray off the road for better loot and worse odds.</p>
-      <p>Take their king, keep your pieces, climb. Lose yours and the run ends.</p>
+      <p>A chess roguelike. You start as the <strong>king</strong> with three pawns.</p>
+      <p>Climb the map. Capture their king, keep your army. Shops and strange rooms along the way will sell you — or offer you — better pieces.</p>
+      <p>Lose your king and the run ends.</p>
       <p class="howto-keys">Drag or click to move. <kbd>F</kbd> flip · <kbd>Esc</kbd> put a piece down.</p>
       <button id="btn-howto-close" class="btn btn-gold">Got It</button>
     </div>
@@ -263,10 +262,6 @@
         <div id="map-climb" class="map-climb"></div>
       </div>
       <p id="map-blurb" class="map-blurb"></p>
-    </div>
-    <div id="map-guard-note" class="map-guard-note hidden">
-      <p>You can't deploy with their king already in check — get your pieces onto the board first, then go looking for the opening.</p>
-      <button id="btn-map-guard-note-close" class="btn btn-ghost">Got It</button>
     </div>
   </section>
 
@@ -459,9 +454,29 @@
         <button id="btn-shop-bag" class="btn btn-ghost btn-bag" title="Open the bag">Bag</button>
       </div>
     </header>
-    <p id="shop-blurb" class="map-blurb"></p>
-    <div class="shop-stage">
-      <div id="shop-offers" class="shop-offers"></div>
+    <p id="shop-blurb" class="map-blurb">The same hooded figure. Gold, and sometimes blood.</p>
+    <div class="shop-layout">
+      <div class="shop-scene" aria-label="The masked stall">
+        <div id="shop-table" class="shop-table"></div>
+      </div>
+      <aside id="shop-inspect" class="shop-inspect empty">
+        <p class="shop-inspect-hint">Click a piece on the table.</p>
+        <div id="shop-diagram" class="move-diagram empty">
+          <div class="md-head">
+            <i id="shop-md-art" class="howto-art"></i>
+            <div>
+              <b id="shop-md-name">How it moves</b>
+              <span id="shop-md-blurb"></span>
+              <span id="shop-md-cost"></span>
+            </div>
+          </div>
+          <div id="shop-md-board" class="md-board"></div>
+        </div>
+        <div class="shop-inspect-buy">
+          <span id="shop-inspect-price"></span>
+          <button id="btn-shop-buy" class="btn btn-gold" type="button" disabled>Buy</button>
+        </div>
+      </aside>
     </div>
     <div class="menu-buttons">
       <button id="btn-shop-reroll" class="btn btn-ghost">Reroll (2g)</button>
@@ -497,6 +512,33 @@
       <button id="btn-drop-take" class="btn btn-gold btn-big">Take it</button>
     </div>
   </div>
+
+  <!-- ===================== GAME OVER ===================== -->
+  <section id="screen-gameover" class="screen hidden">
+    <div class="go-card">
+      <h1 id="go-title" class="go-title">YOU DIED</h1>
+      <p id="go-far" class="go-far">Act I</p>
+      <div class="go-stats">
+        <div class="go-stat">
+          <h3>Gold spent</h3>
+          <p id="go-gold">0g</p>
+        </div>
+        <div class="go-stat">
+          <h3>Pieces captured</h3>
+          <div id="go-captured" class="go-row"></div>
+        </div>
+        <div class="go-stat">
+          <h3>Your army</h3>
+          <div id="go-army" class="go-row"></div>
+          <p id="go-kings" class="go-kings"></p>
+        </div>
+      </div>
+      <div class="menu-buttons">
+        <button id="btn-go-again" class="btn btn-gold btn-big">Embark again</button>
+        <button id="btn-go-menu" class="btn btn-ghost">Menu</button>
+      </div>
+    </div>
+  </section>
 
   <div id="modal-result" class="modal hidden">
     <div class="modal-card result-card">

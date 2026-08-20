@@ -334,7 +334,10 @@ export class Chess {
    * an enemy Rime nor the ground itself can freeze what you own.
    */
   freezeImmune(piece) {
-    return Boolean(piece) && piece.color === WHITE && this.kingPassives.includes('icebound');
+    if (!piece || piece.color !== WHITE) return false;
+    if (this.kingPassives.includes('icebound')) return true;
+    if (piece.type === KING && this.kingPassives.includes('steadfast')) return true;
+    return false;
   }
 
   /** Freeze a piece until the other side has played, then it sits out one activation. */
@@ -627,6 +630,11 @@ export class Chess {
         if (from + off === target && this.inBounds(target)) return true;
       }
     }
+    if (piece.type === KING && piece.color === WHITE && this.kingPassives.includes('ranger')) {
+      for (const off of KNIGHT_OFFSETS) {
+        if (from + off === target && this.inBounds(target)) return true;
+      }
+    }
     if (this.kingPassives.includes('court') && isQueenLike(piece.type)) {
       for (const off of KNIGHT_OFFSETS) {
         if (from + off === target && this.inBounds(target)) return true;
@@ -829,6 +837,7 @@ export class Chess {
     const extraRoyal = this.rules.royalLeaps;
     const court = this.kingPassives.includes('court');
     const vanguard = us === WHITE && this.kingPassives.includes('vanguard');
+    const ranger = us === WHITE && this.kingPassives.includes('ranger');
 
     const only = square == null ? null : this.sqOf(square);
 
@@ -856,9 +865,12 @@ export class Chess {
     };
 
     const tryLand = (from, to, flags) => {
-      if (!this.inBounds(to) || this.isBlocked(to) || this.isDuck(to)) return false;
-      const target = board[to];
       const mover = board[from];
+      const nomadKing = mover && mover.type === KING && mover.color === WHITE
+        && this.kingPassives.includes('nomad');
+      if (!this.inBounds(to) || this.isDuck(to)) return false;
+      if (this.isBlocked(to) && !nomadKing) return false;
+      const target = board[to];
       if (!target) {
         if (!capturesOnly) add(from, to, flags);
         return true;
@@ -978,6 +990,9 @@ export class Chess {
       }
       if (piece.type === KING && vanguard) {
         for (const off of VANGUARD_OFFSETS) land(from + off, FLAG.NORMAL);
+      }
+      if (piece.type === KING && ranger) {
+        for (const off of KNIGHT_OFFSETS) land(from + off, FLAG.NORMAL);
       }
       if (court && isQueenLike(piece.type)) {
         for (const off of KNIGHT_OFFSETS) land(from + off, FLAG.NORMAL);
@@ -1226,10 +1241,16 @@ export class Chess {
 
     if (extra && !shooting) {
       const dest = move.to;
+      const nomadKing = us === WHITE && move.piece === KING
+        && this.kingPassives.includes('nomad');
       if (this.terrain[dest] === TILE.FROST && !this.freezeImmune(board[dest])) {
         this.markFrozen(dest);
       }
       if (this.terrain[dest] === TILE.FORT) this.status[dest] |= ST_SHIELD;
+      if (nomadKing && this.terrain[dest] === TILE.BLOCK) {
+        extra.terrainSnap = extra.terrainSnap ?? this.terrain.slice();
+        this.terrain[dest] = TILE.NONE;
+      }
       // Glass holds exactly once. Whoever lands on it gets to stand there —
       // the break happens under their feet, not before they arrive — but it
       // is a BLOCK for everyone from the next move on, itself included if
@@ -1261,7 +1282,10 @@ export class Chess {
 
       // Ash Boots: your side walks through its own fire. Theirs still burns,
       // which is the whole point of laying it.
-      const fireproof = us === WHITE && this.kingPassives.includes('ashboots');
+      const fireproof = us === WHITE && (
+        this.kingPassives.includes('ashboots')
+        || (move.piece === KING && this.kingPassives.includes('steadfast'))
+      );
       if (this.isFire(dest) && board[dest] && !fireproof) {
         extra.burned = { type: board[dest].type, color: us };
         if (board[dest].type === KING) this.kings[us] = -1;
@@ -1429,6 +1453,33 @@ export class Chess {
           ? ST_SHIELD
           : 0;
         extra.raised = move.from;
+      }
+    }
+
+    if (extra && us === WHITE) {
+      const trueCapture = move.captured
+        && !(move.flags & FLAG.SHIELD_BREAK && move._shieldSaved);
+      if (trueCapture && this.kingPassives.includes('broker')) {
+        extra.terrainSnap = extra.terrainSnap ?? this.terrain.slice();
+        this.terrain[move.to] = TILE.FORT;
+        if (board[move.to]) this.status[move.to] |= ST_SHIELD;
+      }
+      if (trueCapture && this.kingPassives.includes('financier')) {
+        const earlier = this.history.some((h, i) => i < this.history.length - 1
+          && h.move.color === WHITE && h.move.captured
+          && !(h.move.flags & FLAG.SHIELD_BREAK && h.move._shieldSaved));
+        if (!earlier) {
+          const sq = (move.flags & FLAG.SHOOT) ? move.from : move.to;
+          if (board[sq]) this.status[sq] |= ST_SHIELD;
+        }
+      }
+      if (this.kingPassives.includes('convalescent')) {
+        const k = this.kings.w;
+        if (k >= 0 && board[k]) {
+          extra.convSq = k;
+          extra.convPrev = this.status[k];
+          this.status[k] |= ST_SHIELD;
+        }
       }
     }
 
@@ -1710,6 +1761,10 @@ export class Chess {
     if (extra) {
       this.status[move.from] = extra.statusFrom;
       this.status[move.to] = extra.statusTo;
+      if (extra.convSq != null && extra.convPrev != null
+        && extra.convSq !== move.from && extra.convSq !== move.to) {
+        this.status[extra.convSq] = extra.convPrev;
+      }
       if (move.flags & FLAG.EP_CAPTURE) {
         this.status[move.to + (us === WHITE ? 16 : -16)] = 0;
       }
