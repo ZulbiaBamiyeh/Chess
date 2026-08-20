@@ -1,0 +1,199 @@
+import {
+  generateWorld, mulberry32, playerMoves, movePlayer, materialOf, armyMaterial,
+  clashEncounter, OW, TERRAIN, revealAround,
+} from '../js/overworld.js';
+import { buildFight, createVoyageRun } from '../js/run.js';
+import { BLACK } from '../js/chess.js';
+
+const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
+
+function world(seed = 1, act = 1) {
+  return generateWorld(mulberry32(seed), act);
+}
+
+{
+  const w = world(7);
+  assert(w.files === OW.FILES, 'width');
+  assert(w.ranks > 30, 'tall strip');
+  assert(w.player.rank < 4, 'starts south');
+  const floors = [];
+  let ramp = 0;
+  for (let r = 0; r < w.ranks; r++) {
+    for (let f = 0; f < w.files; f++) {
+      const c = w.cells[r][f];
+      if (c.terrain !== TERRAIN.WALL && c.terrain !== TERRAIN.CHASM) floors.push([f, r]);
+      if (c.poi === 'ramp') ramp++;
+    }
+  }
+  assert(floors.length > 40, `enough floor, got ${floors.length}`);
+  assert(ramp === 1, 'one ramp');
+  assert(w.packs.length >= 8, `packs ${w.packs.length}`);
+  const vis = [...w.visible];
+  assert(vis.length >= 9, `starting vision ${vis.length}`);
+  console.log('PASS  generate a branching strip with fog, packs and a ramp');
+}
+
+{
+  const w = world(3);
+  const moves = playerMoves(w);
+  assert(moves.length >= 1, 'king can step');
+  for (const m of moves) {
+    assert(Math.max(Math.abs(m.file - w.player.file), Math.abs(m.rank - w.player.rank)) === 1, 'king step');
+  }
+  const dest = moves.find((m) => m.rank === w.player.rank + 1) || moves[0];
+  const before = w.turns;
+  const result = movePlayer(w, dest.file, dest.rank);
+  assert(result.ok, 'move ok');
+  assert(w.turns === before + 1, 'turn advanced');
+  assert(w.player.file === dest.file && w.player.rank === dest.rank, 'moved');
+  console.log('PASS  the leader moves by chess steps and the turn clock ticks');
+}
+
+{
+  const w = world(11);
+  w.player.leader = 'n';
+  // Stand next to a wall with a floor two-and-one away.
+  let jumped = false;
+  for (const m of playerMoves(w)) {
+    const df = Math.abs(m.file - w.player.file);
+    const dr = Math.abs(m.rank - w.player.rank);
+    if ((df === 1 && dr === 2) || (df === 2 && dr === 1)) jumped = true;
+  }
+  assert(jumped || playerMoves(w).length === 0, 'knight uses 2-1 leaps when any exist');
+  console.log('PASS  a knight leader leaps 2–1');
+}
+
+{
+  const w = world(5);
+  w.grace = 2;
+  w.turns = 1;
+  const dest = playerMoves(w)[0];
+  movePlayer(w, dest.file, dest.rank); // turns=2, grace=2, decay not yet
+  assert(w.decayRank === -1, 'grace holds the decay');
+  const dest2 = playerMoves(w)[0];
+  if (dest2) movePlayer(w, dest2.file, dest2.rank); // turns=3, (3-2)%3==1, still no
+  const dest3 = playerMoves(w)[0];
+  if (dest3) movePlayer(w, dest3.file, dest3.rank); // turns=4, (4-2)%3==2
+  const dest4 = playerMoves(w)[0];
+  if (dest4) {
+    movePlayer(w, dest4.file, dest4.rank); // turns=5, (5-2)%3==0 → decay
+  }
+  assert(w.decayRank >= 0, `decay started ${w.decayRank}`);
+  console.log('PASS  the decay waits out its grace, then eats the south');
+}
+
+{
+  assert(materialOf('p') === 1, 'pawn 1');
+  assert(materialOf('n') === 3, 'knight 3');
+  assert(materialOf('q') === 9, 'queen 9');
+  assert(materialOf('k') === 0, 'king 0');
+  const mat = armyMaterial([{ type: 'k' }, { type: 'p' }, { type: 'n' }]);
+  assert(mat === 4, `levy material ${mat}`);
+  console.log('PASS  combat level is chess material');
+}
+
+{
+  const w = world(9);
+  const pack = w.packs[0];
+  const run = { bag: [{ type: 'p' }, { type: 'p' }, { type: 'p' }] };
+  const enc = clashEncounter(w, pack, run, 'enemy');
+  assert(enc.firstMover === 'b', 'ambush: they move first');
+  assert(enc.enemy.some((e) => e.type === 'k'), 'they bring a king');
+  assert(enc.files >= 6 && enc.ranks >= 6, 'a real board');
+  const enc2 = clashEncounter(w, pack, run, 'player');
+  assert(enc2.firstMover === 'w', 'you struck first');
+  console.log('PASS  clash boards carry terrain and first-move');
+}
+
+{
+  const w = world(2);
+  const startVis = w.visible.size;
+  w.player.file = 5;
+  w.player.rank = 12;
+  revealAround(w, 5, 12, OW.VISION);
+  assert(w.visible.size >= 9, 'vision refreshes');
+  assert(w.explored.size >= startVis, 'explored never shrinks');
+  console.log('PASS  fog reveals and remembers');
+}
+
+{
+  const w = world(9);
+  const pack = w.packs[0];
+  const run = createVoyageRun(9);
+  run.voyage = w;
+  const enc = clashEncounter(w, pack, run, 'enemy');
+  const game = buildFight(run, enc, [{ uid: 'king', type: 'k', sq: 5 * 16 + 2 }]);
+  assert(game.turn === BLACK, `ambush turn ${game.turn}`);
+  console.log('PASS  an ambush fight opens on Black’s move');
+}
+
+{
+  const w = world(13);
+  let steps = 0;
+  for (let i = 0; i < 18; i++) {
+    const moves = playerMoves(w);
+    if (!moves.length) break;
+    const north = moves.filter((m) => m.rank >= w.player.rank);
+    const dest = north[0] || moves[0];
+    const res = movePlayer(w, dest.file, dest.rank);
+    assert(res.ok, `step ${i}`);
+    steps++;
+    if (res.event?.type === 'combat') break;
+  }
+  assert(steps >= 3, `walked ${steps}`);
+  console.log('PASS  a walk north does not crash');
+}
+
+{
+  const rare = new Set(['c', 'h', 'g', 'r', 'i', 'l', 'd', 'x', 'v', 'squirrel',
+    's', 't', 'm', 'y', 'crossbow', 'reaper', 'lodestone', 'q', 'a', 'basilisk', 'colossus']);
+  let blocked = 0;
+  let prizes = 0;
+  let bosses = 0;
+  let kinds = new Set();
+  for (const seed of [1, 2, 7, 9, 11, 13, 21, 42]) {
+    const w = world(seed);
+    const ramp = [];
+    const loot = [];
+    for (let r = 0; r < w.ranks; r++) {
+      for (let f = 0; f < w.files; f++) {
+        const c = w.cells[r][f];
+        if (c.poi === 'ramp') ramp.push({ f, r });
+        if (c.loot && (c.loot.skull || rare.has(c.loot.piece) || c.loot.relic)) prizes++;
+      }
+    }
+    assert(ramp.length === 1, `ramp seed ${seed}`);
+    const gate = w.packs.find((p) => !p.dead && p.file === ramp[0].f && p.rank === ramp[0].r);
+    if (gate) bosses++;
+    for (const p of w.packs) kinds.add(p.arch || p.name);
+    // Path to ramp that never shares a square with a pack.
+    const packAt = new Set(w.packs.filter((p) => !p.dead).map((p) => `${p.file},${p.rank}`));
+    const q = [{ f: w.player.file, r: w.player.rank }];
+    const seen = new Set([`${w.player.file},${w.player.rank}`]);
+    let reach = false;
+    while (q.length) {
+      const cur = q.pop();
+      const cell = w.cells[cur.r]?.[cur.f];
+      if (cell?.poi === 'ramp' && !packAt.has(`${cur.f},${cur.r}`)) { reach = true; break; }
+      for (const [df, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nf = cur.f + df, nr = cur.r + dr;
+        const k = `${nf},${nr}`;
+        if (seen.has(k)) continue;
+        const c2 = w.cells[nr]?.[nf];
+        if (!c2) continue;
+        if (c2.terrain === 'wall' || c2.terrain === 'chasm') continue;
+        if (packAt.has(k)) continue;
+        seen.add(k);
+        q.push({ f: nf, r: nr });
+      }
+    }
+    if (!reach) blocked++;
+  }
+  assert(bosses >= 6, `gate bosses ${bosses}/8`);
+  assert(prizes >= 6, `wildy prizes ${prizes}`);
+  assert(blocked >= 6, `must fight to leave ${blocked}/8`);
+  assert(kinds.size >= 4, `archetypes ${[...kinds].join(',')}`);
+  console.log('PASS  act 1 is gated, scavenged, and not a free walk north');
+}
+
+console.log('\nOverworld clean.');

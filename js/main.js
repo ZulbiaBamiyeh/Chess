@@ -11,6 +11,7 @@ import { BoardView, pieceImage, pieceHue, kingSkin, kingHue, shake, confetti, to
 import { kingDef } from './content.js';
 import { initCampaign } from './campaign.js';
 import { initSandbox } from './sandbox.js';
+import { initVoyage } from './voyage.js';
 
 const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const trayValue = (type) => PIECE_VALUE[type] ?? pieceCost(type);
@@ -640,11 +641,21 @@ function init() {
 
   state.campaign = initCampaign({
     state, $, showScreen, audio, requestMove, setStatus, refreshStatus,
-    updateHud, renderCoordinates, Chess, resetInspect,
+    updateHud, renderCoordinates, Chess, resetInspect, scheduleOpponent,
+  });
+
+  state.voyage = initVoyage({
+    state, $, showScreen, audio, campaign: state.campaign,
   });
 
   const sandbox = initSandbox({ $, showScreen, audio });
   $('btn-sandbox')?.addEventListener('click', () => sandbox?.open());
+
+  $('btn-embark').addEventListener('click', async () => {
+    await audio.resume();
+    if (state.settings.music) audio.startMusic();
+    state.voyage.start();
+  });
 
   $('btn-classic').addEventListener('click', () => showScreen('screen-classic'));
   $('btn-classic-back').addEventListener('click', () => showScreen('screen-start'));
@@ -684,7 +695,8 @@ function init() {
   $('btn-again').addEventListener('click', () => {
     if (state.mode === 'run') {
       $('modal-result').classList.add('hidden');
-      state.campaign.startRun();
+      if (state.world === 'voyage') state.voyage.start();
+      else state.campaign.startRun();
       return;
     }
     newGame();

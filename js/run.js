@@ -27,6 +27,14 @@ function mulberry32(seed) {
   };
 }
 
+export function createVoyageRun(seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>> 0) {
+  const run = createRun(seed);
+  run.bag = ['p', 'p', 'p'].map((type) => ({ uid: uid(), type }));
+  run.gold = 2;
+  run.world = 'voyage';
+  return run;
+}
+
 export function createRun(seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>> 0) {
   nextUid = 1;
   const rng = mulberry32(seed);
@@ -293,7 +301,7 @@ export function buildFight(run, encounter, placements) {
     }
   }
 
-  game.turn = WHITE;
+  game.turn = encounter.firstMover === BLACK ? BLACK : WHITE;
   game.refreshMode();
   game.positionCounts = new Map();
   game.countPosition();

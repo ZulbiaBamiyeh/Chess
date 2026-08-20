@@ -20,8 +20,16 @@ import { relicById } from './relics.js';
 export function initCampaign(ctx) {
   const {
     state, $, showScreen, audio, requestMove, setStatus, refreshStatus,
-    updateHud, renderCoordinates, resetInspect,
+    updateHud, renderCoordinates, resetInspect, scheduleOpponent,
   } = ctx;
+
+  function goWorld() {
+    if (state.world === 'voyage' && state.voyage?.resumeFromWorld) {
+      state.voyage.resumeFromWorld();
+      return;
+    }
+    showMap();
+  }
 
   let deployView = null;
   let selectedUid = null;
@@ -49,7 +57,7 @@ export function initCampaign(ctx) {
     const goldChanged = run.gold !== prev.gold;
     const hpChanged = run.hp !== prev.hp;
 
-    for (const id of ['hud-gold', 'map-gold', 'load-gold', 'shop-gold', 'rest-gold', 'event-gold']) {
+    for (const id of ['hud-gold', 'map-gold', 'load-gold', 'shop-gold', 'rest-gold', 'event-gold', 'ow-gold']) {
       const el = $(id);
       if (!el) continue;
       const num = el.querySelector('.chip-num');
@@ -57,7 +65,7 @@ export function initCampaign(ctx) {
       if (goldChanged) flashChip(el, run.gold > prev.gold);
     }
 
-    for (const id of ['hud-hp', 'map-hp', 'load-hp', 'shop-hp', 'rest-hp', 'event-hp']) {
+    for (const id of ['hud-hp', 'map-hp', 'load-hp', 'shop-hp', 'rest-hp', 'event-hp', 'ow-hp']) {
       const el = $(id);
       if (!el) continue;
       const pct = run.hpMax > 0 ? Math.max(0, Math.min(1, run.hp / run.hpMax)) : 0;
@@ -91,6 +99,7 @@ export function initCampaign(ctx) {
 
   function startRun() {
     state.mode = 'run';
+    state.world = 'road';
     state.run = createRun();
     state.playerColor = WHITE;
     state._hudPrev = null;
@@ -383,6 +392,10 @@ export function initCampaign(ctx) {
     const kingSq = homes[Math.floor((homes.length - 1) / 2)] ?? homes[0];
     placements = kingSq != null ? [{ uid: 'king', type: 'k', sq: kingSq }] : [];
 
+    if (state.world === 'voyage') {
+      const auto = autoPlace(encounter, suggestLoadout(state.run, encounter));
+      if (auto.length) placements = auto;
+    }
     $('loadout-title').textContent = encounter.name;
     $('loadout-blurb').textContent =
       `${encounter.blurb}  ·  ${encounter.files}×${encounter.ranks}  ·  take their king`;
@@ -420,7 +433,7 @@ export function initCampaign(ctx) {
     const def = kingDef(run.king);
     const skin = kingSkin(run.king);
     const hue = kingHue(run.king);
-    for (const prefix of ['map', 'load', 'shop', 'rest']) {
+    for (const prefix of ['map', 'load', 'shop', 'rest', 'ow']) {
       const art = $(`${prefix}-king-art`);
       const name = $(`${prefix}-king-name`);
       const chip = $(`${prefix}-king`);
@@ -890,6 +903,7 @@ export function initCampaign(ctx) {
     audio.setMusicStyle('fight');
     showScreen('screen-game');
     if (game.outcome().over) onFightOver(game.outcome());
+    else if (game.turn !== state.playerColor && scheduleOpponent) scheduleOpponent();
   }
 
   function onFightOver(opts = {}) {
@@ -967,6 +981,10 @@ export function initCampaign(ctx) {
 
     const pending = state.run.pendingRelics || [];
     const advance = () => {
+      if (state.world === 'voyage') {
+        state.voyage?.onFightSettled(state.run.lastReward);
+        return;
+      }
       completeNode(state.run);
       if (state.run.over) { endRun(); return; }
       showMap();
@@ -1126,6 +1144,7 @@ export function initCampaign(ctx) {
 
   function leaveEvent() {
     if (state.run.over) { endRun(); return; }
+    if (state.world === 'voyage') { goWorld(); return; }
     completeNode(state.run);
     if (state.run.over) { endRun(); return; }
     showMap();
@@ -1230,6 +1249,7 @@ export function initCampaign(ctx) {
 
   function leaveShop() {
     closeShop(state.run);
+    if (state.world === 'voyage') { goWorld(); return; }
     completeNode(state.run);
     showMap();
   }
@@ -1293,17 +1313,20 @@ export function initCampaign(ctx) {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeBag();
   });
-  $('btn-embark').addEventListener('click', async () => {
-    await audio.resume();
-    if (state.settings.music) audio.startMusic();
-    startRun();
-  });
+  if ($('btn-old-road')) {
+    $('btn-old-road').addEventListener('click', async () => {
+      await audio.resume();
+      if (state.settings.music) audio.startMusic();
+      state.world = 'road';
+      startRun();
+    });
+  }
   if ($('btn-map-go')) $('btn-map-go').addEventListener('click', goFromMap);
   $('btn-map-quit').addEventListener('click', abandon);
   if ($('btn-map-guard-note-close')) {
     $('btn-map-guard-note-close').addEventListener('click', () => $('map-guard-note').classList.add('hidden'));
   }
-  $('btn-loadout-back').addEventListener('click', showMap);
+  $('btn-loadout-back').addEventListener('click', goWorld);
   if ($('btn-event-leave')) $('btn-event-leave').addEventListener('click', leaveEvent);
   if ($('btn-event-bag')) $('btn-event-bag').addEventListener('click', openBag);
   $('btn-loadout-auto').addEventListener('click', () => {
@@ -1336,10 +1359,20 @@ export function initCampaign(ctx) {
   $('btn-retry').addEventListener('click', retryFight);
   $('btn-forfeit').addEventListener('click', forfeitFight);
   $('btn-rest-move-on').addEventListener('click', () => {
+    if (state.world === 'voyage') { goWorld(); return; }
     completeNode(state.run);
     showMap();
   });
   $('btn-rest-back').addEventListener('click', showMap);
+
+  function openWorldShop({ name, blurb } = {}) {
+    openShop(state.run);
+    if ($('shop-name')) $('shop-name').textContent = name || 'A Wayside Stall';
+    if ($('shop-blurb')) $('shop-blurb').textContent = blurb || 'Gold for steel.';
+    audio.setMusicStyle('shop');
+    paintShop();
+    showScreen('screen-shop');
+  }
 
   return {
     startRun,
@@ -1347,6 +1380,10 @@ export function initCampaign(ctx) {
     paintRunHud,
     resetClassicButtons,
     abandon,
+    openLoadout,
+    openWorldShop,
+    goWorld,
+    finishRun: endRun,
     tickClock() {
       // This used to decrement to zero and then return false forever, so the
       // clock on the HUD was pure decoration and nothing stopped you taking
