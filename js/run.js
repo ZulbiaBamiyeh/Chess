@@ -8,7 +8,7 @@ import {
   LOSS_HP, FORFEIT_HP, UNDO_HP, FIGHT_GOLD, REST_HEAL,
   START_HP, START_GOLD, STARTING_BAG, KING_PASSIVES, REST_GOLD,
   FORAGE_GOLD, TRAIN_COST,
-  TURN_CLOCK, THEME_DROPS, DROP_CHANCE,
+  TURN_CLOCK, THEME_DROPS, SPOIL_GOLD, SPOIL_PIECE_WEIGHT,
   generateMap, findNode, encounterFor, firstRooms, freeHomeSquares, homeSquares,
   weightedPiece,
 } from './content.js';
@@ -412,6 +412,7 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
   let drop = null;
   let dropSold = 0;
   let hpLost = 0;
+  let spoils = null;
 
   const relics = relicTotals(run.relics);
   // Martyr relics pay out for pieces of yours that died, win or lose.
@@ -440,14 +441,10 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
       }
       run.pendingRelics = picks;
     }
-    drop = rollDrop(run, encounter);
-    if (drop) {
-      const added = addToBag(run, drop);
-      if (!added) {
-        dropSold = 2 + pieceCost(drop);
-        run.gold += dropSold;
-      }
-    }
+    // Extra gold or a looted piece is rolled here so the run's rng decides
+    // it, but it is not applied until the spoils wheel lands — the fight
+    // purse above is the only gold that changes before that ceremony.
+    spoils = rollSpoils(run, encounter);
   } else {
     const kingTaken = !forfeit && !timeout
       && outcome.reason === 'king capture'
@@ -496,6 +493,8 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
     gold,
     drop,
     dropSold,
+    bonusGold: 0,
+    spoils,
     army,
     maxArmy,
     clockLeft,
@@ -516,41 +515,101 @@ function countDeployedSurvivors(game, run) {
   return alive;
 }
 
-const DROP_RANK = {
-  [RARITY.COMMON]: 0, [RARITY.RARE]: 1, [RARITY.EPIC]: 2, [RARITY.LEGENDARY]: 3,
-};
-
-function rollDrop(run, encounter) {
-  const chance = DROP_CHANCE[encounter.tier || 'trash'] ?? 0.15;
-  if (run.rng() > chance) return null;
-  const fromBoard = (encounter.enemy || [])
-    .map((e) => e.type)
-    .filter((t) => t !== 'k' && PIECES[t] && PIECES[t].rarity !== RARITY.UNIQUE);
-  const theme = THEME_DROPS[encounter.theme] || [];
-  let pool = fromBoard.length ? fromBoard : theme;
-  if (!pool.length) return null;
-
-  // Prefer something the bag can actually hold. A drop you have no slot for
-  // is auto-sold for a handful of gold, which is the flattest possible end
-  // to a fight you just won — so only fall back to it when there is nothing
-  // in the room you could have kept.
-  const roomFor = pool.filter((t) => hasSlot(run, t));
-  if (roomFor.length) pool = roomFor;
-
-  // The prize scales with the room. A boss hands over the best thing it
-  // fielded rather than whichever pawn the roll happened to land on: it is
-  // the trophy for the hardest fight in the act, and rolling a pawn out of
-  // it made clearing one feel like nothing happened. Elites lean the same
-  // way without committing to it.
-  const tier = encounter.tier || 'trash';
-  const best = () => {
-    const top = Math.max(...pool.map((t) => DROP_RANK[PIECES[t].rarity] ?? 0));
-    const finest = pool.filter((t) => (DROP_RANK[PIECES[t].rarity] ?? 0) === top);
-    return finest[Math.floor(run.rng() * finest.length)];
+/** Enemy types that can ride the spoils wheel — no king, no unique. */
+function lootTypes(encounter) {
+  const seen = new Set();
+  const types = [];
+  const consider = (t) => {
+    if (!t || t === 'k' || seen.has(t)) return;
+    const def = PIECES[t];
+    if (!def || def.royal || def.rarity === RARITY.UNIQUE) return;
+    seen.add(t);
+    types.push(t);
   };
-  if (tier === 'boss') return best();
-  if (tier === 'elite' && run.rng() < 0.5) return best();
-  return pool[Math.floor(run.rng() * pool.length)];
+  for (const e of encounter.enemy || []) consider(e.type);
+  if (!types.length) {
+    for (const t of THEME_DROPS[encounter.theme] || []) consider(t);
+  }
+  return types;
+}
+
+/**
+ * The wheel for this room: extra gold (the fat slices) and one slice per
+ * distinct enemy piece, weighted so a legendary is a sliver and a pawn is not.
+ */
+export function buildSpoils(encounter) {
+  const tier = encounter.tier || (encounter.boss ? 'boss' : 'trash');
+  const golds = [];
+  for (const g of (SPOIL_GOLD[tier] || SPOIL_GOLD.trash)) {
+    let left = g.weight;
+    while (left > 0) {
+      const chunk = Math.min(16, left);
+      golds.push({
+        kind: 'gold',
+        amount: g.amount,
+        weight: chunk,
+        label: `+${g.amount}`,
+        rarity: 'gold',
+      });
+      left -= chunk;
+    }
+  }
+  const pieces = lootTypes(encounter).map((type) => {
+    const def = PIECES[type];
+    const rarity = def.rarity || RARITY.COMMON;
+    return {
+      kind: 'piece',
+      type,
+      weight: SPOIL_PIECE_WEIGHT[rarity] || SPOIL_PIECE_WEIGHT.common,
+      label: def.name,
+      rarity,
+    };
+  });
+  // Interleave so a trash fight is not one giant gold wedge with a pawn
+  // sliver on the side — same odds, more of a wheel.
+  const items = [];
+  const n = Math.max(golds.length, pieces.length);
+  for (let i = 0; i < n; i++) {
+    if (i < golds.length) items.push(golds[i]);
+    if (i < pieces.length) items.push(pieces[i]);
+  }
+  return items;
+}
+
+export function rollSpoils(run, encounter) {
+  const items = buildSpoils(encounter);
+  if (!items.length) return { items: [], winner: -1, claimed: false };
+  const total = items.reduce((sum, it) => sum + it.weight, 0);
+  let roll = run.rng() * total;
+  let winner = items.length - 1;
+  for (let i = 0; i < items.length; i++) {
+    roll -= items[i].weight;
+    if (roll < 0) { winner = i; break; }
+  }
+  return { items, winner, claimed: false };
+}
+
+/** Apply the landed prize. Safe to call twice. */
+export function claimSpoils(run) {
+  const reward = run.lastReward;
+  if (!reward?.spoils || reward.spoils.claimed) return reward;
+  reward.spoils.claimed = true;
+  const prize = reward.spoils.items[reward.spoils.winner];
+  if (!prize) return reward;
+  if (prize.kind === 'gold') {
+    run.gold += prize.amount;
+    reward.bonusGold = prize.amount;
+    return reward;
+  }
+  if (prize.kind === 'piece' && prize.type) {
+    reward.drop = prize.type;
+    const added = addToBag(run, prize.type);
+    if (!added) {
+      reward.dropSold = 2 + pieceCost(prize.type);
+      run.gold += reward.dropSold;
+    }
+  }
+  return reward;
 }
 
 function startingArmy(run) {
@@ -1059,7 +1118,10 @@ function tallyTypes(types) {
     .sort((a, b) => b.count - a.count || (PIECES[a.type]?.cost || 0) - (PIECES[b.type]?.cost || 0));
 }
 
-export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, UNDO_HP, FIGHT_GOLD };
+export {
+  KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORAGE_GOLD,
+  TRAIN_COST, UNDO_HP, FIGHT_GOLD, SPOIL_GOLD, SPOIL_PIECE_WEIGHT,
+};
 
 // ---- events ---------------------------------------------------------------
 

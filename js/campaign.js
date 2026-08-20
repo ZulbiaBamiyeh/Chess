@@ -18,7 +18,7 @@ import {
   restHeal, forageGold, trainCost,
   bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
   suggestLoadout, runStats, ensureFormation, placementsFromFormation, CREW_BOARD,
-  pruneFormation, payUndo, UNDO_HP,
+  pruneFormation, payUndo, UNDO_HP, claimSpoils,
 } from './run.js';
 import { kingDef, EVENTS, encounterFor } from './content.js';
 import { relicById } from './relics.js';
@@ -44,6 +44,9 @@ export function initCampaign(ctx) {
   let placements = []; // { uid, type, sq }
   let shopSelectedId = null;
   let setupMode = false;
+  let spoilsAnim = 0;
+  let spoilsFinish = null;
+  let spoilsSkipHandler = null;
 
   /**
    * Gold and HP used to be a bare number in the pixel font, same weight as
@@ -1179,17 +1182,6 @@ export function initCampaign(ctx) {
     } else if (youWon) {
       title = 'THE KING FALLS';
       detail = `They dropped ${reward.gold} gold.`;
-      if (reward.drop) {
-        const def = pieceById(reward.drop);
-        // Rare and better get their own reveal after this modal closes, so
-        // the results line only mentions the ones that do not.
-        state.lastDrop = { type: reward.drop, sold: reward.dropSold || 0 };
-        if (!def || def.rarity === 'common') {
-          detail += reward.dropSold
-            ? ` A ${def?.name || reward.drop} dropped — no slot, sold for ${reward.dropSold}g.`
-            : ` They dropped a ${def?.name || reward.drop}.`;
-        }
-      }
       if (enc.boss && run.act >= 2 && run.won) {
         title = 'THE THRONE IS YOURS';
         detail += ' The run is won.';
@@ -1229,8 +1221,13 @@ export function initCampaign(ctx) {
 
     audio.setMusicStyle('ambient');
     setTimeout(() => {
+      if (youWon && !reward.fled) {
+        audio.victory();
+        confetti();
+        showSpoils(reward, title);
+        return;
+      }
       if (reward.fled) audio.click();
-      else if (youWon) { audio.victory(); confetti(); }
       else audio.defeat();
       setTitleText($('result-title'), title, youWon ? 'good' : 'bad');
       setGameText($('result-detail'), detail);
@@ -1241,6 +1238,11 @@ export function initCampaign(ctx) {
 
   function continueAfterFight() {
     $('modal-result').classList.add('hidden');
+    hideSpoils();
+    afterFightRewards();
+  }
+
+  function afterFightRewards() {
     resetClassicButtons();
     if (state.run.over) { endRun(); return; }
 
@@ -1258,10 +1260,210 @@ export function initCampaign(ctx) {
       if (pending.length) { offerRelics(pending, advance); return; }
       advance();
     };
-    // The piece first, then the relic, then the map. A rare drop is the
-    // thing you actually won; it should not have to share a screen with
-    // anything else.
+    // A rare-or-better piece gets its own reveal after the wheel. Commons
+    // already had their moment on the landing.
     showDropReveal(relicsThen);
+  }
+
+  const SLICE_FILL = {
+    gold: ['#8a6914', '#6e5410'],
+    common: ['#2c3558', '#222a46'],
+    rare: ['#155a78', '#0f4862'],
+    epic: ['#4a2e70', '#3a2458'],
+    legendary: ['#c4921a', '#d4b03a'],
+  };
+
+  function hideSpoils() {
+    spoilsAnim += 1;
+    spoilsFinish = null;
+    const modal = $('modal-spoils');
+    if (modal && spoilsSkipHandler) {
+      modal.removeEventListener('click', spoilsSkipHandler);
+      spoilsSkipHandler = null;
+    }
+    if (modal) modal.classList.add('hidden');
+    const take = $('btn-spoils-take');
+    if (take) take.onclick = null;
+  }
+
+  function piePath(cx, cy, r, a0, a1) {
+    const xy = (deg) => {
+      const a = deg * Math.PI / 180;
+      return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
+    };
+    const [x0, y0] = xy(a0);
+    const [x1, y1] = xy(a1);
+    const large = (a1 - a0) > 180 ? 1 : 0;
+    return `M ${cx} ${cy} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`;
+  }
+
+  function paintSpoilsWheel(items) {
+    const wheel = $('spoils-wheel');
+    if (!wheel) return [];
+    const total = items.reduce((sum, it) => sum + it.weight, 0) || 1;
+    const slices = [];
+    let acc = 0;
+    for (let i = 0; i < items.length; i++) {
+      const start = acc / total * 360;
+      acc += items[i].weight;
+      const end = acc / total * 360;
+      slices.push({ i, start, end, mid: (start + end) / 2, span: end - start, item: items[i] });
+    }
+
+    const parts = [];
+    const icons = [];
+    for (const slice of slices) {
+      const palette = SLICE_FILL[slice.item.rarity] || SLICE_FILL.common;
+      const fill = palette[slice.i % 2];
+      parts.push(`<path d="${piePath(100, 100, 100, slice.start, slice.end)}" fill="${fill}" data-slice="${slice.i}"/>`);
+      parts.push(`<line x1="100" y1="100" x2="${(100 + 100 * Math.sin(slice.start * Math.PI / 180)).toFixed(2)}" y2="${(100 - 100 * Math.cos(slice.start * Math.PI / 180)).toFixed(2)}" stroke="rgba(255,207,63,0.28)" stroke-width="1.2"/>`);
+      const thin = slice.span < 16;
+      const dist = thin ? 42 : 38;
+      const x = 50 + dist * Math.sin(slice.mid * Math.PI / 180);
+      const y = 50 - dist * Math.cos(slice.mid * Math.PI / 180);
+      let inner;
+      if (thin) {
+        const pipClass = slice.item.kind === 'gold' ? '' : slice.item.rarity;
+        inner = `<span class="spoils-pip ${pipClass}"></span>`;
+      } else if (slice.item.kind === 'gold') {
+        inner = `<span class="spoils-gold-mark"><svg viewBox="0 0 16 16"><use href="#icon-coin"></use></svg><b>${slice.item.label}</b></span>`;
+      } else {
+        const art = pieceImage(slice.item.type, WHITE);
+        const hue = pieceHue(slice.item.type);
+        const tint = hue ? `filter:hue-rotate(${hue}deg)` : '';
+        inner = `<i class="spoils-art" style="background-image:url('${art}');${tint}"></i>`;
+      }
+      icons.push(`<div class="spoils-slice-icon${thin ? ' thin' : ''}" style="left:${x.toFixed(2)}%;top:${y.toFixed(2)}%"><span class="spoils-slice-face">${inner}</span></div>`);
+    }
+
+    wheel.innerHTML = `
+      <svg viewBox="0 0 200 200" aria-hidden="true">${parts.join('')}</svg>
+      <div class="spoils-icons">${icons.join('')}</div>
+    `;
+    wheel.style.transition = 'none';
+    wheel.style.transform = 'rotate(0deg)';
+    return slices;
+  }
+
+  function showSpoils(reward, title) {
+    const modal = $('modal-spoils');
+    const wheel = $('spoils-wheel');
+    const take = $('btn-spoils-take');
+    const card = modal?.querySelector('.spoils-card');
+    if (!modal || !wheel || !take) {
+      afterFightRewards();
+      return;
+    }
+    const spoils = reward.spoils;
+    if (!spoils || spoils.winner < 0 || !spoils.items?.length) {
+      afterFightRewards();
+      return;
+    }
+
+    hideSpoils();
+    const token = spoilsAnim;
+    setTitleText($('spoils-title'), title || 'THE KING FALLS', 'good');
+    setGameText($('spoils-purse'), `The purse is ${reward.gold} gold.`);
+    const callout = $('spoils-callout');
+    callout.className = 'spoils-callout';
+    callout.textContent = 'The wheel turns…';
+    take.classList.add('hidden');
+    take.onclick = null;
+    card?.classList.remove('landed');
+    const slices = paintSpoilsWheel(spoils.items);
+    modal.classList.remove('hidden');
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const winner = slices[spoils.winner];
+    const turns = 5 + Math.floor(Math.random() * 3);
+    const endRot = turns * 360 - (winner?.mid || 0);
+    let landed = false;
+    const faces = () => wheel.querySelectorAll('.spoils-slice-face');
+    const setRot = (rot) => {
+      wheel.style.transform = `rotate(${rot}deg)`;
+      faces().forEach((el) => { el.style.transform = `rotate(${-rot}deg)`; });
+    };
+    const land = () => {
+      if (token !== spoilsAnim || landed) return;
+      landed = true;
+      spoilsFinish = null;
+      setRot(endRot);
+      finishSpoilsLand(reward, slices[spoils.winner]);
+    };
+    spoilsFinish = land;
+    if (reduced) {
+      land();
+      return;
+    }
+
+    const duration = 4000;
+    const t0 = performance.now();
+    const ease = (t) => 1 - Math.pow(1 - t, 4);
+    const bounds = slices.map((s) => s.start);
+    let lastOrig = 0;
+    let lastPeg = 0;
+    const step = (now) => {
+      if (token !== spoilsAnim) return;
+      const p = Math.min(1, (now - t0) / duration);
+      const rot = endRot * ease(p);
+      setRot(rot);
+      const orig = ((-rot) % 360 + 360) % 360;
+      if (p > 0.012 && now - lastPeg > 28) {
+        let crossed = false;
+        for (const b of bounds) {
+          if (lastOrig > orig) crossed = crossed || (b <= lastOrig && b > orig);
+          else crossed = crossed || (b <= lastOrig || b > orig);
+        }
+        if (crossed) {
+          audio.peg(1 - p);
+          lastPeg = now;
+        }
+      }
+      lastOrig = orig;
+      if (p < 1) requestAnimationFrame(step);
+      else land();
+    };
+    requestAnimationFrame(step);
+
+    spoilsSkipHandler = (e) => {
+      if (e.target.closest('#btn-spoils-take')) return;
+      if (spoilsFinish) spoilsFinish();
+    };
+    modal.addEventListener('click', spoilsSkipHandler);
+  }
+
+  function finishSpoilsLand(reward, slice) {
+    claimSpoils(state.run);
+    paintRunHud();
+    const take = $('btn-spoils-take');
+    const callout = $('spoils-callout');
+    const card = $('modal-spoils')?.querySelector('.spoils-card');
+    card?.classList.add('landed');
+    const winPath = $('spoils-wheel')?.querySelector(`path[data-slice="${slice?.i ?? reward.spoils.winner}"]`);
+    if (winPath) winPath.classList.add('winner');
+    const prize = slice?.item || reward.spoils.items[reward.spoils.winner];
+    let tone = 'prize';
+    if (!prize) {
+      callout.textContent = 'Nothing extra.';
+      take.textContent = 'Continue';
+    } else if (prize.kind === 'gold') {
+      callout.textContent = `+${prize.amount} gold from the field.`;
+      take.textContent = 'Take the gold';
+    } else {
+      const def = pieceById(prize.type);
+      const sold = state.run.lastReward?.dropSold || 0;
+      tone = def?.rarity || 'prize';
+      callout.textContent = sold
+        ? `A ${def?.name || prize.type} — no slot, sold for ${sold}g.`
+        : `A ${def?.name || prize.type}. It joins the bag.`;
+      take.textContent = sold ? 'Take the gold' : 'Take it';
+      if (tone !== 'common') {
+        state.lastDrop = { type: prize.type, sold };
+        confetti();
+      }
+    }
+    callout.className = `spoils-callout ${tone}`;
+    take.classList.remove('hidden');
   }
 
   const DROP_DIAGRAM = {
@@ -1640,6 +1842,7 @@ export function initCampaign(ctx) {
     resetClassicButtons();
     const run = state.run;
     $('modal-result').classList.add('hidden');
+    hideSpoils();
     if (run?.won) {
       audio.victory();
       confetti();
@@ -1723,6 +1926,7 @@ export function initCampaign(ctx) {
   function abandon() {
     closeBag();
     $('modal-result').classList.add('hidden');
+    hideSpoils();
     resetClassicButtons();
     state.mode = 'classic';
     state.generation++;
@@ -1788,6 +1992,16 @@ export function initCampaign(ctx) {
     paintShop();
   });
   $('btn-continue').addEventListener('click', continueAfterFight);
+  if ($('btn-spoils-take')) {
+    $('btn-spoils-take').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (spoilsFinish) { spoilsFinish(); return; }
+      const modal = $('modal-spoils');
+      if (!modal || modal.classList.contains('hidden')) return;
+      hideSpoils();
+      afterFightRewards();
+    });
+  }
   $('btn-retry').addEventListener('click', retryFight);
   $('btn-forfeit').addEventListener('click', forfeitFight);
   $('btn-rest-move-on').addEventListener('click', () => {

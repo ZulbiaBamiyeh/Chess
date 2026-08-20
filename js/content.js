@@ -1605,7 +1605,24 @@ export const SHOP_WEIGHTS = {
   3: { common: 22, rare: 38, epic: 28, legendary: 12 },
 };
 
-export const DROP_CHANCE = { trash: 0.18, elite: 0.42, boss: 1 };
+/**
+ * Extra purse on the spoils wheel, by fight tier. Weights sit next to the
+ * piece table below so gold is the common landing and a fat slice, not a
+ * coin-flip against a legendary.
+ */
+export const SPOIL_GOLD = {
+  trash: [{ amount: 1, weight: 38 }, { amount: 2, weight: 14 }],
+  elite: [{ amount: 1, weight: 22 }, { amount: 2, weight: 16 }, { amount: 3, weight: 8 }],
+  boss:  [{ amount: 2, weight: 16 }, { amount: 3, weight: 12 }, { amount: 4, weight: 8 }],
+};
+
+/** How often a looted piece lands, by rarity. Higher rarity is a thinner slice. */
+export const SPOIL_PIECE_WEIGHT = {
+  common: 16,
+  rare: 7,
+  epic: 3,
+  legendary: 1,
+};
 
 const ACT_LAYOUT = [
   { col: 0, rows: ['trash', 'trash', 'trash'] },

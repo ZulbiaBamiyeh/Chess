@@ -10,6 +10,7 @@ import {
   bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
   costFor, claimRelic, RELIC_SHIELD_CAP, TRAIN_COST, FORAGE_GOLD, freeHomeSquares,
   restHeal, forageGold, trainCost, payUndo, UNDO_HP, FIGHT_GOLD,
+  buildSpoils, rollSpoils, claimSpoils, SPOIL_PIECE_WEIGHT,
 } from '../js/run.js';
 import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS } from '../js/content.js';
 import { chooseMove } from '../js/ai.js';
@@ -991,21 +992,83 @@ function courtyardOrGate() {
 }
 
 {
-  // A boss should hand over the best thing it fielded. Rolling a pawn out of
-  // the hardest fight in the act made clearing one feel like nothing.
-  const enc = ENCOUNTERS.rimeguard;
-  const rarities = new Set();
-  for (let s = 0; s < 40; s++) {
-    const run = createRun(s * 31 + 1);
-    run.slots = { common: Infinity, rare: 9, epic: 9, legendary: 9 };
-    const game = buildFight(run, enc, autoPlace(enc, []));
-    game.board[game.kings.b] = null;
-    game.kings.b = -1;
-    const reward = settleFight(run, game, enc, { clockLeft: 4 });
-    if (reward.drop) rarities.add(PIECES[reward.drop].rarity);
+  assert('higher rarity is a thinner slice',
+    SPOIL_PIECE_WEIGHT.common > SPOIL_PIECE_WEIGHT.rare
+    && SPOIL_PIECE_WEIGHT.rare > SPOIL_PIECE_WEIGHT.epic
+    && SPOIL_PIECE_WEIGHT.epic > SPOIL_PIECE_WEIGHT.legendary);
+
+  const steward = buildSpoils(ENCOUNTERS.steward);
+  const types = steward.filter((it) => it.kind === 'piece').map((it) => it.type).sort();
+  assert('the wheel offers the enemy\'s pieces, not the king',
+    types.join(',') === 'n,p,r' && !steward.some((it) => it.type === 'k'));
+  assert('the wheel always offers extra gold', steward.some((it) => it.kind === 'gold' && it.amount >= 1));
+  const pawn = steward.find((it) => it.type === 'p');
+  const rook = steward.find((it) => it.type === 'r');
+  assert('a pawn outweighs a rook on the wheel', pawn.weight > rook.weight);
+
+  const rime = buildSpoils(ENCOUNTERS.rimeguard);
+  const rimePiece = rime.find((it) => it.type === 'i');
+  const rimePawn = rime.find((it) => it.type === 'p');
+  assert('a rime is a thinner slice than a pawn', rimePiece && rimePawn && rimePiece.weight < rimePawn.weight);
+}
+
+{
+  const run = createRun(1);
+  const pawns = run.bag.filter((p) => p.type === 'p').slice(0, 1);
+  const game = buildFight(run, gate, autoPlace(gate, pawns));
+  game.board[game.kings.b] = null;
+  game.kings.b = -1;
+  const goldBefore = run.gold;
+  const bagBefore = run.bag.length;
+  const reward = settleFight(run, game, gate);
+  assert('winning still pays the fight purse immediately',
+    reward.won && run.gold === goldBefore + FIGHT_GOLD.trash, JSON.stringify(reward));
+  assert('the extra prize waits on the wheel',
+    reward.spoils && reward.spoils.winner >= 0 && !reward.spoils.claimed && !reward.drop,
+    JSON.stringify(reward.spoils));
+  assert('the bag does not grow until the wheel lands', run.bag.length === bagBefore);
+
+  const prize = reward.spoils.items[reward.spoils.winner];
+  const claimed = claimSpoils(run);
+  assert('claiming marks the wheel done', claimed.spoils.claimed);
+  if (prize.kind === 'gold') {
+    assert('a gold landing pays the extra',
+      run.gold === goldBefore + FIGHT_GOLD.trash + prize.amount && claimed.bonusGold === prize.amount);
+  } else {
+    assert('a piece landing goes in the bag or sells',
+      run.bag.length === bagBefore + 1 || claimed.dropSold > 0, JSON.stringify(claimed));
   }
-  assert('a boss always drops, and drops its best piece',
-    rarities.size === 1 && !rarities.has(RARITY.COMMON), [...rarities].join(','));
+  const goldAfter = run.gold;
+  const bagAfter = run.bag.length;
+  claimSpoils(run);
+  assert('claiming twice does nothing', run.gold === goldAfter && run.bag.length === bagAfter);
+}
+
+{
+  const run = createRun(1);
+  const game = buildFight(run, gate, autoPlace(gate, []));
+  // Unwinnable-and-ahead is the flee path; forfeit is the simpler "no spoils".
+  const reward = settleFight(run, game, gate, { forfeit: true });
+  assert('a lost fight has no spoils', !reward.spoils && !reward.won);
+}
+
+{
+  // Across many seeds, gold and commons land more than epics and legendaries.
+  const enc = ENCOUNTERS.rimeguard;
+  const tally = { gold: 0, common: 0, rare: 0, epic: 0, legendary: 0 };
+  for (let s = 0; s < 240; s++) {
+    const run = createRun(s * 17 + 3);
+    const spun = rollSpoils(run, enc);
+    const prize = spun.items[spun.winner];
+    if (!prize) continue;
+    if (prize.kind === 'gold') tally.gold++;
+    else tally[prize.rarity] = (tally[prize.rarity] || 0) + 1;
+  }
+  assert('gold is the common landing on the wheel',
+    tally.gold > tally.common && tally.gold > tally.rare,
+    JSON.stringify(tally));
+  assert('commons land more than epics',
+    tally.common > tally.epic, JSON.stringify(tally));
 }
 
 {

@@ -2936,6 +2936,201 @@ kbd {
   .modal:not(.hidden) .drop-modal { animation: none; }
 }
 
+/* Spoils of victory: a prize wheel after a won fight. Gold is the fat
+   slice, a looted piece is the thin one, and the card is meant to feel like
+   a purse opened on the table rather than another results box. */
+.spoils-card {
+  max-width: min(94vw, 420px);
+  padding: 1.4rem 1.4rem 1.5rem;
+  background:
+    radial-gradient(ellipse at 50% 18%, rgba(255, 207, 63, 0.16), transparent 48%),
+    radial-gradient(ellipse at 50% 70%, rgba(192, 140, 255, 0.06), transparent 55%),
+    linear-gradient(170deg, var(--navy-700), var(--navy-800));
+}
+.spoils-kicker {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(255, 207, 63, 0.45);
+}
+.spoils-card h2 { margin: 0 0 0.35rem; }
+.spoils-purse {
+  margin: 0 0 1rem;
+  color: var(--ink-dim);
+  font-size: 0.88rem;
+}
+.spoils-stage {
+  position: relative;
+  width: min(72vw, 280px);
+  height: min(72vw, 280px);
+  margin: 0.2rem auto 1rem;
+  filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.55));
+}
+.spoils-wheel {
+  position: absolute;
+  inset: 10px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #120e08;
+  box-shadow:
+    0 0 0 3px #5c4314,
+    0 0 0 6px #e6c86a,
+    0 0 0 8px #8a6918,
+    0 0 0 11px #c9a44a,
+    inset 0 0 18px rgba(0, 0, 0, 0.55);
+  will-change: transform;
+}
+.spoils-wheel svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.spoils-wheel .spoils-icons {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.spoils-slice-icon {
+  position: absolute;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  translate: -50% -50%;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.65));
+}
+.spoils-slice-face {
+  display: grid;
+  place-items: center;
+}
+.spoils-wheel path.winner {
+  stroke: #ffe9a0;
+  stroke-width: 2.4;
+  filter: brightness(1.18);
+}
+.spoils-slice-icon.thin {
+  width: 14px;
+  height: 14px;
+}
+.spoils-slice-icon .spoils-art {
+  display: block;
+  width: 36px;
+  height: 36px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center bottom;
+}
+.spoils-slice-icon.thin .spoils-art { width: 12px; height: 12px; }
+.spoils-gold-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  color: var(--gold);
+  line-height: 1;
+}
+.spoils-gold-mark svg { width: 18px; height: 18px; }
+.spoils-gold-mark b {
+  font-family: var(--font-pixel);
+  font-size: 0.62rem;
+  color: var(--gold);
+}
+.spoils-slice-icon.thin .spoils-gold-mark b { display: none; }
+.spoils-pip {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 8px var(--gold);
+}
+.spoils-pip.rare { background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+.spoils-pip.epic { background: var(--violet); box-shadow: 0 0 8px var(--violet); }
+.spoils-pip.legendary { background: var(--gold); box-shadow: 0 0 10px #fff3b0; }
+.spoils-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 64px;
+  height: 64px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--gold);
+  background:
+    radial-gradient(circle at 35% 30%, #ffe9a0, #e6c86a 42%, #8a6918 76%, #3e2c0c);
+  box-shadow:
+    0 0 0 3px #1a1408,
+    0 0 0 5px #c9a44a,
+    0 6px 14px rgba(0, 0, 0, 0.55),
+    inset 0 2px 4px rgba(255, 255, 255, 0.35);
+}
+.spoils-pointer {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  z-index: 4;
+  translate: -50% 0;
+  width: 28px;
+  height: 36px;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+.spoils-pointer i {
+  display: block;
+  width: 0;
+  height: 0;
+  margin: 0 auto;
+  border-left: 13px solid transparent;
+  border-right: 13px solid transparent;
+  border-top: 26px solid var(--gold);
+}
+.spoils-pointer::after {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff4c8, var(--gold) 55%, var(--gold-deep));
+  box-shadow: 0 0 10px rgba(255, 207, 63, 0.8);
+}
+.spoils-callout {
+  min-height: 2.4em;
+  margin: 0 0 0.85rem;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+.spoils-callout.prize { color: var(--gold); }
+.spoils-callout.rare { color: var(--blue); }
+.spoils-callout.epic { color: var(--violet); }
+.spoils-callout.legendary { color: var(--gold); text-shadow: 0 0 16px rgba(255, 207, 63, 0.45); }
+.spoils-card.landed .spoils-wheel {
+  box-shadow:
+    0 0 0 3px #5c4314,
+    0 0 0 6px #e6c86a,
+    0 0 0 8px #8a6918,
+    0 0 0 11px #c9a44a,
+    0 0 28px rgba(255, 207, 63, 0.35),
+    inset 0 0 18px rgba(0, 0, 0, 0.55);
+}
+.modal:not(.hidden) .spoils-card { animation: drop-land 0.45s cubic-bezier(.2, .9, .3, 1.15); }
+@media (prefers-reduced-motion: reduce) {
+  .modal:not(.hidden) .spoils-card { animation: none; }
+}
+@media (max-width: 420px) {
+  .spoils-stage { width: min(78vw, 240px); height: min(78vw, 240px); }
+  .spoils-hub { width: 52px; height: 52px; }
+  .spoils-slice-icon { width: 34px; height: 34px; }
+  .spoils-slice-icon .spoils-art { width: 28px; height: 28px; }
+}
+
 .relic-modal { max-width: min(94vw, 760px); }
 .relic-choices {
   display: grid;

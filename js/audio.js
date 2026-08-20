@@ -986,6 +986,21 @@ export class AudioEngine {
     });
   }
 
+  /** A spoils-wheel peg ticking past the pointer. `rate` 1 is a fast pass. */
+  peg(rate = 1) {
+    const r = Math.max(0.05, Math.min(1, rate));
+    this.sfx((ctx, out, t) => {
+      this.body(ctx, out, t, {
+        freq: 380 + 420 * r, drop: 240 + 180 * r,
+        level: 0.045 + 0.07 * r, dur: 0.03 + 0.02 * r,
+      });
+      this.noise(ctx, out, t, {
+        type: 'highpass', freq: 1800 + 1400 * r, q: 0.8,
+        level: 0.03 + 0.05 * r, dur: 0.018,
+      });
+    });
+  }
+
   /** Rising major fanfare over a swell. */
   victory() {
     this.duck(0.2, 3.2);
