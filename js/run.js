@@ -1063,13 +1063,30 @@ export { KING_PASSIVES, homeSquares, freeHomeSquares, REST_GOLD, REST_HEAL, FORA
 
 // ---- events ---------------------------------------------------------------
 
+/** Gold you must be holding to take this choice, including a losing wager. */
+function goldStake(choice) {
+  let n = Number(choice.cost) || 0;
+  const scan = (list) => {
+    for (const e of list || []) {
+      if (typeof e.gold === 'number' && e.gold < 0) n += -e.gold;
+    }
+  };
+  scan(choice.effects);
+  if (choice.gamble) {
+    scan(choice.gamble.win);
+    scan(choice.gamble.lose);
+  }
+  return n;
+}
+
 /**
  * Can this choice be taken right now? Priced choices need the gold; a choice
  * that drops a piece needs something droppable left in the bag.
  */
 export function choiceAvailable(run, choice) {
-  if (choice.cost && run.gold < choice.cost) {
-    return { ok: false, reason: `Costs ${choice.cost}g` };
+  const stake = goldStake(choice);
+  if (stake && run.gold < stake) {
+    return { ok: false, reason: `Needs ${stake}g` };
   }
   const dropsAPiece = (choice.effects || []).some((e) => e.lose || e.upgrade);
   if (dropsAPiece && run.bag.length <= 1) {
@@ -1150,9 +1167,9 @@ export function applyChoice(run, choice, pickedUid = null) {
       if (id) {
         const added = addToBag(run, id);
         lines.push(added ? `${PIECES[id].name} joins the bag`
-          : `${PIECES[id].name} would not fit — sold for 12 gold`);
-        if (!added) run.gold += 12;
-        gained.push({ type: id, sold: added ? 0 : 12 });
+          : `${PIECES[id].name} would not fit — sold for 2 gold`);
+        if (!added) run.gold += 2;
+        gained.push({ type: id, sold: added ? 0 : 2 });
       }
     }
     if (effect.lose) {
@@ -1183,14 +1200,14 @@ export function applyChoice(run, choice, pickedUid = null) {
         if (id) {
           const added = addToBag(run, id);
           lines.push(added ? `${PIECES[id].name} comes out`
-            : `${PIECES[id].name} comes out — no slot, sold for 12 gold`);
-          if (!added) run.gold += 12;
-          gained.push({ type: id, sold: added ? 0 : 12 });
+            : `${PIECES[id].name} comes out — no slot, sold for 2 gold`);
+          if (!added) run.gold += 2;
+          gained.push({ type: id, sold: added ? 0 : 2 });
         } else {
           // A legendary has nothing above it, and a full slot at the tier
           // above has nowhere to put the result. Either way you are owed.
-          run.gold += 25;
-          lines.push('Nothing comes out but slag. +25 gold');
+          run.gold += 3;
+          lines.push('Nothing comes out but slag. +3 gold');
         }
       }
     }
@@ -1202,9 +1219,9 @@ export function applyChoice(run, choice, pickedUid = null) {
         const type = run.bag[at].type;
         const added = addToBag(run, type);
         lines.push(added ? `A second ${PIECES[type].name} joins the bag`
-          : `The copy has no slot — sold for 12 gold`);
-        if (!added) run.gold += 12;
-        gained.push({ type, sold: added ? 0 : 12 });
+          : `The copy has no slot — sold for 2 gold`);
+        if (!added) run.gold += 2;
+        gained.push({ type, sold: added ? 0 : 2 });
       }
     }
     if (effect.king) {
@@ -1218,8 +1235,8 @@ export function applyChoice(run, choice, pickedUid = null) {
         run.kings.push(id);
         lines.push(`${KING_PASSIVES[id].name} King joins the bag`);
       } else {
-        run.gold += 20;
-        lines.push('You already carry every crown they had. +20 gold');
+        run.gold += 3;
+        lines.push('You already carry every crown they had. +3 gold');
       }
     }
   }

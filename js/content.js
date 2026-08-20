@@ -1030,8 +1030,8 @@ export const EVENTS = {
     text: 'A rook cast in gold sits alone on a plinth, in a room that has clearly '
       + 'killed people. There is a pressure plate under it.',
     choices: [
-      { label: 'Take it', detail: '+35 gold. The room takes its due (−4 HP).',
-        effects: [{ gold: 35 }, { hp: -4 }] },
+      { label: 'Take it', detail: '+3 gold. The room takes its due (−4 HP).',
+        effects: [{ gold: 3 }, { hp: -4 }] },
       { label: 'Leave it', detail: 'Nothing ventured.', effects: [] },
     ],
   },
@@ -1040,9 +1040,9 @@ export const EVENTS = {
     text: 'A chaplain is boiling water over a fire and does not look up. '
       + '"Wounds or weight," he says. "I can take one."',
     choices: [
-      { label: 'Heal', detail: 'Pay 20 gold, recover 10 HP.', cost: 20, effects: [{ heal: 10 }] },
-      { label: 'Lighten the bag', detail: 'Pay 30 gold, drop a piece of your choice.',
-        cost: 30, effects: [{ lose: 'choose' }] },
+      { label: 'Heal', detail: 'Pay 4 gold, recover 8 HP.', cost: 4, effects: [{ heal: 8 }] },
+      { label: 'Lighten the bag', detail: 'Pay 6 gold, drop a piece of your choice.',
+        cost: 6, effects: [{ lose: 'choose' }] },
       { label: 'Move on', detail: 'He goes back to the water.', effects: [] },
     ],
   },
@@ -1067,7 +1067,7 @@ export const EVENTS = {
     choices: [
       { label: 'Make an offering', detail: '−5 HP, and drop a piece of your choice.',
         effects: [{ hp: -5 }, { lose: 'choose' }] },
-      { label: 'Pray instead', detail: '+12 gold from the offering bowl.', effects: [{ gold: 12 }] },
+      { label: 'Pray instead', detail: '+2 gold from the offering bowl.', effects: [{ gold: 2 }] },
     ],
   },
   quartermistress: {
@@ -1075,10 +1075,10 @@ export const EVENTS = {
     text: 'A woman with a ledger looks your baggage train up and down and sniffs. '
       + '"You are carrying it wrong," she says. "I can fix that. Once."',
     choices: [
-      { label: 'Wider train', detail: 'Pay 40 gold. +1 piece in every fight, permanently.',
-        cost: 40, effects: [{ deploy: 1 }] },
-      { label: 'Deeper stores', detail: 'Pay 40 gold. +2 supply in every fight, permanently.',
-        cost: 40, effects: [{ supply: 2 }] },
+      { label: 'Wider train', detail: 'Pay 8 gold. +1 piece in every fight, permanently.',
+        cost: 8, effects: [{ deploy: 1 }] },
+      { label: 'Deeper stores', detail: 'Pay 8 gold. +2 supply in every fight, permanently.',
+        cost: 8, effects: [{ supply: 2 }] },
       { label: 'Decline', detail: 'She shrugs and writes something down.', effects: [] },
     ],
   },
@@ -1087,10 +1087,10 @@ export const EVENTS = {
     text: 'Three cups, one pawn, and a man whose hands you cannot follow. '
       + '"Double or nothing," he says, already shuffling.',
     choices: [
-      { label: 'Play', detail: 'Half the time you double 25 gold. Half the time you do not.',
-        gamble: { odds: 0.5, win: [{ gold: 25 }], lose: [{ gold: -25 }] }, effects: [] },
-      { label: 'Tip the table', detail: 'Take 10 gold in the confusion. −2 HP when he objects.',
-        effects: [{ gold: 10 }, { hp: -2 }] },
+      { label: 'Play', detail: 'Wager 3 gold. Half the time you double it. Half the time you do not.',
+        gamble: { odds: 0.5, win: [{ gold: 3 }], lose: [{ gold: -3 }] }, effects: [] },
+      { label: 'Tip the table', detail: 'Take 2 gold in the confusion. −2 HP when he objects.',
+        effects: [{ gold: 2 }, { hp: -2 }] },
       { label: 'Walk on', detail: 'You have seen this one.', effects: [] },
     ],
   },
@@ -1099,9 +1099,9 @@ export const EVENTS = {
     text: 'A soldier sitting against a wall with his colours torn off. '
       + '"I am not going back," he says. "But I will come with you, if you feed me."',
     choices: [
-      { label: 'Feed him', detail: 'Pay 25 gold. He joins the bag.',
-        cost: 25, effects: [{ gain: 'random-rare' }] },
-      { label: 'Take his kit', detail: '+18 gold. He does not stop you.', effects: [{ gold: 18 }] },
+      { label: 'Feed him', detail: 'Pay 6 gold. He joins the bag.',
+        cost: 6, effects: [{ gain: 'random-rare' }] },
+      { label: 'Take his kit', detail: '+2 gold. He does not stop you.', effects: [{ gold: 2 }] },
       { label: 'Leave him', detail: 'He is still sitting there when you look back.', effects: [] },
     ],
   },
@@ -1110,8 +1110,8 @@ export const EVENTS = {
     text: 'A forge still warm from someone else. You could put something in it. '
       + 'It would not come out the same.',
     choices: [
-      { label: 'Feed the fire', detail: 'Drop a piece of your choice, take 45 gold for the metal.',
-        effects: [{ lose: 'choose' }, { gold: 45 }] },
+      { label: 'Feed the fire', detail: 'Drop a piece of your choice, take 5 gold for the metal.',
+        effects: [{ lose: 'choose' }, { gold: 5 }] },
       { label: 'Warm yourself', detail: 'Recover 8 HP by the coals.', effects: [{ heal: 8 }] },
     ],
   },
@@ -1120,8 +1120,8 @@ export const EVENTS = {
     text: 'It is coiled on a strongbox and it is in no hurry. '
       + '"Take it," it says, eventually. "I only want a little."',
     choices: [
-      { label: 'Take the box', detail: '+50 gold. −2 maximum HP, permanently.',
-        effects: [{ gold: 50 }, { maxHp: -2 }] },
+      { label: 'Take the box', detail: '+4 gold. −2 maximum HP, permanently.',
+        effects: [{ gold: 4 }, { maxHp: -2 }] },
       { label: 'Refuse', detail: 'It seems almost relieved.', effects: [] },
     ],
   },
@@ -1130,10 +1130,10 @@ export const EVENTS = {
     text: 'He is drawing the road you just walked, and he has it wrong. '
       + '"Corrections are free," he says. "Advice costs."',
     choices: [
-      { label: 'Buy advice', detail: 'Pay 15 gold, recover 6 HP and take 5 gold of scrap.',
-        cost: 15, effects: [{ heal: 6 }, { gold: 5 }] },
-      { label: 'Correct his map', detail: 'He pays you 20 gold for the trouble.',
-        effects: [{ gold: 20 }] },
+      { label: 'Buy advice', detail: 'Pay 4 gold, recover 6 HP.',
+        cost: 4, effects: [{ heal: 6 }] },
+      { label: 'Correct his map', detail: 'He pays you 2 gold for the trouble.',
+        effects: [{ gold: 2 }] },
     ],
   },
   armoury: {
@@ -1147,7 +1147,7 @@ export const EVENTS = {
         effects: [{ gain: 'random-common' }, { gain: 'random-common' }] },
       { label: 'Force the locked cabinet', detail: 'An epic piece. The lock takes 8 HP to break.',
         effects: [{ hp: -8 }, { gain: 'random-epic' }] },
-      { label: 'Take the door instead', detail: '+22 gold for good iron.', effects: [{ gold: 22 }] },
+      { label: 'Take the door instead', detail: '+2 gold for good iron.', effects: [{ gold: 2 }] },
     ],
   },
   wellspring: {
@@ -1158,8 +1158,8 @@ export const EVENTS = {
       { label: 'Drink', detail: 'Recover 12 HP.', effects: [{ heal: 12 }] },
       { label: 'Bathe', detail: '+3 maximum HP, permanently, and heal to full.',
         effects: [{ maxHp: 3 }, { heal: 99 }] },
-      { label: 'Look longer', detail: 'Something down there gives you 30 gold to stop.',
-        effects: [{ gold: 30 }, { hp: -3 }] },
+      { label: 'Look longer', detail: 'Something down there gives you 3 gold to stop.',
+        effects: [{ gold: 3 }, { hp: -3 }] },
     ],
   },
 
@@ -1172,8 +1172,8 @@ export const EVENTS = {
     choices: [
       { label: 'Take the shovel', detail: 'A Reanimator joins you. It costs you something to carry (−3 HP).',
         effects: [{ gain: 'reaper' }, { hp: -3 }] },
-      { label: 'Pay him to stop', detail: '−25 gold. He gives you back what he found (+6 HP).',
-        effects: [{ gold: -25 }, { heal: 6 }] },
+      { label: 'Pay him to stop', detail: '−5 gold. He gives you back what he found (+6 HP).',
+        effects: [{ gold: -5 }, { heal: 6 }] },
       { label: 'Walk on', detail: 'It is not your hole.', effects: [] },
     ],
   },
@@ -1184,8 +1184,8 @@ export const EVENTS = {
     choices: [
       { label: 'Take the bow', detail: 'A Crossbow joins the bag.',
         effects: [{ gain: 'crossbow' }] },
-      { label: 'Sell the mechanism', detail: '+28 gold for the parts.',
-        effects: [{ gold: 28 }] },
+      { label: 'Sell the mechanism', detail: '+3 gold for the parts.',
+        effects: [{ gold: 3 }] },
       { label: 'Leave it spanned', detail: 'Something is coming back for it.', effects: [] },
     ],
   },
@@ -1208,8 +1208,8 @@ export const EVENTS = {
     choices: [
       { label: 'Learn the routes', detail: 'A Courier joins the bag, and two more supply.',
         effects: [{ gain: 'courier' }, { supply: 2 }] },
-      { label: 'Burn the ledgers', detail: '+30 gold from whoever wanted them gone.',
-        effects: [{ gold: 30 }] },
+      { label: 'Burn the ledgers', detail: '+2 gold from whoever wanted them gone.',
+        effects: [{ gold: 2 }] },
       { label: 'Close the door', detail: 'Leave the routes for the next one through.', effects: [] },
     ],
   },
@@ -1222,8 +1222,8 @@ export const EVENTS = {
         effects: [{ gain: 'gnu' }, { hp: -2 }] },
       { label: 'Take the quick one', detail: 'A Squirrel joins the bag.',
         effects: [{ gain: 'squirrel' }] },
-      { label: 'Open every cage', detail: '+20 gold from the keeper, who runs.',
-        effects: [{ gold: 20 }] },
+      { label: 'Open every cage', detail: '+2 gold from the keeper, who runs.',
+        effects: [{ gold: 2 }] },
     ],
   },
   drillsergeant: {
@@ -1231,8 +1231,8 @@ export const EVENTS = {
     text: 'He watches your army walk past and says nothing for a long time. '
       + 'Then: "They move like a crowd. I could make them move like a line."',
     choices: [
-      { label: 'Let him drill them', detail: '−20 gold. One more body in every fight, for good.',
-        effects: [{ gold: -20 }, { deploy: 1 }] },
+      { label: 'Let him drill them', detail: '−6 gold. One more body in every fight, for good.',
+        effects: [{ gold: -6 }, { deploy: 1 }] },
       { label: 'Ask for his own kit', detail: 'A Guard joins the bag, free.',
         effects: [{ gain: 'guard' }] },
       { label: 'March past', detail: 'You have somewhere to be.', effects: [] },
@@ -1247,10 +1247,10 @@ export const EVENTS = {
     text: 'One stone bridge, one man sitting in the middle of it with a spear '
       + 'across his knees. "Toll," he says. "Coin or blood. Everybody pays one."',
     choices: [
-      { label: 'Pay in coin', detail: '−18 gold.', effects: [{ gold: -18 }] },
+      { label: 'Pay in coin', detail: '−3 gold.', effects: [{ gold: -3 }] },
       { label: 'Pay in blood', detail: '−6 HP.', effects: [{ hp: -6 }] },
-      { label: 'Force the bridge', detail: 'You get across. It costs more than either toll (−28 gold, −4 HP).',
-        effects: [{ gold: -28 }, { hp: -4 }] },
+      { label: 'Force the bridge', detail: 'You get across. It costs more than either toll (−5 gold, −4 HP).',
+        effects: [{ gold: -5 }, { hp: -4 }] },
     ],
   },
   ledger: {
@@ -1258,7 +1258,7 @@ export const EVENTS = {
     text: 'Someone has been keeping a ledger on you since before you knew this '
       + 'road existed. "It is due," the collector says, not unkindly. "Pick the page."',
     choices: [
-      { label: 'Settle in coin', detail: '−32 gold.', effects: [{ gold: -32 }] },
+      { label: 'Settle in coin', detail: '−5 gold.', effects: [{ gold: -5 }] },
       { label: 'Settle in kind', detail: 'Drop a piece of your choice.', effects: [{ lose: 'choose' }] },
       { label: 'Settle in years', detail: '−3 maximum HP, permanently.', effects: [{ maxHp: -3 }] },
     ],
@@ -1301,10 +1301,10 @@ export const EVENTS = {
     text: 'He has not eaten in a while and he is not going to pretend otherwise. '
       + '"I have nothing to trade you," he says. "I am only asking."',
     choices: [
-      { label: 'Feed him', detail: '−12 gold. Nothing else happens — that was the point.',
-        effects: [{ gold: -12 }] },
-      { label: 'Take his measure instead', detail: '+15 gold from whatever he still has. −3 HP; he does not go quietly.',
-        effects: [{ gold: 15 }, { hp: -3 }] },
+      { label: 'Feed him', detail: '−2 gold. Nothing else happens — that was the point.',
+        effects: [{ gold: -2 }] },
+      { label: 'Take his measure instead', detail: '+2 gold from whatever he still has. −3 HP; he does not go quietly.',
+        effects: [{ gold: 2 }, { hp: -3 }] },
       { label: 'Walk past', detail: 'He is still there when the road bends.', effects: [] },
     ],
   },
@@ -1313,8 +1313,8 @@ export const EVENTS = {
     text: 'A stack of stones with a name under every one, and space left for more. '
       + 'Someone has been adding to it for a long time. It is not clear who buries whom.',
     choices: [
-      { label: 'Add a stone', detail: 'Drop a piece of your choice. The cairn pays for it (+38 gold).',
-        effects: [{ lose: 'choose' }, { gold: 38 }] },
+      { label: 'Add a stone', detail: 'Drop a piece of your choice. The cairn pays for it (+5 gold).',
+        effects: [{ lose: 'choose' }, { gold: 5 }] },
       { label: 'Take a stone instead', detail: '−5 HP prising one loose. Gain a common piece someone left buried with it.',
         effects: [{ hp: -5 }, { gain: 'random-common' }] },
       { label: 'Leave it standing', detail: 'Some debts are not yours.', effects: [] },
@@ -1325,9 +1325,9 @@ export const EVENTS = {
     text: 'A gap in the hedge that was not on the map, going the right direction. '
       + 'Shortcuts on this road are never free — the only question is what they take.',
     choices: [
-      { label: 'Take it', detail: 'Skip straight past the next room\'s worth of walking — recover 9 HP for the time saved. '
-        + 'You come out the other side lighter (−15 gold, whoever was watching the gap was not watching for free).',
-        effects: [{ heal: 9 }, { gold: -15 }] },
+      { label: 'Take it', detail: 'Skip straight past the next room\'s worth of walking — recover 6 HP for the time saved. '
+        + 'You come out the other side lighter (−3 gold, whoever was watching the gap was not watching for free).',
+        effects: [{ heal: 6 }, { gold: -3 }] },
       { label: 'Keep to the road', detail: 'Slower, but yours.', effects: [] },
     ],
   },
@@ -1345,8 +1345,8 @@ export const EVENTS = {
     choices: [
       { label: 'Cut a piece loose', detail: 'A Lodestone joins the bag. −5 HP; it fights you the whole way.',
         effects: [{ gain: 'lodestone' }, { hp: -5 }] },
-      { label: 'Take the stuck picks', detail: 'Good iron, badly wanted elsewhere. +26 gold.',
-        effects: [{ gold: 26 }] },
+      { label: 'Take the stuck picks', detail: 'Good iron, badly wanted elsewhere. +3 gold.',
+        effects: [{ gold: 3 }] },
       { label: 'Leave the seam', detail: 'It is still pulling when you are out of sight.', effects: [] },
     ],
   },
@@ -1358,8 +1358,8 @@ export const EVENTS = {
     choices: [
       { label: 'Walk in and meet it', detail: 'A Basilisk follows you out. It costs you badly (−9 HP, −2 maximum HP).',
         effects: [{ gain: 'basilisk' }, { hp: -9 }, { maxHp: -2 }] },
-      { label: 'Chip the statues for stone', detail: '+34 gold, and nothing follows you.',
-        effects: [{ gold: 34 }] },
+      { label: 'Chip the statues for stone', detail: '+4 gold, and nothing follows you.',
+        effects: [{ gold: 4 }] },
       { label: 'Go around the grove', detail: 'A long way around, but a way around.', effects: [] },
     ],
   },
@@ -1369,10 +1369,10 @@ export const EVENTS = {
       + 'around it rather than through. Close up you can see the plates still '
       + 'fit, and that it is not obviously dead.',
     choices: [
-      { label: 'Wake it', detail: 'A Colossus joins you. Getting it upright costs 30 gold and 6 HP.',
-        cost: 30, effects: [{ gain: 'colossus' }, { hp: -6 }] },
-      { label: 'Strip the plating', detail: 'Armour enough to sell twice over. +40 gold.',
-        effects: [{ gold: 40 }] },
+      { label: 'Wake it', detail: 'A Colossus joins you. Getting it upright costs 8 gold and 6 HP.',
+        cost: 8, effects: [{ gain: 'colossus' }, { hp: -6 }] },
+      { label: 'Strip the plating', detail: 'Armour enough to sell twice over. +5 gold.',
+        effects: [{ gold: 5 }] },
       { label: 'Let it lie', detail: 'It has earned that much.', effects: [] },
     ],
   },
@@ -1383,8 +1383,8 @@ export const EVENTS = {
     choices: [
       { label: 'Take a tube', detail: 'A Bombard joins the bag. −3 HP loading it.',
         effects: [{ gain: 'bombard' }, { hp: -3 }] },
-      { label: 'Take the powder', detail: 'Sells well and travels badly. +24 gold, −2 HP.',
-        effects: [{ gold: 24 }, { hp: -2 }] },
+      { label: 'Take the powder', detail: 'Sells well and travels badly. +3 gold, −2 HP.',
+        effects: [{ gold: 3 }, { hp: -2 }] },
       { label: 'Take the horses', detail: 'One more piece in every fight, for good.',
         effects: [{ deploy: 1 }] },
     ],
@@ -1395,10 +1395,10 @@ export const EVENTS = {
       + 'into something that was never yours. The smith\'s note says only: BETTER, '
       + 'NOT MORE.',
     choices: [
-      { label: 'Feed it a piece', detail: 'It comes back out one rarity higher. Costs 20 gold and 4 HP.',
-        cost: 20, effects: [{ upgrade: true }, { hp: -4 }] },
-      { label: 'Bank the fire', detail: 'Warm work for a night. +10 gold, +5 HP.',
-        effects: [{ gold: 10 }, { heal: 5 }] },
+      { label: 'Feed it a piece', detail: 'It comes back out one rarity higher. Costs 5 gold and 4 HP.',
+        cost: 5, effects: [{ upgrade: true }, { hp: -4 }] },
+      { label: 'Bank the fire', detail: 'Warm work for a night. +2 gold, +5 HP.',
+        effects: [{ gold: 2 }, { heal: 5 }] },
       { label: 'Let it go out', detail: 'Somebody will relight it.', effects: [] },
     ],
   },
@@ -1407,11 +1407,11 @@ export const EVENTS = {
     text: 'A door with no handle and a slot at chest height, worn smooth. '
       + 'Whatever is behind it has been paid for many times and collected once.',
     choices: [
-      { label: 'Pay the slot', detail: 'Costs 80 gold. Something legendary is behind that door.',
-        cost: 80, effects: [{ gain: 'random-legendary' }] },
+      { label: 'Pay the slot', detail: 'Costs 12 gold. Something legendary is behind that door.',
+        cost: 12, effects: [{ gain: 'random-legendary' }] },
       { label: 'Force the door', detail: 'It opens. So does something in you (−11 HP), '
-        + 'but you take a rare piece and 15 gold out with you.',
-        effects: [{ hp: -11 }, { gain: 'random-rare' }, { gold: 15 }] },
+        + 'but you take a rare piece and 3 gold out with you.',
+        effects: [{ hp: -11 }, { gain: 'random-rare' }, { gold: 3 }] },
       { label: 'Leave it sealed', detail: 'It has waited this long.', effects: [] },
     ],
   },
@@ -1423,7 +1423,7 @@ export const EVENTS = {
     choices: [
       { label: 'Put it on', detail: 'A king you do not own joins the bag. It takes 4 maximum HP to wear.',
         effects: [{ king: 'random' }, { maxHp: -4 }] },
-      { label: 'Sell the stones', detail: '+30 gold, and the tent stays empty.', effects: [{ gold: 30 }] },
+      { label: 'Sell the stones', detail: '+3 gold, and the tent stays empty.', effects: [{ gold: 3 }] },
       { label: 'Leave the tent', detail: 'Whoever ran had a reason.', effects: [] },
     ],
   },
@@ -1435,7 +1435,7 @@ export const EVENTS = {
     choices: [
       { label: 'Put a piece up', detail: 'Even odds. Win and an epic piece is yours; lose and she keeps what you staked.',
         gamble: { odds: 0.5, win: [{ gain: 'random-epic' }], lose: [{ lose: 'choose' }] }, effects: [] },
-      { label: 'Buy her off', detail: '−22 gold. She lets the crossing go.', effects: [{ gold: -22 }] },
+      { label: 'Buy her off', detail: '−4 gold. She lets the crossing go.', effects: [{ gold: -4 }] },
       { label: 'Refuse and walk', detail: 'She lets you, and watches the whole way.', effects: [] },
     ],
   },
@@ -1445,8 +1445,8 @@ export const EVENTS = {
       + 'nowhere and the strongbox still roped down. The water is moving faster '
       + 'than it looks.',
     choices: [
-      { label: 'Go in for the box', detail: 'A rare piece and 18 gold. The ford takes 7 HP for it.',
-        effects: [{ hp: -7 }, { gain: 'random-rare' }, { gold: 18 }] },
+      { label: 'Go in for the box', detail: 'A rare piece and 2 gold. The ford takes 7 HP for it.',
+        effects: [{ hp: -7 }, { gain: 'random-rare' }, { gold: 2 }] },
       { label: 'Cut the horse free', detail: 'It is still alive under there. +2 maximum HP for the trouble, and it heals you 4.',
         effects: [{ maxHp: 2 }, { heal: 4 }] },
       { label: 'Ford it further down', detail: 'Dry, and slower.', effects: [] },
@@ -1458,10 +1458,10 @@ export const EVENTS = {
       + 'in a hand far too good for the job. "I can teach one of yours to move '
       + 'like something else," she says. "It will not thank you."',
     choices: [
-      { label: 'Have one taught', detail: 'A piece of your choice becomes one rarity better. Costs 15 gold.',
-        cost: 15, effects: [{ upgrade: true }] },
-      { label: 'Buy a copy of her notes', detail: '−18 gold, +2 supply in every fight, permanently.',
-        cost: 18, effects: [{ supply: 2 }] },
+      { label: 'Have one taught', detail: 'A piece of your choice becomes one rarity better. Costs 4 gold.',
+        cost: 4, effects: [{ upgrade: true }] },
+      { label: 'Buy a copy of her notes', detail: '−5 gold, +2 supply in every fight, permanently.',
+        cost: 5, effects: [{ supply: 2 }] },
       { label: 'Leave her to it', detail: 'She does not look up.', effects: [] },
     ],
   },
@@ -1486,8 +1486,8 @@ export const EVENTS = {
       + 'before you do. "Show it something worth having," it says, "and I will make '
       + 'it real. Once."',
     choices: [
-      { label: 'Show it a piece', detail: 'A piece of your choice is copied exactly, rarity and all. Costs 20 gold.',
-        cost: 20, effects: [{ duplicate: true }] },
+      { label: 'Show it a piece', detail: 'A piece of your choice is copied exactly, rarity and all. Costs 6 gold.',
+        cost: 6, effects: [{ duplicate: true }] },
       { label: 'Turn the mirror to the wall', detail: 'Some things should not be doubled.', effects: [] },
     ],
   },
@@ -1501,8 +1501,8 @@ export const EVENTS = {
         detail: 'They take your priciest piece. Half the time an epic comes back; otherwise the crows keep both.',
         effects: [{ lose: 'priciest' }],
         gamble: { odds: 0.5, win: [{ gain: 'random-epic' }], lose: [] } },
-      { label: 'Throw them gold instead', detail: '−20 gold. They scatter, and you take a rare from the bundle.',
-        cost: 20, effects: [{ gain: 'random-rare' }] },
+      { label: 'Throw them gold instead', detail: '−5 gold. They scatter, and you take a rare from the bundle.',
+        cost: 5, effects: [{ gain: 'random-rare' }] },
       { label: 'Walk wide of the tree', detail: 'The bundle stays where it is.', effects: [] },
     ],
   },
@@ -1513,8 +1513,8 @@ export const EVENTS = {
     choices: [
       { label: 'Pull it free', detail: 'An epic piece joins the bag. The oak takes 6 HP for the privilege.',
         effects: [{ gain: 'random-epic' }, { hp: -6 }] },
-      { label: 'Leave an offering', detail: '−12 gold. The tree gives you 8 HP back, and nothing else.',
-        cost: 12, effects: [{ heal: 8 }] },
+      { label: 'Leave an offering', detail: '−4 gold. The tree gives you 8 HP back, and nothing else.',
+        cost: 4, effects: [{ heal: 8 }] },
       { label: 'Let it rust', detail: 'Saints can wait.', effects: [] },
     ],
   },
@@ -1523,8 +1523,8 @@ export const EVENTS = {
     text: 'A master with no students left, sitting on a folding stool in the road. '
       + '"I have one lesson," she says. "It is not a cheap one. It is also not a long one."',
     choices: [
-      { label: 'Pay for the lesson', detail: '−35 gold. An epic piece, taught in an afternoon.',
-        cost: 35, effects: [{ gain: 'random-epic' }] },
+      { label: 'Pay for the lesson', detail: '−8 gold. An epic piece, taught in an afternoon.',
+        cost: 8, effects: [{ gain: 'random-epic' }] },
       { label: 'Offer a piece as tuition', detail: 'Leave a piece of your choice. Take an epic in its place.',
         effects: [{ lose: 'choose' }, { gain: 'random-epic' }] },
       { label: 'Decline', detail: 'She folds the stool and does not argue.', effects: [] },
@@ -1553,7 +1553,7 @@ export const EVENTS = {
         effects: [{ gain: 'random-epic' }, { hp: -4 }] },
       { label: 'Go in after it', detail: 'A legendary. −10 HP and −2 maximum HP. The oak is not a gentle teacher.',
         effects: [{ gain: 'random-legendary' }, { hp: -10 }, { maxHp: -2 }] },
-      { label: 'Stopper the hollow', detail: '+16 gold from whoever wanted it shut.', effects: [{ gold: 16 }] },
+      { label: 'Stopper the hollow', detail: '+2 gold from whoever wanted it shut.', effects: [{ gold: 2 }] },
     ],
   },
   longodds: {
@@ -1575,8 +1575,8 @@ export const EVENTS = {
       + 'says, already rolling a sleeve. "I have done this before. You will not enjoy '
       + 'it. You will not regret it either."',
     choices: [
-      { label: 'Give her a vein', detail: '−3 max HP, permanently. +30 gold.',
-        effects: [{ maxHp: -3 }, { gold: 30 }] },
+      { label: 'Give her a vein', detail: '−3 max HP, permanently. +4 gold.',
+        effects: [{ maxHp: -3 }, { gold: 4 }] },
       { label: 'Give her more', detail: '−8 max HP, permanently. A legendary piece.',
         effects: [{ maxHp: -8 }, { gain: 'random-legendary' }] },
       { label: 'Keep your blood', detail: 'She shrugs, unsurprised.', effects: [] },

@@ -628,6 +628,10 @@ function courtyardOrGate() {
   poor.gold = 0;
   const priced = Object.values(EVENTS).flatMap((e) => e.choices).find((c) => c.cost);
   assert('a priced choice is blocked when broke', !choiceAvailable(poor, priced).ok);
+  const wager = EVENTS.wager.choices.find((c) => c.gamble);
+  assert('a gold gamble is blocked when broke', !choiceAvailable(poor, wager).ok, JSON.stringify(choiceAvailable(poor, wager)));
+  const toll = EVENTS.tollkeeper.choices.find((c) => c.label === 'Pay in coin');
+  assert('a gold toll is blocked when broke', !choiceAvailable(poor, toll).ok);
 }
 
 {
