@@ -1242,7 +1242,11 @@ button.brand:hover { filter: brightness(1.15); }
   .board-wrap { grid-area: board; --board: min(64vw, 54vh); }
   .rail:not(.rail-moves) { grid-area: rail; flex-direction: row; flex-wrap: wrap; justify-content: center; }
   .rail:not(.rail-moves) .player-panel { flex: 1 1 180px; }
-  .rail-actions { flex-direction: row; flex: 1 1 100%; }
+  /* A plain row here squeezed every button's label onto two or three lines
+     and clipped the last one off the bottom of the screen on a phone —
+     letting them wrap keeps each button's text on one line. */
+  .rail-actions { flex-direction: row; flex-wrap: wrap; flex: 1 1 100%; }
+  .rail-actions > * { flex: 1 1 140px; }
   .rail-moves { grid-area: moves; max-height: 26vh; }
   .move-list { max-height: 20vh; }
   .brand { font-size: 0.8rem; }
@@ -1270,6 +1274,12 @@ button.brand:hover { filter: brightness(1.15); }
   .topbar .status, .topbar > .status { grid-area: status; justify-self: center; }
   .topbar .run-hud, .topbar > .run-hud { grid-area: hud; justify-content: center; width: 100%; }
   .topbar .topbar-controls { grid-area: controls; }
+
+  /* Fixed-to-bottom worked while the rails sat beside the board with empty
+     space under them; stacked on a phone, that space is the opponent panel
+     and its quip bubble, and the two sat on top of each other. The top of
+     the screen has room to spare instead. */
+  .tip-toast { bottom: auto; top: 7rem; }
 }
 
 @media (max-width: 560px) {
