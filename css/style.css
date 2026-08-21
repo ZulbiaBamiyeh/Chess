@@ -67,6 +67,12 @@
   box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 207, 63, 0.35) transparent;
+  /* Chrome/WebView on Android flashes a translucent blue overlay over
+     whatever you tap unless this is disabled — on the board that reads as
+     "the board goes blue" on every move, stepping all over the game's own
+     gold selection highlight. The desktop build never showed this because
+     it's a touch-only default. */
+  -webkit-tap-highlight-color: transparent;
 }
 ::selection { background: rgba(255, 207, 63, 0.35); color: var(--ink); }
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
@@ -1231,8 +1237,11 @@ button.brand:hover { filter: brightness(1.15); }
      fits — but centering an *overflowing* flex container clips equally off
      both ends instead of anchoring to the top, so the header and blurb were
      scrolling out of reach above the fold with no way back to them. Once a
-     screen can be taller than the viewport, it needs to read top-down. */
-  .screen { justify-content: flex-start; }
+     screen can be taller than the viewport, it needs to read top-down.
+     The title screen never overflows, so it keeps centering — anchoring it
+     to the top left the logo pinned near the status bar with a dead gap
+     of background art below the menu. */
+  .screen:not(#screen-start) { justify-content: flex-start; }
 
   .table {
     grid-template-columns: 1fr;
@@ -1525,6 +1534,15 @@ button.brand:hover { filter: brightness(1.15); }
   background-repeat: no-repeat;
   background-position: center bottom;
 }
+.hud-board {
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-family: inherit;
+  appearance: none;
+  padding: 0.32em 0.6em;
+}
+.hud-board .chip-ico { width: 16px; height: 16px; }
+.hud-board:hover { color: var(--gold); border-color: rgba(255, 207, 63, 0.35); }
 .game-title-sm { font-size: clamp(1.6rem, 5vw, 2.6rem); }
 
 /* ---------- map ---------- */
@@ -1635,14 +1653,15 @@ button.brand:hover { filter: brightness(1.15); }
 .crew-pieces .bag-tile-meta,
 .crew-pieces .bag-tile-cost { display: none; }
 @media (max-width: 980px) {
-  .map-shell { flex-direction: column; }
-  .map-crew {
-    width: 100%;
-    min-width: 0;
-    max-height: 46vh;
-  }
-  .crew-pieces { max-height: 12vh; }
-  .crew-preview-wrap { width: min(168px, 46vw); }
+  /* The kings/crew/board-preview rail ate up to half the screen height,
+     leaving barely any room for the climb itself. Everything it offers
+     (switch king, edit the starting position, browse the bag) is one tap
+     away through the board button in the top HUD, so the rail can just get
+     out of the map's way on phone instead of permanently squeezing it. */
+  .map-crew { display: none; }
+  /* The background art photo added visual noise without adding legibility
+     at phone size — a plain dark stage reads the node graph better. */
+  .map-art { display: none; }
 }
 .map-scroll {
   position: relative;
@@ -2662,6 +2681,12 @@ button.brand:hover { filter: brightness(1.15); }
 
 @media (max-width: 980px) {
   .loadout-grid { grid-template-columns: 1fr; }
+  /* The starting-position editor (".setup-line") pins its own 3-column
+     grid at a higher specificity than the rule above, so it kept forcing a
+     board+two-rail layout at phone width and pushed the board half off the
+     right edge of the screen. */
+  #screen-loadout.setup-line .loadout-grid { grid-template-columns: 1fr; }
+  #screen-loadout.setup-line .board-wrap { --board: min(88vw, 70vh, 620px); }
   .topbar { grid-template-columns: auto 1fr auto; }
   .run-hud { flex-wrap: wrap; justify-content: center; }
 }

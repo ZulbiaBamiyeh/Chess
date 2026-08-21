@@ -236,7 +236,11 @@ export function initCampaign(ctx) {
       if (node.col > maxCol) maxCol = node.col;
     }
     const scroll = $('map-scroll');
-    const W = Math.max(520, (scroll?.clientWidth || 640) - 8);
+    // Floor used to be 520px, which is wider than most phone viewports and
+    // forced horizontal scrolling to see every node — the climb only needs
+    // to read top-to-bottom, so it should just fill whatever width it's
+    // given rather than demanding a minimum wider than the screen.
+    const W = Math.max(260, (scroll?.clientWidth || 640) - 8);
     const viewH = Math.max(scroll?.clientHeight || 720, 640);
     const step = Math.max(210, Math.floor((viewH * 1.25) / Math.max(1, maxCol + 1)));
     const H = 160 + (maxCol + 1) * step;
@@ -2164,8 +2168,8 @@ export function initCampaign(ctx) {
   });
   $('btn-loadout-fight').addEventListener('click', beginFight);
   $('deploy-board').addEventListener('click', onDeployClick);
-  if ($('btn-crew-setup')) $('btn-crew-setup').addEventListener('click', openCrewSetup);
   if ($('crew-preview-wrap')) $('crew-preview-wrap').addEventListener('click', openCrewSetup);
+  if ($('map-board-btn')) $('map-board-btn').addEventListener('click', openCrewSetup);
   if ($('btn-go-again')) {
     $('btn-go-again').addEventListener('click', () => {
       audio.setMusicStyle('ambient');

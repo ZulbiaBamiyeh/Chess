@@ -9,14 +9,29 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <!-- The app is permanently dark, so the areas the system draws behind the
+         status/navigation bars (and Capacitor's own decor-view fill, see
+         SystemBars.java) need to be navy regardless of the device's day/night
+         setting — the DayNight parent alone left them white on a light-mode
+         phone, which read as a broken white bar top and bottom. -->
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <item name="android:windowBackground">@color/navy900</item>
+        <item name="android:statusBarColor">@color/navy900</item>
+        <item name="android:navigationBarColor">@color/navy900</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="android:windowBackground">@color/navy900</item>
+        <item name="android:statusBarColor">@color/navy900</item>
+        <item name="android:navigationBarColor">@color/navy900</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>
