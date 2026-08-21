@@ -365,7 +365,6 @@ export function initSandbox({ $, showScreen, audio }) {
       if (box.king === 'court' && (tool.type === 'q' || tool.type === 't' || tool.type === 'a')) {
         notes.push('Court: also leaps like a knight.');
       }
-      if (box.king === 'pyre' && def?.slides) notes.push('Pyre: this slider leaves fire on the path.');
       el.textContent = notes.join(' ');
       return;
     }

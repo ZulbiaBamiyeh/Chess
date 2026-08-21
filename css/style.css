@@ -2144,6 +2144,7 @@ button.brand:hover { filter: brightness(1.15); }
 }
 .shop-scene {
   position: relative;
+  flex: none;
   width: min(100%, calc(min(72vh, 620px) * 1408 / 768));
   aspect-ratio: 1408 / 768;
   margin: 0 auto;
@@ -2926,52 +2927,6 @@ button.brand:hover { filter: brightness(1.15); }
 .event-outcome b { color: var(--gold); }
 #btn-event-leave { margin-top: 1.1rem; }
 
-/* ---------- relics ---------- */
-
-.relic-tray { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
-.relic-tray.hidden { display: none; }
-
-.relic-chip {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  font-size: 0.8rem;
-  color: var(--navy-900);
-  background: linear-gradient(180deg, var(--gold), var(--gold-deep));
-  border: 2px solid var(--outline);
-  cursor: help;
-}
-.relic-chip.rarity-rare { background: linear-gradient(180deg, #7fd7ff, #1668b0); color: #04121f; }
-.relic-chip.rarity-epic { background: linear-gradient(180deg, #d7a6ff, #6d28c9); color: #14001f; }
-.relic-chip.rarity-legendary { background: linear-gradient(180deg, #ff9d7a, #b8123c); color: #1f0006; }
-
-.relic-tip {
-  position: absolute;
-  top: 120%;
-  left: 50%;
-  translate: -50% 0;
-  width: max-content;
-  max-width: 230px;
-  padding: 0.5rem 0.65rem;
-  background: rgba(7, 10, 22, 0.97);
-  border: 1px solid rgba(255, 207, 63, 0.45);
-  border-radius: 8px;
-  color: var(--ink-dim);
-  font-family: var(--font-body);
-  font-size: 0.78rem;
-  line-height: 1.35;
-  text-align: left;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.14s ease;
-  z-index: 60;
-}
-.relic-tip b { display: block; color: var(--gold); margin-bottom: 0.15rem; }
-.relic-chip:hover .relic-tip { opacity: 1; }
-
 /* The drop reveal. A rare piece used to arrive as a clause at the end of a
    sentence in the results box — "+14 gold. They dropped a Rook." — which is
    the same weight as the gold, for the thing that actually changes how the
@@ -3203,60 +3158,6 @@ button.brand:hover { filter: brightness(1.15); }
   .spoils-hub { width: 52px; height: 52px; }
   .spoils-slice-icon { width: 34px; height: 34px; }
   .spoils-slice-icon .spoils-art { width: 28px; height: 28px; }
-}
-
-.relic-modal { max-width: min(94vw, 760px); }
-.relic-choices {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 0.6rem;
-  margin-bottom: 1rem;
-}
-.relic-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.9rem 0.7rem;
-  background: rgba(30, 39, 73, 0.8);
-  border: 2px solid rgba(169, 179, 208, 0.25);
-  border-radius: 10px;
-  color: var(--ink);
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
-  animation: shop-card-in 0.36s cubic-bezier(.2, .8, .3, 1.1) backwards;
-}
-.relic-card:nth-child(1) { animation-delay: 0.04s; }
-.relic-card:nth-child(2) { animation-delay: 0.11s; }
-.relic-card:nth-child(3) { animation-delay: 0.18s; }
-.relic-card:nth-child(4) { animation-delay: 0.25s; }
-@media (prefers-reduced-motion: reduce) {
-  .relic-card { animation: none; }
-}
-.relic-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--gold);
-  background: rgba(255, 207, 63, 0.12);
-}
-.relic-card .relic-mark { font-size: 1.5rem; color: var(--gold); }
-.relic-card.rarity-rare .relic-mark { color: var(--blue); }
-.relic-card.rarity-epic .relic-mark { color: var(--violet); }
-.relic-card .relic-name { font-family: var(--font-pixel); font-size: 0.74rem; color: var(--gold); }
-.relic-card .relic-arch {
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.relic-card .relic-blurb { font-size: 0.8rem; color: var(--ink-dim); line-height: 1.3; text-align: center; }
-
-.shop-art-relic {
-  display: grid;
-  place-items: center;
-  font-size: 1.6rem;
-  color: var(--gold);
-  text-shadow: 0 0 16px rgba(255, 207, 63, 0.7);
 }
 
 /* ---------- Chess-Vania overworld ---------- */

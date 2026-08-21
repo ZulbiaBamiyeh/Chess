@@ -16,13 +16,12 @@ import {
   rest, forage, trainPiece,
   REST_GOLD, REST_HEAL, FORAGE_GOLD, TRAIN_COST, turnClock,
   restHeal, forageGold, trainCost,
-  bagSummary, equipKing, applyChoice, choiceAvailable, claimRelic, skipRelics,
+  bagSummary, equipKing, applyChoice, choiceAvailable,
   suggestLoadout, runStats, ensureFormation, placementsFromFormation, CREW_BOARD,
   pruneFormation, payUndo, UNDO_HP, claimSpoils,
   climbMark, climbScore, formatClimbMark,
 } from './run.js';
 import { kingDef, EVENTS, encounterFor, CLOCK_WARN, CLOCK_PANIC } from './content.js';
-import { relicById } from './relics.js';
 
 const BEST_CLIMB_KEY = 'gambit-best-climb';
 const TITLE_FLAVOR = 'Capture the king. Keep your army. Spend your supply.';
@@ -99,7 +98,6 @@ export function initCampaign(ctx) {
   }
 
   function paintRunHud() {
-    paintRelics();
     const run = state.run;
     if (!run) return;
     const prev = state._hudPrev || { gold: run.gold, hp: run.hp };
@@ -579,7 +577,7 @@ export function initCampaign(ctx) {
         const result = trainPiece(state.run, item.uid);
         if (!result.ok) { audio.illegal(); toast(result.reason, 'danger'); return; }
         // Train is the one camp choice that compounds for the rest of the
-        // run — worth a bigger payoff than a click, same as claiming a relic.
+        // run — worth a bigger payoff than a click.
         audio.victory();
         confetti(28);
         finishRest([`${def.name} is shielded, every fight from now on`]);
@@ -1326,9 +1324,6 @@ export function initCampaign(ctx) {
       detail = reward.reason === 'king capture'
         ? 'Your king fell. The run is over.'
         : `Nothing left. −${reward.hpLost} HP.`;
-    } else if (reward.secondWind) {
-      title = 'SECOND WIND';
-      detail = 'That should have finished you. You get up anyway, on one hit point.';
     } else {
       title = reward.forfeit ? 'FORFEIT' : reward.timeout ? 'TOO SLOW' : 'THE FIGHT IS LOST';
       detail = `−${reward.hpLost} HP. You still have ${run.hp} left.`;
@@ -1376,7 +1371,6 @@ export function initCampaign(ctx) {
     resetClassicButtons();
     if (state.run.over) { endRun(); return; }
 
-    const pending = state.run.pendingRelics || [];
     const advance = () => {
       if (state.world === 'voyage') {
         state.voyage?.onFightSettled(state.run.lastReward);
@@ -1386,13 +1380,9 @@ export function initCampaign(ctx) {
       if (state.run.over) { endRun(); return; }
       showMap();
     };
-    const relicsThen = () => {
-      if (pending.length) { offerRelics(pending, advance); return; }
-      advance();
-    };
     // A rare-or-better piece gets its own reveal after the wheel. Commons
     // already had their moment on the landing.
-    showDropReveal(relicsThen);
+    showDropReveal(advance);
   }
 
   const SLICE_FILL = {
@@ -1812,58 +1802,6 @@ export function initCampaign(ctx) {
     completeNode(state.run);
     if (state.run.over) { endRun(); return; }
     showMap();
-  }
-
-/** The relic tray — small marks with the rule they change on hover. */
-  function paintRelics() {
-    for (const id of ['map-relics', 'loadout-relics', 'game-relics']) {
-      const host = $(id);
-      if (!host) continue;
-      const owned = state.run?.relics || [];
-      host.innerHTML = '';
-      host.classList.toggle('hidden', owned.length === 0);
-      for (const rid of owned) {
-        const relic = relicById(rid);
-        if (!relic) continue;
-        const chip = document.createElement('span');
-        chip.className = `relic-chip rarity-${relic.rarity}`;
-        chip.innerHTML = '✦<span class="relic-tip"><b>' + relic.name + '</b>'
-          + gameText(relic.blurb) + '</span>';
-        host.appendChild(chip);
-      }
-    }
-  }
-
-  /** After an elite or boss, choose one of the relics they were carrying. */
-  function offerRelics(choices, done) {
-    const host = $('relic-choices');
-    host.innerHTML = '';
-    for (const rid of choices) {
-      const relic = relicById(rid);
-      if (!relic) continue;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `relic-card rarity-${relic.rarity}`;
-      btn.innerHTML = '<span class="relic-mark">✦</span>'
-        + `<span class="relic-name">${relic.name}</span>`
-        + `<span class="relic-arch">${relic.archetype}</span>`
-        + `<span class="relic-blurb">${gameText(relic.blurb)}</span>`;
-      btn.addEventListener('click', () => {
-        claimRelic(state.run, rid);
-        audio.victory();
-        $('modal-relic').classList.add('hidden');
-        paintRelics();
-        done();
-      });
-      btn.addEventListener('pointerenter', () => audio.hover());
-      host.appendChild(btn);
-    }
-    $('btn-relic-skip').onclick = () => {
-      skipRelics(state.run);
-      $('modal-relic').classList.add('hidden');
-      done();
-    };
-    $('modal-relic').classList.remove('hidden');
   }
 
   function paintShop() {

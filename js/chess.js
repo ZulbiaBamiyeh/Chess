@@ -582,7 +582,7 @@ export class Chess {
     return false;
   }
 
-  /** The offsets a piece may shoot along, after relics widen them. */
+  /** The offsets a piece may shoot along, after the Marksman king widens them. */
   shootOffsets(def, color) {
     if (!def.shootOff) return null;
     if (color === WHITE && this.kingPassives.includes('longshot')) {
@@ -1269,11 +1269,10 @@ export class Chess {
 
       extra.fireSnap = this.fireUntil.slice();
       const def = PIECES[move.piece];
-      const paints = Boolean(def?.paintsFire || (this.kingPassives.includes('pyre') && def?.slideOff));
+      const paints = Boolean(def?.paintsFire);
       if (paints) {
         extra.firePainted = [];
-        const expire = this.history.length + 1
-          + (this.kingPassives.includes('everburn') ? 2 : 0);
+        const expire = this.history.length + 1;
         this.paintFire(move.from, expire, extra);
         if (def?.slideOff) {
           const dir = this.slideDir(move.from, dest);
@@ -1311,11 +1310,7 @@ export class Chess {
         // a reply. Freezing herself costs her the initiative and opens the
         // window in which that reply can land.
         extra.iced = [];
-        // Deep Freeze gives the diagonals back — the relic that turns Rime from
-        // a good piece into a build.
-        const reach = this.kingPassives.includes('deepfreeze') && us === WHITE
-          ? KING_OFFSETS
-          : ROOK_DIRS;
+        const reach = ROOK_DIRS;
         for (const off of reach) {
           const sq = dest + off;
           if (!this.inBounds(sq)) continue;

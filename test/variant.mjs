@@ -792,8 +792,7 @@ const snap = (g) => JSON.stringify(g.pieces());
 }
 
 {
-  // Palisade grants the same token Icebound Cloak does — a king built on an
-  // existing, already-balanced relic effect rather than a new one.
+  // Palisade grants the 'icebound' engine token, same as any other source of it.
   const g = Chess.fromDiagram(`
     {b:rime} . .
     . {w:pawn} .
@@ -832,7 +831,7 @@ const snap = (g) => JSON.stringify(g.pieces());
     . . . . {w:pawn}
   `;
   const warden = Chess.fromDiagram(diagram, { files: 5, ranks: 5, rules: { ...KC } });
-  applyStartStatuses(warden, { king: 'rampart', relics: [] });
+  applyStartStatuses(warden, { king: 'rampart' });
   // Read the squares back from the board rather than guessing algebraic
   // names against the diagram's row/rank orientation.
   const queenSq = warden.pieces().find((p) => p.type === 'q').square;
@@ -841,12 +840,12 @@ const snap = (g) => JSON.stringify(g.pieces());
   assert('Warden does not shield a piece further away', !(warden.status[pawnSq] & ST_SHIELD));
 
   const anchor = Chess.fromDiagram(diagram, { files: 5, ranks: 5, rules: { ...KC } });
-  applyStartStatuses(anchor, { king: 'anchor', relics: [] });
+  applyStartStatuses(anchor, { king: 'anchor' });
   assert('Anchor shields the single costliest piece', Boolean(anchor.status[queenSq] & ST_SHIELD));
   assert('Anchor leaves the cheaper piece alone', !(anchor.status[pawnSq] & ST_SHIELD));
 
   const formation = Chess.fromDiagram(diagram, { files: 5, ranks: 5, rules: { ...KC } });
-  applyStartStatuses(formation, { king: 'formation', relics: [] });
+  applyStartStatuses(formation, { king: 'formation' });
   assert('Formation shields the pawn', Boolean(formation.status[pawnSq] & ST_SHIELD));
   assert('Formation leaves the queen unshielded', !(formation.status[queenSq] & ST_SHIELD));
 }

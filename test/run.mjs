@@ -8,7 +8,7 @@ import {
   occupiedSlots, supplyBudget, deployBudget, openShop, buyOffer, autoPlace, currentNode,
   completeNode, pickNode, rest, forage, trainPiece, currentEncounter,
   bagSummary, equipKing, ownedKingIds, applyChoice, choiceAvailable,
-  costFor, claimRelic, RELIC_SHIELD_CAP, TRAIN_COST, FORAGE_GOLD, freeHomeSquares,
+  costFor, TRAIN_COST, FORAGE_GOLD, freeHomeSquares,
   restHeal, forageGold, trainCost, payUndo, UNDO_HP, FIGHT_GOLD,
   buildSpoils, rollSpoils, claimSpoils, SPOIL_PIECE_WEIGHT,
   turnClock, TURN_CLOCK, CLOCK_WARN, CLOCK_PANIC,
@@ -18,8 +18,6 @@ import { ENCOUNTERS, homeSquares, generateMap, SHOP_WEIGHTS, firstRooms, EVENTS 
 import { chooseMove } from '../js/ai.js';
 import { Chess } from '../js/chess.js';
 import { RARITY, PIECES } from '../js/pieces.js';
-import { RELICS, RELIC_IDS, hasTag } from '../js/relics.js';
-import { readFileSync } from 'node:fs';
 import { ST_SHIELD as ST_SHIELD_BIT } from '../js/chess.js';
 
 let failures = 0;
@@ -399,7 +397,7 @@ const alley = ENCOUNTERS.alley;
     r.gold = 40;
     shop = openShop(r);
     kingOffer = shop.offers.find((o) => o.kind === 'king');
-    if (kingOffer) Object.assign(run, { bag: r.bag, gold: r.gold, shop: r.shop, kings: r.kings, king: r.king, rng: r.rng, slots: r.slots, relics: r.relics });
+    if (kingOffer) Object.assign(run, { bag: r.bag, gold: r.gold, shop: r.shop, kings: r.kings, king: r.king, rng: r.rng, slots: r.slots });
   }
   assert('a king can be bought', Boolean(kingOffer));
   const bought = buyOffer(run, kingOffer.id);
@@ -738,134 +736,20 @@ function courtyardOrGate() {
   }
 }
 
-// ---- relics --------------------------------------------------------------
-//
-// The synergy layer. Relics change rules and key off piece tags, which is what
-// makes an army a build rather than a shopping list.
-
 {
-  assert('there is a relic book', RELIC_IDS.length >= 20, String(RELIC_IDS.length));
-  const arch = new Set(Object.values(RELICS).map((r) => r.archetype));
-  assert('relics point at several archetypes', arch.size >= 6, String(arch.size));
-  assert('every relic explains itself',
-    Object.values(RELICS).every((r) => r.name && r.blurb && r.rarity));
-}
-
-{
+  // Budgets must never fall below something playable.
   const run = createRun(1);
-  const enc = ENCOUNTERS.courtyard;
-  const baseSupply = supplyBudget(run, enc);
-  const baseDeploy = deployBudget(run, enc);
-
-  const swarm = createRun(1);
-  swarm.relics = ['muster', 'levy'];
-  assert('swarm relics trade supply for bodies',
-    deployBudget(swarm, enc) > baseDeploy && supplyBudget(swarm, enc) < baseSupply);
-  assert('Levy Writ makes pawns free', costFor(swarm, 'p') === 0);
-
-  const quality = createRun(1);
-  quality.relics = ['warrant'];
-  assert('quality relics trade bodies for supply',
-    supplyBudget(quality, enc) > baseSupply && deployBudget(quality, enc) < baseDeploy);
-
-  const cav = createRun(1);
-  cav.relics = ['cavalry'];
-  assert('Cavalry Standard discounts leapers only',
-    costFor(cav, 'c') === PIECES.c.cost - 1 && costFor(cav, 'b') === PIECES.b.cost);
-}
-
-{
-  // Budgets must never fall below something playable, however you stack.
-  const run = createRun(1);
-  run.relics = ['warrant', 'commission', 'heavystandard', 'farrier'];
   for (const enc of Object.values(ENCOUNTERS)) {
     assert2(supplyBudget(run, enc) >= 1 && deployBudget(run, enc) >= 1,
       `budgets stay playable on ${enc.id}`);
   }
-  assert('stacked deploy penalties never reach zero', true);
-}
-
-{
-  // Relic shields cover your army, and only up to the cap.
-  const run = createRun(1);
-  run.relics = ['farrier'];
-  run.bag = [];
-  for (const t of ['n', 'n', 'c', 'z']) addToBag(run, t);
-  const enc = ENCOUNTERS.gate;
-  const game = buildFight(run, enc, autoPlace(enc, run.bag.slice(0, 3)));
-  const shielded = game.pieces()
-    .filter((p) => p.color === WHITE && (game.statusAt(p.square) & ST_SHIELD_BIT));
-  assert('a class-shield relic shields at most the cap',
-    shielded.length <= RELIC_SHIELD_CAP, `${shielded.length} shielded`);
-  assert('relic shields never cover the enemy',
-    !game.pieces().some((p) => p.color !== 'w' && (game.statusAt(p.square) & ST_SHIELD_BIT)
-      && p.type !== 'v'));
-}
-
-{
-  // Relic tokens must actually reach the engine.
-  const run = createRun(1);
-  run.relics = ['deepfreeze', 'ashboots'];
-  const game = buildFight(run, ENCOUNTERS.gate, autoPlace(ENCOUNTERS.gate, []));
-  assert('relic tokens reach the engine modifier list',
-    game.kingPassives.includes('deepfreeze') && game.kingPassives.includes('ashboots'),
-    JSON.stringify(game.kingPassives));
-}
-
-{
-  // Every relic that names a piece tag has to actually hit something in the
-  // registry — a discount or a shield keyed to a tag no piece carries is a
-  // relic that silently does nothing.
-  const ids = Object.keys(PIECES);
-  const dead = [];
-  for (const relic of Object.values(RELICS)) {
-    const tag = relic.discount?.tag || relic.shieldTag?.tag;
-    if (tag && !ids.some((id) => hasTag(id, tag))) dead.push(`${relic.id}:${tag}`);
-  }
-  assert('no relic keys off a tag nothing has', dead.length === 0, dead.join(', '));
-
-  // Likewise every engine token a relic pushes must be one the engine reads.
-  const source = readFileSync(new URL('../js/chess.js', import.meta.url), 'utf8');
-  const unread = [];
-  for (const relic of Object.values(RELICS)) {
-    for (const token of relic.tokens || []) {
-      if (!source.includes(`'${token}'`)) unread.push(`${relic.id}:${token}`);
-    }
-  }
-  assert('no relic pushes a token the engine ignores', unread.length === 0, unread.join(', '));
-}
-
-{
-  // The four newer rules, reached the way the run layer reaches them.
-  const run = createRun(1);
-  run.relics = ['gravecall', 'longshot', 'phalanx', 'postroad'];
-  const game = buildFight(run, ENCOUNTERS.gate, autoPlace(ENCOUNTERS.gate, []));
-  assert('the new archetype tokens reach the engine too',
-    ['gravecall', 'longshot', 'wideaura', 'kingswap'].every((t) => game.kingPassives.includes(t)),
-    JSON.stringify(game.kingPassives));
-}
-
-{
-  // Elites and bosses must hand over a relic choice.
-  const run = createRun(1);
-  const enc = ENCOUNTERS.pond;
-  const game = buildFight(run, enc, autoPlace(enc, []));
-  game.board[game.kings.b] = null;
-  game.kings.b = -1;
-  const reward = settleFight(run, game, enc, {});
-  assert('an elite offers relics', (reward.relicChoices || []).length > 0);
-  const first = reward.relicChoices[0];
-  assert('a relic can be claimed', claimRelic(run, first) && run.relics.includes(first));
-  assert('claiming clears the rest', run.pendingRelics.length === 0);
 }
 
 {
   const run = createRun(1);
-  run.relics = ['seal'];
   const shop = openShop(run);
-  assert('the shop sells pieces, not relics', shop.offers.every((o) => o.kind === 'piece' || o.kind === 'king'));
-  assert("Merchant's Seal discounts the board",
-    shop.offers.every((o) => o.cost >= 1));
+  assert('the shop sells only pieces and kings',
+    shop.offers.every((o) => o.kind === 'piece' || o.kind === 'king'));
 }
 
 {
@@ -879,17 +763,6 @@ function courtyardOrGate() {
   }
   assert('a run survives more than one forfeit', losses > 1, String(losses));
   assert('running out of HP ends the run', run.over && run.hp === 0, String(run.hp));
-}
-
-{
-  const run = createRun(1);
-  run.relics = ['secondwind'];
-  run.hp = 2;
-  const game = buildFight(run, gate, autoPlace(gate, []));
-  game.board[game.kings.w] = null;
-  game.kings.w = -1;
-  settleFight(run, game, gate);
-  assert('Second Wind does not revive a captured king', run.over && !run.won);
 }
 
 {

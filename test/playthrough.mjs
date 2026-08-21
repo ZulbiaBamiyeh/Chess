@@ -2,16 +2,16 @@
 //
 // The unit tests cover each system in isolation; this walks a whole run the way
 // a player does — pick a node, build a loadout, fight it out with the real AI,
-// settle, take the relic, shop, resolve an event, cross an act boundary — and
-// asserts nothing throws and the state stays coherent the entire way.
+// settle, shop, resolve an event, cross an act boundary — and asserts nothing
+// throws and the state stays coherent the entire way.
 //
 // Run with: node test/playthrough.mjs
 
 import {
-  createRun, currentNode, buildFight, settleFight, autoPlace, supplyBudget,
-  deployBudget, costFor, suggestLoadout, completeNode, pickNode, rest, forage, trainPiece,
+  createRun, currentNode, buildFight, settleFight, autoPlace,
+  suggestLoadout, completeNode, pickNode, rest, forage, trainPiece,
   currentEncounter, turnClock,
-  openShop, buyOffer, closeShop, claimRelic, applyChoice, addToBag,
+  openShop, buyOffer, closeShop, applyChoice, addToBag,
 } from '../js/run.js';
 import { EVENTS, ENCOUNTERS } from '../js/content.js';
 const ENCOUNTERS_FOR_LOSS = ENCOUNTERS.gate;
@@ -60,7 +60,7 @@ function fight(run, enc) {
   // Bound by the encounter clock, but the live timer is generous so a human
   // can think. The walk still needs a stall cap or an unresolved act-3 fight
   // burns the full player-facing timer at 60ms a ply.
-  const plyCap = Math.min(turnClock(enc, run), 30) * 2;
+  const plyCap = Math.min(turnClock(enc), 30) * 2;
   for (let ply = 0; ply < plyCap; ply++) {
     if (game.outcome().over) break;
     const move = chooseMove(game, game.turn === WHITE ? PROFILE : opponent(enc));
@@ -78,17 +78,13 @@ function fight(run, enc) {
 // on the first floor.
 const run = createRun(987654321);
 run.slots = { common: Infinity, rare: 9, epic: 9, legendary: 9 };
+run.supplyBonus = 5;
 for (const t of ['r', 'b', 'n', 'c', 'q', 'dragon', 'gnu', 't']) addToBag(run, t);
-// Supply relics, not just a fat bag. Rooms grew to 6x6 and a king now costs
-// its escorts as well as itself, so a starting-supply army cannot close a
-// fight and the walk simply bled out on floor six every time.
-run.relics = ['commission', 'warrant', 'tide', 'surgeon'];
 let steps = 0;
 let fights = 0;
 let shops = 0;
 let events = 0;
 let rests = 0;
-let relicsTaken = 0;
 let threw = null;
 const seenKinds = new Set();
 
@@ -123,10 +119,6 @@ try {
         // Losing costs HP now, not the run — retry the room while blood lasts.
         if (run.over) break;
         continue;
-      }
-      if ((run.pendingRelics || []).length) {
-        claimRelic(run, run.pendingRelics[0]);
-        relicsTaken++;
       }
     } else if (node.kind === 'shop') {
       const shop = openShop(run);
@@ -167,9 +159,9 @@ try {
 }
 
 console.log(`\nWalked ${steps} rooms: ${fights} fights, ${shops} shops, `
-  + `${events} events, ${rests} rests, ${relicsTaken} relics taken.`);
+  + `${events} events, ${rests} rests.`);
 console.log(`Finished at act ${run.act + 1}, hp ${run.hp}/${run.hpMax}, `
-  + `gold ${run.gold}, bag ${run.bag.length}, relics ${run.relics.length}.\n`);
+  + `gold ${run.gold}, bag ${run.bag.length}.\n`);
 
 assert('a run walks without throwing', threw === null, threw && threw.message);
 assert('the walk crosses more than one kind of room', seenKinds.size >= 2,
@@ -179,34 +171,8 @@ assert('hp stayed within bounds', run.hp >= 0 && run.hp <= run.hpMax,
   `${run.hp}/${run.hpMax}`);
 assert('gold never went negative', run.gold >= 0, String(run.gold));
 assert('the bag survived', run.bag.every((p) => p && p.type));
-assert('relics are unique', new Set(run.relics).size === run.relics.length);
 assert('the run reached a terminal state or ran its course',
   run.over || run.won || steps >= 1);
-
-// A second, relic-heavy run to exercise the stacking paths.
-{
-  const loaded = createRun(13579);
-  loaded.relics = ['muster', 'levy', 'warrant', 'heavystandard', 'cavalry', 'farrier',
-    'deepfreeze', 'icebound', 'pyroclast', 'ashboots', 'vengefulash', 'bonetithe'];
-  for (const t of ['q', 'i', 'l', 'c', 'y', 'x', 'v', 'm']) addToBag(loaded, t);
-  let ok = true;
-  let detail = '';
-  try {
-    const enc = currentEncounter(loaded) || null;
-    const node = (loaded.choices || [])[0];
-    if (node) pickNode(loaded, node.id);
-    const e = currentEncounter(loaded);
-    if (e) {
-      const { reward } = fight(loaded, e);
-      if (!reward) ok = false;
-      if (supplyBudget(loaded, e) < 1 || deployBudget(loaded, e) < 1) {
-        ok = false;
-        detail = 'budgets collapsed';
-      }
-    }
-  } catch (err) { ok = false; detail = err.message; }
-  assert('a fight with twelve stacked relics resolves', ok, detail);
-}
 
 // ---- each room kind, exercised directly -----------------------------------
 //

@@ -3,7 +3,6 @@
 
 import { WHITE, BLACK, Chess, ST_SHIELD, ST_FROZEN, FLAG, TILE, parseSquare } from './chess.js';
 import { PIECES, SLOT_CAPS, pieceCost, rarityOf, RARITY } from './pieces.js';
-import { relicTotals, discountedCost, hasTag, relicPool } from './relics.js';
 import {
   LOSS_HP, FORFEIT_HP, UNDO_HP, FIGHT_GOLD, REST_HEAL,
   START_HP, START_GOLD, STARTING_BAG, KING_PASSIVES, REST_GOLD,
@@ -73,9 +72,6 @@ export function createRun(seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>>
     deployed: [],
     lastReward: null,
     shop: null,
-    relics: [],
-    pendingRelics: [],
-    secondWindUsed: false,
     over: false,
     won: false,
     goldSpent: 0,
@@ -178,13 +174,12 @@ export function removeFromBag(run, itemUid) {
 }
 
 export function supplyBudget(run, encounter) {
-  const relics = relicTotals(run.relics);
-  return Math.max(1, (encounter.supply || 0) + run.supplyBonus + relics.supply);
+  return Math.max(1, (encounter.supply || 0) + run.supplyBonus);
 }
 
-/** A piece's supply cost for THIS run, after relic discounts. */
+/** A piece's supply cost for THIS run. */
 export function costFor(run, type) {
-  return discountedCost(run.relics, type);
+  return pieceCost(type);
 }
 
 /**
@@ -207,12 +202,11 @@ export function deployBudget(run, encounter) {
   // Roughly three fifths of supply, so a pure horde cannot spend it all on
   // bodies and always has points spare to put into something better.
   const base = encounter.deploy ?? Math.max(2, Math.ceil(supply * 0.6));
-  return Math.max(1, base + (run.deployBonus || 0) + relicTotals(run.relics).deploy);
+  return Math.max(1, base + (run.deployBonus || 0));
 }
 
-export function loadoutCost(items, run = null) {
-  return items.reduce(
-    (sum, item) => sum + (run ? discountedCost(run.relics, item.type) : pieceCost(item.type)), 0);
+export function loadoutCost(items) {
+  return items.reduce((sum, item) => sum + pieceCost(item.type), 0);
 }
 
 export function validateLoadout(run, encounter, selectedUids) {
@@ -223,9 +217,9 @@ export function validateLoadout(run, encounter, selectedUids) {
   }
   const homes = freeHomeSquares(encounter);
   if (items.length + 1 > homes.length) {
-    return { ok: false, reason: 'Not enough home squares for that many pieces.', cost: loadoutCost(items, run), budget };
+    return { ok: false, reason: 'Not enough home squares for that many pieces.', cost: loadoutCost(items), budget };
   }
-  const cost = loadoutCost(items, run);
+  const cost = loadoutCost(items);
   const deploy = deployBudget(run, encounter);
   if (items.length > deploy) {
     return {
@@ -267,9 +261,9 @@ export function buildFight(run, encounter, placements) {
     files: encounter.files,
     ranks: encounter.ranks,
     rules: { ...rulesFor(run), ...(encounter.rules || {}) },
-    // The engine's modifier list. It began as king passives and now carries
-    // relic tokens too — the generator and make-move look these up by name.
-    kingPassives: [...(run.king ? [run.king] : []), ...relicTotals(run.relics).tokens],
+    // The engine's modifier list — generation and make-move look up the
+    // equipped king's id here by name.
+    kingPassives: run.king ? [run.king] : [],
     terrain,
     duck: encounter.duckAt,
     bossScript: encounter.bossScript || null,
@@ -291,20 +285,9 @@ export function buildFight(run, encounter, placements) {
     game.board[sq] = { type: item.type, color: WHITE };
     if (item.type === 'k') game.kings.w = sq;
     // Trained pieces carry their own permanent shield into every fight, earned
-    // once at camp rather than granted per-run like a relic.
+    // once at camp.
     if (item.trained) game.status[sq] |= ST_SHIELD;
     deployed.push(item.uid);
-  }
-
-  // Press Gang throws in a free pawn on any spare home square, outside the cap.
-  if (relicTotals(run.relics).freePawn) {
-    const spare = freeHomeSquares(encounter)
-      .map((sq) => (typeof sq === 'string' ? parseSquare(sq, encounter.ranks) : sq))
-      .find((sq) => !game.board[sq]);
-    if (spare != null) {
-      game.board[spare] = { type: 'p', color: WHITE };
-      deployed.push('pressgang');
-    }
   }
 
   game.turn = encounter.firstMover === BLACK ? BLACK : WHITE;
@@ -322,30 +305,13 @@ function emptyPlacement(files, ranks) {
   return `${new Array(ranks).fill(String(files)).join('/')} w - - 0 1`;
 }
 
-export const RELIC_SHIELD_CAP = 2;
-
 export function applyStartStatuses(game, run) {
   // Wardens walk in already shielded, whichever side fields them, and anyone
   // already standing on a fort holds it from the first move — a fort only
   // shielded on arrival otherwise, so a garrison started the fight unguarded.
-  const relics = relicTotals(run.relics);
   for (const piece of game.pieces()) {
     if (PIECES[piece.type]?.shielded) game.status[piece.square] |= ST_SHIELD;
     if (game.tileAt(piece.square) === TILE.FORT) game.status[piece.square] |= ST_SHIELD;
-  }
-
-  // Relic shields cover your own army only, and only RELIC_SHIELD_CAP pieces of
-  // it. Measured over AI duels a shield is the single strongest effect in the
-  // game, and the two dominant archetypes were both built on one shielding a
-  // whole class of piece. Capping the count fixes every such relic at once,
-  // present and future, instead of taxing each one separately.
-  if (relics.shieldTags.length) {
-    const eligible = game.pieces()
-      .filter((p) => p.color === WHITE
-        && relics.shieldTags.some((tag) => hasTag(p.type, tag)))
-      .sort((a, b) => (PIECES[b.type]?.cost || 0) - (PIECES[a.type]?.cost || 0))
-      .slice(0, RELIC_SHIELD_CAP);
-    for (const piece of eligible) game.status[piece.square] |= ST_SHIELD;
   }
 
   const king = game.kings.w;
@@ -392,11 +358,10 @@ export function remainingArmy(game, color) {
   return game.armyValue(color);
 }
 
-export function turnClock(encounter, run = null) {
-  const base = encounter.clock
+export function turnClock(encounter) {
+  return encounter.clock
     || TURN_CLOCK[encounter.tier || (encounter.boss ? 'boss' : 'trash')]
     || TURN_CLOCK.trash;
-  return base + (run ? relicTotals(run.relics).clock : 0);
 }
 
 export function settleFight(run, game, encounter, { forfeit = false, timeout = false, clockLeft = 0 } = {}) {
@@ -415,33 +380,12 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
   let hpLost = 0;
   let spoils = null;
 
-  const relics = relicTotals(run.relics);
-  // Martyr relics pay out for pieces of yours that died, win or lose.
-  const lost = Math.max(0, (run.deployed || []).length - countDeployedSurvivors(game, run));
-  let martyrGold = 0;
-
   if (won && fled) {
-    // No gold, no drop, no relic, no heal — a fight that ended because it
-    // could never be finished isn't a fight that pays out.
+    // No gold, no drop, no heal — a fight that ended because it could never
+    // be finished isn't a fight that pays out.
   } else if (won) {
     gold = encounter.gold ?? FIGHT_GOLD[tier] ?? FIGHT_GOLD.trash;
-    gold += relics.goldPerFight;
-    martyrGold = lost * relics.goldPerLoss;
-    gold += martyrGold;
     run.gold += gold;
-    if (relics.healPerFight) {
-      run.hp = Math.min(run.hpMax, run.hp + relics.healPerFight);
-    }
-    // Elites and bosses hand over a relic. This is the main way a build forms.
-    if ((tier === 'elite' || tier === 'boss') && !run.pendingRelics?.length) {
-      const pool = relicPool(run.relics);
-      const picks = [];
-      const count = Math.min(pool.length, tier === 'boss' ? 3 : 2);
-      for (let i = 0; i < count; i++) {
-        picks.push(pool.splice(Math.floor(run.rng() * pool.length), 1)[0]);
-      }
-      run.pendingRelics = picks;
-    }
     // Extra gold or a looted piece is rolled here so the run's rng decides
     // it, but it is not applied until the spoils wheel lands — the fight
     // purse above is the only gold that changes before that ceremony.
@@ -462,17 +406,9 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
       run.hp -= hpLost;
 
       if (run.hp <= 0) {
-        if (relics.secondWind && !run.secondWindUsed) {
-          // Second Wind turns the first fatal forfeit/timeout into a scratch.
-          // It does not revive a captured king.
-          run.secondWindUsed = true;
-          run.hp = 1;
-          run.survived = true;
-        } else {
-          run.hp = 0;
-          run.over = true;
-          run.won = false;
-        }
+        run.hp = 0;
+        run.over = true;
+        run.won = false;
       }
     }
   }
@@ -499,21 +435,10 @@ export function settleFight(run, game, encounter, { forfeit = false, timeout = f
     army,
     maxArmy,
     clockLeft,
-    martyrGold,
     hpLost,
-    relicChoices: run.pendingRelics || [],
-    healed: won && !fled ? relics.healPerFight : 0,
-    secondWind: Boolean(run.survived),
   };
-  run.survived = false;
   run.deployed = [];
   return run.lastReward;
-}
-
-/** How many of the pieces you deployed are still on the board. */
-function countDeployedSurvivors(game, run) {
-  const alive = game.pieces().filter((p) => p.color === WHITE && p.type !== 'k').length;
-  return alive;
 }
 
 /** Enemy types that can ride the spoils wheel — no king, no unique. */
@@ -770,9 +695,6 @@ export function openShop(run) {
     });
   }
 
-  const discount = 1 - Math.min(0.6, relicTotals(run.relics).shopDiscount);
-  for (const offer of offers) offer.cost = Math.max(1, Math.round(offer.cost * discount));
-
   run.shop = { offers, rerollBase: 2, rerollCost: rerollCostFor(run, 2) };
   return run.shop;
 }
@@ -834,18 +756,6 @@ function pieceOffer(run, pick, i, act) {
   return offer;
 }
 
-/** Claims one of the relics an elite or boss offered, and clears the rest. */
-export function claimRelic(run, relicId) {
-  if (!run.pendingRelics?.includes(relicId)) return false;
-  if (!run.relics.includes(relicId)) run.relics.push(relicId);
-  run.pendingRelics = [];
-  return true;
-}
-
-export function skipRelics(run) {
-  run.pendingRelics = [];
-}
-
 export function buyOffer(run, offerId) {
   const shop = run.shop;
   if (!shop) return { ok: false, reason: 'No shop is open.' };
@@ -867,8 +777,6 @@ export function buyOffer(run, offerId) {
     run.king = offer.king;
   } else if (offer.kind === 'slot') {
     run.slots[offer.rarity] = (run.slots[offer.rarity] || 0) + 1;
-  } else if (offer.kind === 'relic') {
-    if (!run.relics.includes(offer.relic)) run.relics.push(offer.relic);
   } else {
     return { ok: false, reason: 'Unknown offer.' };
   }
@@ -1255,10 +1163,6 @@ export function applyChoice(run, choice, pickedUid = null) {
       const before = run.hp;
       run.hp = Math.min(run.hpMax, run.hp + effect.heal);
       lines.push(`+${run.hp - before} HP`);
-    }
-    if (effect.supply != null) {
-      run.supplyBonus += effect.supply;
-      lines.push(`+${effect.supply} supply, permanently`);
     }
     if (effect.deploy != null) {
       run.deployBonus = (run.deployBonus || 0) + effect.deploy;
