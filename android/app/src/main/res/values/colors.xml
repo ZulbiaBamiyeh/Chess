@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Matches --navy-900 / --gold in css/style.css so the native chrome
+    <!-- Matches the navy/gold palette in css/style.css so the native chrome
          (status bar, nav bar, splash) reads as part of the same app instead
          of Capacitor's default Material-blue placeholders. -->
     <color name="colorPrimary">#151c36</color>
