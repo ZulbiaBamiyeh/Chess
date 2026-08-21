@@ -223,7 +223,10 @@ function reactTo(move) {
     audio.place();
   }
 
-  if (state.mode === 'run') state.campaign.paintRunHud();
+  if (state.mode === 'run') {
+    state.campaign.paintRunHud();
+    state.campaign.checkQuipSwing();
+  }
 
   if (state.mode === 'run' && state.game.outcome().reason === 'opponent fled') {
     setTimeout(() => { toast('THEY FLEE!', 'danger'); }, 160);

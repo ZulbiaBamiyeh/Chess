@@ -22,6 +22,7 @@ import {
   climbMark, climbScore, formatClimbMark,
 } from './run.js';
 import { kingDef, EVENTS, encounterFor, CLOCK_WARN, CLOCK_PANIC } from './content.js';
+import { pickQuip } from './quips.js';
 
 const BEST_CLIMB_KEY = 'gambit-best-climb';
 const TITLE_FLAVOR = 'Capture the king. Keep your army. Spend your supply.';
@@ -82,6 +83,8 @@ export function initCampaign(ctx) {
   let spoilsFinish = null;
   let spoilsSkipHandler = null;
   let deathSnapshot = null;
+  let quipState = null;
+  let quipTimer = null;
 
   /**
    * Gold and HP used to be a bare number in the pixel font, same weight as
@@ -1221,6 +1224,54 @@ export function initCampaign(ctx) {
     bagDrag = null;
   }
 
+  /** Pops the enemy king's speech bubble with the given line. */
+  function showQuip(text) {
+    const bubble = $('opponent-quip');
+    const label = $('opponent-quip-text');
+    if (!bubble || !label || !text) return;
+    label.textContent = text;
+    bubble.classList.remove('hidden');
+    bubble.classList.remove('quip-pop');
+    void bubble.offsetWidth; // restart the pop-in animation on back-to-back quips
+    bubble.classList.add('quip-pop');
+    clearTimeout(quipTimer);
+    quipTimer = setTimeout(() => bubble.classList.add('hidden'), 4200);
+  }
+
+  function queueQuip(category) {
+    const enc = state.encounter;
+    if (!enc) return;
+    const line = pickQuip(enc, category, state.run?.rng);
+    if (line) showQuip(line);
+  }
+
+  /** Fresh swing-tracker for a new fight — called from beginFight. */
+  function resetQuipTracker() {
+    quipState = { side: 'even', ply: -10 };
+    clearTimeout(quipTimer);
+    $('opponent-quip')?.classList.add('hidden');
+  }
+
+  // Watches the material balance after every move (both sides) and has the
+  // enemy king pipe up when it swings hard enough, in either direction, to
+  // actually be worth a reaction — not on every trade back and forth.
+  const QUIP_SWING = 3;
+  const QUIP_COOLDOWN = 6;
+  function checkQuipSwing() {
+    if (!quipState || !state.game || !state.encounter) return;
+    const game = state.game;
+    const ply = game.history.length;
+    const diff = game.armyValue(BLACK) - game.armyValue(WHITE);
+    let side = 'even';
+    if (diff >= QUIP_SWING) side = 'favor';
+    else if (diff <= -QUIP_SWING) side = 'against';
+    if (side !== 'even' && side !== quipState.side && ply - quipState.ply >= QUIP_COOLDOWN) {
+      queueQuip(side);
+      quipState.ply = ply;
+    }
+    quipState.side = side;
+  }
+
   function onDeployClick(event) {
     if (ignoreNextClick) { ignoreNextClick = false; return; }
     if (event.target.closest('.piece')) return;
@@ -1257,6 +1308,7 @@ export function initCampaign(ctx) {
     state.generation++;
     state.armyMax = game.armyValue(WHITE);
     state.clock = turnClock(enc);
+    resetQuipTracker();
     state.view.setFlipped(false);
     state.view.syncFromGame(game);
     state.view.markLastMove(null, null);
@@ -1279,6 +1331,7 @@ export function initCampaign(ctx) {
     audio.setMusicStyle('fight');
     showScreen('screen-game');
     tip('goal', 'Take their king to win. Keep yours out of reach.');
+    setTimeout(() => queueQuip('open'), 500);
     if (game.outcome().over) onFightOver(game.outcome());
     else if (game.turn !== state.playerColor && scheduleOpponent) scheduleOpponent();
   }
@@ -2172,6 +2225,7 @@ export function initCampaign(ctx) {
     resetClassicButtons,
     abandon,
     startRun,
+    checkQuipSwing,
     openLoadout,
     openWorldShop,
     openWorldRest,

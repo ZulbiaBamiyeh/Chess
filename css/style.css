@@ -642,6 +642,43 @@ button.brand:hover { filter: brightness(1.15); }
   margin-left: 0.35rem;
 }
 
+/* The enemy king's speech bubble — a quip at fight start or whenever the
+   game swings hard enough for either side to notice. */
+.quip-bubble {
+  position: relative;
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  background: rgba(20, 12, 8, 0.94);
+  border: 1px solid rgba(255, 214, 120, 0.35);
+  border-radius: 10px;
+  color: #e8dcc0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  font-style: italic;
+  transform-origin: top left;
+}
+.quip-bubble.hidden { display: none; }
+.quip-bubble.quip-pop { animation: quip-in 0.22s cubic-bezier(.2, .8, .3, 1.2); }
+.quip-bubble::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 18px;
+  width: 12px;
+  height: 12px;
+  background: rgba(20, 12, 8, 0.94);
+  border-left: 1px solid rgba(255, 214, 120, 0.35);
+  border-top: 1px solid rgba(255, 214, 120, 0.35);
+  rotate: 45deg;
+}
+@keyframes quip-in {
+  from { opacity: 0; scale: 0.85; }
+  to { opacity: 1; scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quip-bubble { animation: none; }
+}
+
 /* Three dots that pulse while the opponent searches. */
 .think-dots { display: none; gap: 5px; padding: 0.35rem 0 0.1rem; }
 .player-panel.active#panel-opponent .think-dots { display: flex; }
