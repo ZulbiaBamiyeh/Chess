@@ -1,0 +1,60 @@
+name: Build Android APK
+
+# Manual on purpose — this branch pushes often, and a signed release build
+# is not something every commit needs. Trigger it from the Actions tab (or
+# `gh workflow run build-android.yml`) when you actually want an APK.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Stage the web app and sync the Android project
+        run: npm run android:sync
+
+      - name: Decode the release keystore
+        working-directory: android/app
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > release.keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Build the signed release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+        env:
+          ANDROID_KEYSTORE_PATH: release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Remove the keystore from the runner
+        if: always()
+        run: rm -f android/app/release.keystore
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gambit-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

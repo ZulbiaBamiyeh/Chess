@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GAMBIT</string>
+    <string name="title_activity_main">GAMBIT</string>
+    <string name="package_name">com.gambit.chess</string>
+    <string name="custom_url_scheme">com.gambit.chess</string>
+</resources>

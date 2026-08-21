@@ -1,0 +1,32 @@
+{
+  "name": "gambit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A chess roguelike in the browser. Capture the king, keep your army, spend your supply. Hand-drawn pieces, a live shader background, and sound synthesized as you play. Classic chess is still in the menu.",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "for f in test/*.mjs; do node \"$f\" || exit 1; done",
+    "build:www": "node scripts/build-www.mjs",
+    "android:sync": "npm run build:www && npx cap sync android"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZulbiaBamiyeh/Chess.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ZulbiaBamiyeh/Chess/issues"
+  },
+  "homepage": "https://github.com/ZulbiaBamiyeh/Chess#readme",
+  "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0"
+  }
+}
