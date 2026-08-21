@@ -1563,7 +1563,6 @@ button.brand:hover { filter: brightness(1.15); }
 #screen-map {
   justify-content: flex-start;
   padding-top: 0.4rem;
-  background: #120c08;
 }
 .map-shell {
   flex: 1;
@@ -1585,7 +1584,9 @@ button.brand:hover { filter: brightness(1.15); }
   align-items: center;
   overflow: hidden;
   border-radius: 4px;
-  background: #0e0c0a;
+  /* No opaque fill here — the same animated backdrop behind the title
+     screen (#bg-canvas + its overlays) now shows through, same as every
+     other screen. On desktop the act art still layers on top of it. */
   box-shadow: 0 22px 56px rgba(0, 0, 0, 0.55);
 }
 .map-crew {
